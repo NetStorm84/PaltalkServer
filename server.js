@@ -3,6 +3,7 @@ const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const { connectDB } = require('./db');
 const User = require('./userModel');
+const { default: mongoose } = require('mongoose');
 
 const users = [
     { uid: 56958546, nickname: 'NetStorm' },
@@ -10,6 +11,7 @@ const users = [
     { uid: 56958545, nickname: 'ebrahimmohammadi' },
     { uid: 56958544, nickname: 'roger' },
     { uid: 56958542, nickname: 'good_pal' },
+    { uid: 56958541, nickname: 'Mark' },
     { uid: 0, nickname: 'Paltalk' },
 ];
 
@@ -107,11 +109,12 @@ function handleData(socket, data) {
     }
 }
 
-function processPacket(socket, packetType, payload) {
+async function processPacket(socket, packetType, payload) {
     console.log(`Received Packet Type: ${packetType}`);
     console.log(`Payload: ${payload.toString('hex')}`);
     let currentUserUid = null;
     let nickname = null;
+    let user;
 
     switch (packetType) {
         case PACKET_TYPES.CLIENT_HELLO:
@@ -120,9 +123,8 @@ function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.GET_UIN:
             console.log('Received Get UIN');
-            nickname = payload.slice(4).toString('utf8');
-            currentUserUid = getUidByNickname(nickname).toString().padStart(8, '0');
-            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${currentUserUid}\nnickname=${nickname}\n`));
+            user = await findUser(payload.slice(4).toString('utf8'));
+            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\n`));
             break;
         case PACKET_TYPES.ROOM_JOIN:
             sendPacket(socket, 0x00a2, Buffer.from('48f0e8bf'));
@@ -164,14 +166,13 @@ function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.LOGIN:
             console.log('Received Login');
-            currentUserHexUid = parseInt(payload.slice(0,4).toString('hex'), 16);
-            user = getUserByUid(currentUserHexUid);
+            currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
+            user = await findUser(currentUid);
             const palList = createUserBuffer();
 
             // get the user from the db
-            currentUserUid = getUidByNickname(user.nickname);
-            socketsByUid.set(currentUserUid, socket)
-            currentUserUidHex = user.uid.toString(16).padStart(8, '0');
+            socketsByUid.set(user.uid, socket)
+            let currentUserUidHex = user.uid.toString(16).padStart(8, '0');
 
             sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\nplus=1\nemail=mebrahim@gmail.com\nprivacy=A\nverified=G\nadmin=1\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, palList);
@@ -281,7 +282,7 @@ async function findUser(identifier) {
     }
 }
 
-connectDB().then(() => {
+mongoose.connection.on('connected', () => {
     server.listen(5001, () => {
         console.log('Server listening on port 5001 with MongoDB');
     });
