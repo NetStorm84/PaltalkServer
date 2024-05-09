@@ -6,8 +6,9 @@ const userSchema = new Schema({
     nickname: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     premium: { type: Boolean, required: true, default: false },
+    color: { type: String, required: true, default: '000000000' },
     admin: { type: Boolean, required: true, default: false },
-    buddies: [{ type: Schema.Types.ObjectId, ref: 'User' }] // Storing references using _id
+    buddies: [{ type: Schema.Types.ObjectId, ref: 'User' }]
 });
 
 const User = mongoose.model('User', userSchema);
