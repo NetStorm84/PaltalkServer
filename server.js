@@ -220,10 +220,19 @@ async function processPacket(socket, packetType, payload) {
 }
 
 function parseCommand(currentUid, content, socket){
+    
+    // Convert the string "Hello World!" to a hexadecimal string and then to a Buffer
+    let contentBuffer = Buffer.from("Hello World!", 'utf8'); // 'utf8' can be omitted as it's default
 
-    content = "Hello World!".toString('hex');
-    let out = Buffer.concat([currentUid.toString('hex'), content])
-    sendPacket(socket, PACKET_TYPES.IM_OUT, Buffer.from(out, 'hex'));
+    // Ensure currentUid is converted to a Buffer properly
+    let uidBuffer = Buffer.alloc(4); // Allocate 4 bytes for the UID
+    uidBuffer.writeUInt32BE(currentUid, 0); // Write the UID as a 4-byte big-endian integer
+
+    // Concatenate the two buffers
+    let out = Buffer.concat([uidBuffer, contentBuffer]);
+
+    // Send the packet with the concatenated buffer
+    sendPacket(socket, PACKET_TYPES.IM_OUT, out);
 }
 
 function sendPacket(socket, packetType, payload) {
