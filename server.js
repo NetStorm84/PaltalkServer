@@ -1,7 +1,7 @@
 const net = require('net');
 const { send } = require('process');
 const Buffer = require('buffer').Buffer;
-const { connectDB } = require('./db');
+const db = require('./db');
 const User = require('./userModel');
 const { default: mongoose } = require('mongoose');
 
@@ -174,14 +174,14 @@ async function processPacket(socket, packetType, payload) {
             console.log('Received Login');
             currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
             user = await findUser(currentUid);
-            const palList = createUserBuffer();
+            const buddyList = retrieveBuddyList(user);
 
             // get the user from the db
             socketsByUid.set(user.uid, socket)
             let currentUserUidHex = user.uid.toString(16).padStart(8, '0');
 
             sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\nplus=1\nemail=mebrahim@gmail.com\nprivacy=A\nverified=G\nadmin=1\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
-            sendPacket(socket, PACKET_TYPES.BUDDY_LIST, palList);
+            sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
             sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
             sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((currentUserUidHex + '0000001E'), 'hex'));
 
@@ -244,16 +244,20 @@ function sendPacket(socket, packetType, payload) {
     console.log(`Sent packet of type ${packetType} with payload ${payload.toString('hex')}`);
 }
 
-function createUserBuffer() {
-
+function retrieveBuddyList(user) {
     // Prepare an array to hold all parts including delimiters
     let buffers = [];
 
-    // Iterate over users to create buffers and add delimiters
-    allUsers.forEach((user, index) => {
-        let userBuffer = Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}`);
+    if (!user || !user.buddies) {
+        console.log("User data or buddies are not available.");
+        return Buffer.from([]);
+    }
+
+    // Iterate over the buddies of the user to create buffers
+    user.buddies.forEach(buddy => {
+        let userBuffer = Buffer.from(`uid=${buddy.uid}\nnickname=${buddy.nickname}`);
         buffers.push(userBuffer);
-        buffers.push(Buffer.from([0xC8]));
+        buffers.push(Buffer.from([0xC8]));  // Delimiter
     });
 
     // Concatenate all buffers into one
