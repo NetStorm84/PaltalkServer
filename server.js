@@ -143,6 +143,12 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.IM_OUT:
             let receiver = payload.slice(0, 4);
             let content = payload.slice(4);
+
+            if (receiver.toString('hex') === '00000000'){
+                parseCommand(currentUid, content, socket);
+                return; 
+            }
+
             let out = Buffer.concat([receiver, content])
             let receiverSocket = socketsByUid.get(receiver)
             if (receiverSocket){
@@ -213,6 +219,13 @@ async function processPacket(socket, packetType, payload) {
     }
 }
 
+function parseCommand(currentUid, content, socket){
+
+    content = "Hello World!".toString('hex');
+    let out = Buffer.concat([currentUid.toString('hex'), content])
+    sendPacket(socket, PACKET_TYPES.IM_OUT, Buffer.from(out, 'hex'));
+}
+
 function sendPacket(socket, packetType, payload) {
     const header = Buffer.alloc(6);
     header.writeInt16BE(packetType, 0);
@@ -236,26 +249,6 @@ function createUserBuffer() {
 
     // Concatenate all buffers into one
     return Buffer.concat(buffers);
-}
-
-function getUserByUid(uid) {
-    const user = allUsers.find(user => user.uid === uid);
-    if (user) {
-        return user;
-    } else {
-        console.log(`No user found with uid: ${uid}`);
-        return null;
-    }
-}
-
-function getUidByNickname(nickname) {
-    const user = allUsers.find(user => user.nickname === nickname);
-    if (user) {
-        return user.uid;
-    } else {
-        console.log(`No user found with nickname: ${nickname}`);
-        return null;
-    }
 }
 
 /**
