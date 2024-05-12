@@ -8,6 +8,7 @@ const userSchema = new Schema({
     premium: { type: Boolean, required: true, default: false },
     color: { type: String, required: true, default: '000000000' },
     admin: { type: Boolean, required: true, default: false },
+    status: { type: String, required: true, default: '00000000' },
     buddies: [{ type: Schema.Types.ObjectId, ref: 'User' }]
 });
 
