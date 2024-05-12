@@ -244,7 +244,7 @@ async function processPacket(socket, packetType, payload) {
 
             users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
-                let userString = `group_id=${user.group_id}\nuid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
+                let userString = `group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
                 buffers.push(delim);
@@ -274,7 +274,7 @@ async function processPacket(socket, packetType, payload) {
 
             let currentUserUidHex = user.uid.toString(16).padStart(8, '0');
 
-            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\nemail=netstorm1984@gmail.com\nprivacy=A\nverified=G\nadmin=Y\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
+            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=Y\nemail=netstorm1984@gmail.com\nsup=Y\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
             sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'));
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
             sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
@@ -283,13 +283,15 @@ async function processPacket(socket, packetType, payload) {
             let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance', 'hex');
             let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island', 'hex');
             let catid = Buffer.from('catg=30100','hex');
+            //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
+            //num_members
             let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
 
             // the below is required to show the groups list window
             sendPacket(socket, 0x019c, Buffer.alloc(0));
-            sendPacket(socket, 0x019d, Buffer.concat([cats, delim2]));
-            sendPacket(socket, 0x019e, Buffer.concat([subcats, delim2]));
-            sendPacket(socket, 0x014c, Buffer.concat([catid, delim2, rooms, delim2]));
+            // sendPacket(socket, 0x019d, Buffer.concat([cats, delim2]));
+            // sendPacket(socket, 0x019e, Buffer.concat([subcats, delim2]));
+            // sendPacket(socket, 0x014c, Buffer.concat([catid, delim2, rooms, delim2]));
             
             sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((currentUserUidHex + '0000001E'), 'hex'));
 
@@ -298,7 +300,9 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
             break;
         case PACKET_TYPES.REFRESH_CATEGORIES:
-            sendPacket(socket, 0x014f, Buffer.from('ffeeddccbbaaaabbccddeeff08004500057880cd40002a065722c76aea77c0a801064fcfa6e7c33b7c149bd788935010ffffdb180000014f001d02ad633d323330300a6e6d3d46616d696c7920616e6420436f6d6d756e6974790ac80a633d323732300a6e6d3d556e697465642053746174657320262043616e6164610ac80a633d323235300a6e6d3d467269656e64732c204c6f766520616e6420526f6d616e63650ac80a633d33323030300a6e6d3d4269672042726f746865720ac80a633d333030300a6e6d3d4d697363656c6c616e656f75730ac80a633d323230300a6e6d3d4574686e69632047726f7570730ac80a633d323935300a6e6d3d4166726963610ac80a633d393939390a6e6d3d4164756c740ac80a633d323930300a6e6d3d4d6964646c6520456173740ac80a633d323130300a6e6d3d436f6d70757465727320616e6420546563686e6f6c6f67790ac80a633d323035300a6e6d3d427573696e65737320616e642046696e616e63650ac80a633d323830300a6e6d3d4575726f70650ac80a633d323030300a6e6d3d48656c700ac80a633d323735300a6e6d3d417369612c20506163696669632c204f6365616e69610ac80a633d323730300a6e6d3d43656e7472616c202620536f75746820416d65726963610ac80a633d323337300a6e6d3d41727473202620456e7465727461696e6d656e740ac80a633d323635300a6e6d3d53706f727473202620486f62626965730ac80a633d323630300a6e6d3d536f6369616c2049737375657320616e6420506f6c69746963730ac80a633d323535300a6e6d3d52656c6967696f6e20262053706972697475616c6974790ac80a633d333330300a6e6d3d53686f777320616e64204576656e74730ac80a633d323530300a6e6d3d4d757369630ac80a633d323435300a6e6d3d456475636174696f6e0ac80a633d333230300a6e6d3d526164696f2f54560ac80a633d323430300a6e6d3d4865616c74680ac80a633d323335300a6e6d3d47616d65730ac80a014c001d070b636174673d3330313030c869643d31303033350a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3d50616c74616c6b20c7d4cad1c7dfc7ca20c7d3e3c7c120e6dbd1dd20414c2d50414445454c0a233d3139c869643d31303330390a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3dc3e4dcdcd5dcdcdcdcdcdcc7d120c2e120e3dccddcdce3dcdcdccf20dae1dceddce5dcdcdce320c7e1dcdcd3dcdce1c7e30a233d363337c869643d31303337330a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3ddfdcdcdcdcdcdcdcdcdcdcdcdcdce120c7e1e4dcdcdcdcdcdcdcdcdcdcdcdcdcdcc7d30a233d3530c869643d31303331320a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3d6c6c6c7561656c6c6c2075616520726f4f6f3720616c656d6172617420756165206c6c6c7561656c6c6c20d1e6cd20c7e1c70a233d3431c869643d31303239340a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3dd5e6ca20cce3c7e5edd120c7e1e4d5d12d20d1e6e320e4d5d120c7e1d1e3d20a233d3637c869643d31303333390a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3dc7e1dcdcdcdccadcdcdcdcdedcdcdceddcdcdce4dcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcc70a233d30c869643d31303236300a703d310a763d310a6c3d300a723d470a633d3030303132383030300a6e6d3dc3e4d5dcdcdcdcdcdcdcc7d120c3e5dcdcdcdcdcdcdce120c7e1ededdcdcdcdcdcdcdcca20dae1dceddcdcdcdcdce5e320c70a233d323533c869643d31303139310a703d310a763d310a6c3d300a723d470a633d','hex'));
+            let delim3 = Buffer.from([0xC8]);
+            let cats2 = Buffer.from('c=2300\nnm=Friends, Love and Romance', 'hex');
+            sendPacket(socket, 0x014f, Buffer.concat([cats2, delim3]));
             break;
         default:
             console.log('No handler for received packet type.');
