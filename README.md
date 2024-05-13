@@ -8,10 +8,10 @@ This is a recreation of the Patalk server from 2002
 - 0x013B
 - 0x0014
 - 0x0140
-- 0x014A  //ROOM LIST
+- 0x014A  //LIST ROOMS?
 - 0x014B
-- 0x014C
-- 0x014D  //ROOM CATEGORIES
+- 0x014C  //LIST CATEGORIES?
+- 0x014D  //LIST AFFILIATES - `id=1\nnm=affiliate name0xC8`
 - 0x014E
 - 0x0154
 - 0x015E

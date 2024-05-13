@@ -280,12 +280,12 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
 
             let delim2 = Buffer.from([0xC8]);
-            let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance', 'hex');
-            let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island', 'hex');
+            let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance');
+            let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island');
             let catid = Buffer.from('catg=30100','hex');
             //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
             //num_members
-            let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
+            let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19');
 
             // the below is required to show the groups list window
             sendPacket(socket, 0x019c, Buffer.alloc(0));
@@ -303,6 +303,9 @@ async function processPacket(socket, packetType, payload) {
             let delim3 = Buffer.from([0xC8]);
             let cats2 = Buffer.from('id=2300\nnm=Friends, Love and Romance');
             sendPacket(socket, 0x014d, Buffer.concat([cats2, delim3]));
+
+            let rooms2 = Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\n');
+            sendPacket(socket, 0x014c, Buffer.concat([rooms2, delim3]));
             break;
         default:
             console.log('No handler for received packet type.');
