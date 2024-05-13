@@ -301,7 +301,7 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.REFRESH_CATEGORIES:
             let delim3 = Buffer.from([0xC8]);
-            let cats2 = Buffer.from('id=2300\nnm=Friends, Love and Romance', 'hex');
+            let cats2 = Buffer.from('id=2300\nnm=Friends, Love and Romance');
             sendPacket(socket, 0x014d, Buffer.concat([cats2, delim3]));
             break;
         default:
