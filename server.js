@@ -274,7 +274,7 @@ async function processPacket(socket, packetType, payload) {
 
             let currentUserUidHex = user.uid.toString(16).padStart(8, '0');
 
-            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\nget_offers_from_us=0\nget_offers_from_affiliates=0\nprivacy=0\nph=0\nrandom=12345\nemail=netstorm1984@gmail.com\nsup=Y\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
+            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\nemail=netstorm1984@gmail.com\nsup=Y\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
             sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'));
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
             sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
