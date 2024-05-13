@@ -304,7 +304,7 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, 0x014d,  Buffer.from('id=2300\nnm=Family and Community\u008cid=2720\nnm=United States & Canada\u008cid=2250\nnm=Friends, Love and Romance\u008cid=32000\nnm=Big Brother\u008cid=3000\nnm=Miscellaneous\u008cid=2200\nnm=Ethnic Groups\u008cid=2950\nnm=Africa\u008cid=9999\nnm=Adult\u008cid=2900\nnm=Middle East\u008cid=2100\nnm=Computers and Technology\u008cid=2050\nnm=Business and Finance\u008cid=2800\nnm=Europe\u008cid=2000\nnm=Help\u008cid=2750\nnm=Asia, Pacific, Oceania\u008cid=2700\nnm=Central & South America\u008cid=2370\nnm=Arts & Entertainment\u008cid=2650\nnm=Sports & Hobbies\u008cid=2600\nnm=Social Issues and Politics\u008cid=2550\nnm=Religion & Spirituality\u008cid=3300\nnm=Shows and Events\u008cid=2500\nnm=Music\u008cid=2450\nnm=Education\u008cid=3200\nnm=Radio/TV\u008cid=2400\nnm=Health\u008cid=2350\nnm=Games\u008c', 'utf8'));
 
             let rooms2 = Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\n');
-            sendPacket(socket, 0x014c, Buffer.concat([rooms2, delim3]));
+            sendPacket(socket, 0x014c, Buffer.concat([rooms2, delim2]));
             break;
         default:
             console.log('No handler for received packet type.');
