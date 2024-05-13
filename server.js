@@ -301,8 +301,8 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.REFRESH_CATEGORIES:
             let delim3 = Buffer.from([0xC8]);
-            let cats2 = Buffer.from('c=2300\nnm=Friends, Love and Romance', 'hex');
-            sendPacket(socket, 0x014f, Buffer.concat([cats2, delim3]));
+            let cats2 = Buffer.from('id=2300\nnm=Friends, Love and Romance', 'hex');
+            sendPacket(socket, 0x014d, Buffer.concat([cats2, delim3]));
             break;
         default:
             console.log('No handler for received packet type.');
