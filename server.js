@@ -302,7 +302,7 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.REFRESH_CATEGORIES:
             //sendPacket(socket, 0x014d,  Buffer.from('id=2300\nnm=Friends, Love and Romance\u00C8', 'utf8')););
-            sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2300\nnm=Another Category'), Buffer.from([0xC8])]));
+            sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
             //sendPacket(socket, 0x014c, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
             break;
         default:
