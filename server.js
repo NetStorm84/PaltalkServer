@@ -246,21 +246,20 @@ async function processPacket(socket, packetType, payload) {
             console.log('Received Login');
             currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
             user = await findUser(currentUid);
-            const buddyList = retrieveBuddyList(user);
+            //const buddyList = retrieveBuddyList(user);
 
             // set the socket id as the users uid
-            socket.id = user.uid;
+            socket.id = user.id;
 
             currentSockets.set(socket.id, {
-                uid: user.uid,
+                uid: user.id,
                 user: user,
                 socket: socket
             });
 
             let currentUserUidHex = user.uid.toString(16).padStart(8, '0');
 
-            //get_offers_from_us=0\nget_offers_from_affiliates=0\nprivacy=0\nph=0\nrandom=12345\n
-            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=6\nbanners=no\nrandom=1\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=1\nnprivacy=0\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nemail=netstorm1984@gmail.com\nsup=Y\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
+            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid?'6':0}\nbanners=no\nrandom=1\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nnprivacy=0\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nemail=${user.email}m\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
             sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'));
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
             sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
