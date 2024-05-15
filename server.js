@@ -392,5 +392,5 @@ async function findUser(identifier) {
 
 
 server.listen(5001, () => {
-    console.log('Server listening on port 5001 with MongoDB');
+    console.log('Server listening on port 5001');
 });
