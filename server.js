@@ -1,6 +1,7 @@
 const net = require('net');
 const { send } = require('process');
 const Buffer = require('buffer').Buffer;
+const encryption = require('./encryption');
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./includes/paltalkserver-d05a0-firebase-adminsdk-gz9ov-4a6dbc7323.json');
@@ -11,6 +12,11 @@ admin.initializeApp({
 
 const db = admin.firestore();
 const usersRef = db.collection('users');
+
+let endcryptedString = encryption.encrypt('passsword', 25);
+let decryptedString = encryption.decrypt(endcryptedString, 25);
+console.log(endcryptedString);
+console.log(decryptedString);
 
 // Packet types
 const PACKET_TYPES = {
