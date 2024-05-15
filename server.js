@@ -12,6 +12,8 @@ admin.initializeApp({
 
 const db = admin.firestore();
 const usersRef = db.collection('users');
+const roomsRef = db.collection('rooms');
+const categoriesRef = db.collection('categories');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
 let decryptedString = encryption.decrypt(endcryptedString, 25);
