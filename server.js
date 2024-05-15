@@ -1,38 +1,16 @@
 const net = require('net');
 const { send } = require('process');
 const Buffer = require('buffer').Buffer;
-const db = require('./db');
-const User = require('./userModel');
-const { default: mongoose } = require('mongoose');
 
-const users = [
-    { uid: 56958546, email:'netstorm1984@gmail.com', nickname: 'NetStorm'},
-    { uid: 56958547, email:'test@gmail.com', nickname: '519-Again' },
-    { uid: 56958545, email:'test@gmail.com', nickname: 'ebrahimmohammadi' },
-    { uid: 56958544, email:'test@gmail.com', nickname: 'roger' },
-    { uid: 56958542, email:'test@gmail.com', nickname: 'good_pal' },
-    { uid: 56958541, email:'test@gmail.com', nickname: 'Mark' },
-    { uid: 0, nickname: 'Paltalk' },
-];
+const admin = require('firebase-admin');
+const serviceAccount = require('./includes/paltalkserver-d05a0-firebase-adminsdk-gz9ov-4a6dbc7323.json');
 
-async function upsertUsers(users) {
-    for (const user of users) {
-        const result = await User.updateOne(
-            { uid: user.uid },
-            { $set: user },
-            { upsert: true }
-        );
-        if (result.upsertedCount > 0) {
-            console.log(`User inserted: ${user.nickname}`);
-        } else if (result.modifiedCount > 0) {
-            console.log(`User updated: ${user.nickname}`);
-        } else {
-            console.log(`User unchanged: ${user.nickname}`);
-        }
-    }
-}
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
-upsertUsers(users).catch(err => console.error('Error upserting users:', err));
+const db = admin.firestore();
+const usersRef = db.collection('users');
 
 // Packet types
 const PACKET_TYPES = {
@@ -70,7 +48,6 @@ const PACKET_TYPES = {
     INVITE_IN: 0x0168,
 };
 
-const DEFAULT_HD_SERIAL = '044837C9';
 const currentSockets = new Map()
 
 // Buffer handling
@@ -376,30 +353,38 @@ function retrieveBuddyList(user) {
 
 /**
  * Retrieves a user from the MongoDB collection 'users' by UID or nickname.
- * @param {string | number} identifier - UID as a number or nickname as a string.
+ * @param {string} identifier - UID as a string, or a nickname
  * @returns {Promise<Object>} The user document from the database or null if not found.
  */
 async function findUser(identifier) {
-    let query = {};
-    if (typeof identifier === 'number') {
-        query.uid = identifier;
-    } else if (typeof identifier === 'string') {
-        query.nickname = identifier;
-    } else {
-        throw new Error("Invalid identifier type. Must be a number (uid) or string (nickname).");
-    }
+    const usersRef = db.collection('users');
 
+    // First, attempt to retrieve the user by UID
     try {
-        const user = await User.findOne(query).populate('buddies');
-        return user;
+        const docRef = usersRef.doc(identifier);
+        const doc = await docRef.get();
+        if (doc.exists) {
+            console.log('User data:', doc.data());
+            return doc.data();
+        } else {
+            // If not found by UID, attempt to search by nickname
+            const querySnapshot = await usersRef.where('nickname', '==', identifier).get();
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0]; // Take the first matching document
+                console.log('User data:', userDoc.data());
+                return userDoc.data();
+            } else {
+                console.log('No such user!');
+                return null;
+            }
+        }
     } catch (error) {
-        console.error("Failed to retrieve user", error);
+        console.error('Error fetching user:', error);
         return null;
     }
 }
 
-mongoose.connection.on('connected', () => {
-    server.listen(5001, () => {
-        console.log('Server listening on port 5001 with MongoDB');
-    });
+
+server.listen(5001, () => {
+    console.log('Server listening on port 5001 with MongoDB');
 });
