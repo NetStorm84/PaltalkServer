@@ -303,10 +303,8 @@ function parseCommand(currentUid, content, socket){
 
     switch (command[0]) {
         case '/alert':
-            currentSockets.forEach(user => {
-                sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, Buffer.from(content.toString('utf8').replace(command[0], '').trim(), 'utf8'));
-                contentBuffer = Buffer.from(`Alert has been sent to all users`, 'utf8');
-            });
+            broadcastPacket(PACKET_TYPES.ANNOUNCEMENT, Buffer.from(content.toString('utf8').replace(command[0], '').trim(), 'utf8'));
+            contentBuffer = Buffer.from(`Alert has been sent to all users`, 'utf8');
             break;
         case '/users':
             contentBuffer = Buffer.from(`There are currently ${currentSockets.size} users online`, 'utf8');
@@ -357,6 +355,12 @@ function retrieveBuddyList(user) {
 
     // Concatenate all buffers into one
     return Buffer.concat(buffers);
+}
+
+function broadcastPacket(packetType, payload) {
+    currentSockets.forEach(({ socket }) => {
+        sendPacket(socket, packetType, payload);
+    });
 }
 
 /**
