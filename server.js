@@ -2,6 +2,7 @@ const net = require('net');
 const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
+const processPacket = require('./packetProcessor');
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./includes/paltalkserver-d05a0-firebase-adminsdk-gz9ov-4a6dbc7323.json');
@@ -359,27 +360,27 @@ function retrieveBuddyList(user) {
 }
 
 /**
- * Retrieves a user from the MongoDB collection 'users' by UID or nickname.
- * @param {string} identifier - UID as a string, or a nickname
- * @returns {Promise<Object>} The user document from the database or null if not found.
+ * Retrieves a user from the Firestore collection 'users' by UID or nickname.
+ * @param {string} identifier - UID as a string, or a nickname.
+ * @returns {Promise<Object|null>} The user document from the database or null if not found.
  */
 async function findUser(identifier) {
     const usersRef = db.collection('users');
 
-    // First, attempt to retrieve the user by UID
     try {
+        // Attempt to retrieve the user by UID
         const docRef = usersRef.doc(identifier);
         const doc = await docRef.get();
         if (doc.exists) {
             console.log('User data:', doc.data());
-            return doc.data();
+            return { uid: doc.id, ...doc.data() };
         } else {
             // If not found by UID, attempt to search by nickname
             const querySnapshot = await usersRef.where('nickname', '==', identifier).get();
             if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0]; // Take the first matching document
+                const userDoc = querySnapshot.docs[0];
                 console.log('User data:', userDoc.data());
-                return userDoc.data();
+                return { uid: userDoc.id, ...userDoc.data() };
             } else {
                 console.log('No such user!');
                 return null;
@@ -390,7 +391,6 @@ async function findUser(identifier) {
         return null;
     }
 }
-
 
 server.listen(5001, () => {
     console.log('Server listening on port 5001');
