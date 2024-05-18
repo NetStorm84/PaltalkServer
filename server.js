@@ -2,10 +2,9 @@ const net = require('net');
 const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
-const processPacket = require('./packetProcessor');
-
 const admin = require('firebase-admin');
 const serviceAccount = require('./includes/paltalkserver-d05a0-firebase-adminsdk-gz9ov-4a6dbc7323.json');
+const { sendPacket } = require('./packetSender'); 
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -50,9 +49,12 @@ const PACKET_TYPES = {
     AWAY_MODE: -600,
     ONLINE_MODE: -610,
     ROOM_MESSAGE_OUT: -350,
+    SEARCH_RESPONSE: 0x0045,
+    USER_SEARCH: -69,
     ADD_PAL: -67,
     REFRESH_CATEGORIES: -330,
     ALERT_ADMIN: -305,
+    EMAIL_INVITE: -200,
     INVITE_OUT: -360,
     INVITE_IN: 0x0168,
 };
@@ -155,7 +157,7 @@ async function processPacket(socket, packetType, payload) {
             let receiver = payload.slice(0, 4);
             let content = payload.slice(4);
 
-            if (receiver.toString('hex') === '00000000'){
+            if (receiver.toString('hex') === '000f4241'){
                 parseCommand(currentUid, content, socket);
                 return; 
             }
@@ -244,56 +246,119 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, -397, Buffer.from('0000e9c603651e52','hex'));
             break;
         case PACKET_TYPES.LOGIN:
-            console.log('Received Login');
-            currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
-            user = await findUser(currentUid);
-            //const buddyList = retrieveBuddyList(user);
+            handleLogin(socket, payload);
+            break;
+        case PACKET_TYPES.USER_SEARCH:
+            let searchResults = [];
+            let searchQuery = payload.toString('utf8');
 
-            // set the socket id as the users uid
-            socket.id = user.id;
+            let exnick = getValueByKey(searchQuery, 'exnick');
+            let startswith = getValueByKey(searchQuery, 'nickname');
 
-            currentSockets.set(socket.id, {
-                uid: user.id,
-                user: user,
-                socket: socket
-            });
+            // Query for exact match of 'nickname'
+            if (exnick !== undefined) {
+                usersRef.where('nickname', '==', exnick)
+                        .where('listed', '==', true).get().then(snapshot => {
+                    snapshot.forEach(doc => {
+                        searchResults.push(doc.data());
+                    });
+                    processSearchResults(searchResults, socket); // Process results after fetching
+                }).catch(error => {
+                    console.error('Error querying users by nickname:', error);
+                });
+            }
 
-            let currentUserUidHex = user.uid.toString(16).padStart(8, '0');
+            // Query for nicknames that start with a specific string
+            if (startswith !== undefined) {
+                usersRef.where('nickname', '>=', startswith)
+                        .where('nickname', '<=', startswith + '\uf8ff')
+                        .where('listed', '==', true).get().then(snapshot => {
+                    snapshot.forEach(doc => {
+                        searchResults.push(doc.data());
+                    });
+                    processSearchResults(searchResults, socket); // Process results after fetching
+                }).catch(error => {
+                    console.error('Error querying users by starting nickname:', error);
+                });
+            }
+            break;
 
-            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid?'6':0}\nbanners=no\nrandom=1\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nnprivacy=0\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nemail=${user.email}m\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
-            sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'));
-            sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
-            sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
+            case PACKET_TYPES.EMAIL_INVITE:
+                let email = getValueByKey(payload.toString('utf8'), 'email');
 
-            let delim2 = Buffer.from([0xC8]);
-            let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance');
-            let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island');
-            let catid = Buffer.from('catg=30100','hex');
-            //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
-            //num_members
-            let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19');
-
-            // the below is required to show the groups list window
-            sendPacket(socket, 0x019c, Buffer.alloc(0));
-            // sendPacket(socket, 0x019d, Buffer.concat([cats, delim2]));
-            // sendPacket(socket, 0x019e, Buffer.concat([subcats, delim2]));
-            // sendPacket(socket, 0x014c, Buffer.concat([catid, delim2, rooms, delim2]));
+                const emailInviteDoc = {
+                    email: email,
+                    requestedAt: new Date(),
+                    status: 'pending'
+                };
             
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((currentUserUidHex + '0000001E'), 'hex'));
-
-            // put the Paltalk buddy online
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from('000000000000001E', 'hex'));
-            sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
-            break;
-        case PACKET_TYPES.REFRESH_CATEGORIES:
-            //sendPacket(socket, 0x014d,  Buffer.from('id=2300\nnm=Friends, Love and Romance\u00C8', 'utf8')););
-            sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
-            //sendPacket(socket, 0x014c, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
-            break;
-        default:
-            console.log('No handler for received packet type.');
-            break;
+                // Add document to the Firestore collection
+                db.collection('email_invites').add(emailInviteDoc)
+                    .then(docRef => {
+                        console.log('Email invite enqueued with ID:', docRef.id);
+                    })
+                    .catch(error => {
+                        console.error('Error adding email invite to queue:', error);
+                    });
+                break;
+            case PACKET_TYPES.REFRESH_CATEGORIES:
+                //sendPacket(socket, 0x014d,  Buffer.from('id=2300\nnm=Friends, Love and Romance\u00C8', 'utf8')););
+                sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
+                //sendPacket(socket, 0x014c, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
+                break;
+            default:
+                console.log('No handler for received packet type.');
+                break;
     }
+}
+
+function processSearchResults(searchResults, socket) {
+    if (searchResults.length > 0) {
+        let buffers = [];
+        searchResults.forEach(user => {
+            let userBuffer = Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\nfirst=${user.firstname}\nlast=${user.lastname}`);
+            buffers.push(userBuffer);
+            buffers.push(Buffer.from([0xC8]));
+        });
+        sendPacket(socket, PACKET_TYPES.SEARCH_RESPONSE, Buffer.concat(buffers));
+    }
+}
+
+async function handleLogin(socket, payload) {
+
+    currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
+    user = await findUser(currentUid);
+    
+    // set the socket id as the users uid
+    socket.id = user.uid;
+
+    currentSockets.set(socket.id, {
+        uid: user.uid,
+        user: user,
+        socket: socket
+    });
+    
+    sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid?'6':0}\nbanners=no\nrandom=1\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin?1:0}\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nfirst=${user.firstname}\nlast=${user.lastname}\nemail=${user.email}\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
+    sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'));
+
+    //get the users buddy list
+    const buddyList = retrieveBuddyList(user);
+
+    sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
+    sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
+
+    user.buddies.forEach(buddy => {
+        let buddySocket = currentSockets.get(buddy.uid);
+        if (buddySocket || (buddy.nickname == 'Paltalk' && user.admin)){
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(parseInt(buddy.uid).toString(16).padStart(8, '0') + '0000001E', 'hex'));
+        }
+    });
+
+    // this si required to show the buddy list window
+    sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
+
+    // the below is required to show the groups list window
+    sendPacket(socket, 0x019c, Buffer.alloc(0));
 }
 
 function parseCommand(currentUid, content, socket){
@@ -318,8 +383,7 @@ function parseCommand(currentUid, content, socket){
     }
 
     // Ensure currentUid is converted to a Buffer properly
-    let uidBuffer = Buffer.alloc(4); // Allocate 4 bytes for the UID
-    uidBuffer.writeUInt32BE('00000000', 0); // Write the UID as a 4-byte big-endian integer
+    uidBuffer = Buffer.from('000f4241', 'hex'); // Convert the buffer to a hex string and back to a buffer
 
     // Concatenate the two buffers
     let out = Buffer.concat([uidBuffer, contentBuffer]);
@@ -328,17 +392,7 @@ function parseCommand(currentUid, content, socket){
     sendPacket(socket, PACKET_TYPES.IM_IN, out);
 }
 
-function sendPacket(socket, packetType, payload) {
-    const header = Buffer.alloc(6);
-    header.writeInt16BE(packetType, 0);
-    header.writeUInt16BE(payload.length, 4);
-    const packet = Buffer.concat([header, payload]);
-    socket.write(packet);
-    console.log(`Sent packet of type ${packetType} with payload ${payload.toString('hex')}`);
-}
-
 function retrieveBuddyList(user) {
-    // Prepare an array to hold all parts including delimiters
     let buffers = [];
 
     if (!user || !user.buddies) {
@@ -350,7 +404,7 @@ function retrieveBuddyList(user) {
     user.buddies.forEach(buddy => {
         let userBuffer = Buffer.from(`uid=${buddy.uid}\nnickname=${buddy.nickname}`);
         buffers.push(userBuffer);
-        buffers.push(Buffer.from([0xC8]));  // Delimiter
+        buffers.push(Buffer.from([0xC8])); // Add delimiter
     });
 
     // Concatenate all buffers into one
@@ -363,6 +417,20 @@ function broadcastPacket(packetType, payload) {
     });
 }
 
+function getValueByKey(input, key) {
+
+    const pairs = input.split('\n');
+
+    for (let pair of pairs) {
+        const [currentKey, value] = pair.split('=');
+        if (currentKey === key) {
+            return value; 
+        }
+    }
+
+    return undefined;
+}
+
 /**
  * Retrieves a user from the Firestore collection 'users' by UID or nickname.
  * @param {string} identifier - UID as a string, or a nickname.
@@ -373,7 +441,7 @@ async function findUser(identifier) {
 
     try {
         // Attempt to retrieve the user by UID
-        const docRef = usersRef.doc(identifier);
+        const docRef = usersRef.doc(identifier.toString());
         const doc = await docRef.get();
         if (doc.exists) {
             console.log('User data:', doc.data());
@@ -399,3 +467,23 @@ async function findUser(identifier) {
 server.listen(5001, () => {
     console.log('Server listening on port 5001');
 });
+
+
+// let delim2 = Buffer.from([0xC8]);
+// let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance');
+// let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island');
+// let catid = Buffer.from('catg=30100','hex');
+// //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
+// //num_members
+// let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19');
+
+// // the below is required to show the groups list window
+// sendPacket(socket, 0x019c, Buffer.alloc(0));
+// // sendPacket(socket, 0x019d, Buffer.concat([cats, delim2]));
+// // sendPacket(socket, 0x019e, Buffer.concat([subcats, delim2]));
+// // sendPacket(socket, 0x014c, Buffer.concat([catid, delim2, rooms, delim2]));
+
+// sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((currentUserUidHex + '0000001E'), 'hex'));
+
+// // put the Paltalk buddy online 000F4241
+// sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from('000F42410000001E', 'hex'));
