@@ -12,6 +12,7 @@ admin.initializeApp({
 
 const db = admin.firestore();
 const usersRef = db.collection('users');
+const offlineMessagesRef = db.collection('offline_messages');
 const roomsRef = db.collection('rooms');
 const categoriesRef = db.collection('categories');
 
@@ -103,13 +104,18 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.ADD_PAL:
             userToAdd = await findUser(parseInt(payload.slice(0, 4).toString('hex'), 16));
             let thisUser = currentSockets.get(socket.id).user;
-            if (!thisUser.buddies.includes(userToAdd)) {
-                thisUser.buddies.push(userToAdd);
-                await thisUser.save();
+            if (!thisUser.buddies.includes(userToAdd.uid)) {
+                thisUser.buddies.push({
+                    uid: userToAdd.uid,
+                    nickname: userToAdd.nickname
+                });
+                await usersRef.doc(thisUser.uid.toString()).update({ buddies: thisUser.buddies });
                 sendPacket(socket, PACKET_TYPES.BUDDY_LIST, retrieveBuddyList(thisUser));
-                userIdHex = userToAdd.uid.toString(16).padStart(8, '0');
-                // TODO check the users status and set accordingly
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((userIdHex + '0000001E'), 'hex'));
+                userIdHex = uidToHex(userToAdd.uid);
+                if (currentSockets.get(userToAdd.uid)){
+                    // user is currently online
+                    sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((userIdHex + '0000001E'), 'hex'));
+                }
                 console.log('Buddy added successfully');
             } else {
                 console.log('Buddy already exists');
@@ -148,10 +154,10 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, PACKET_TYPES.SERVER_KEY, Buffer.from('XyF¦164473312518'));
             break;
         case PACKET_TYPES.AWAY_MODE:
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from('03651e5200000046', 'hex'));
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(socket.id) + '00000046', 'hex'));
             break;
         case PACKET_TYPES.ONLINE_MODE:
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from('03651e520000001e', 'hex'));
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(socket.id) + '0000001e', 'hex'));
             break;
         case PACKET_TYPES.IM_OUT:
             let receiver = payload.slice(0, 4);
@@ -162,10 +168,13 @@ async function processPacket(socket, packetType, payload) {
                 return; 
             }
 
-            let out = Buffer.concat([receiver, content])
-            let receiverClient = currentSockets.get(parseInt(receiver.toString('hex'), 16))
-            if (receiverClient.socket){
+            let out = Buffer.concat([receiver, content]);
+            let receiverClient = currentSockets.get(uidToDec(receiver));
+            if (receiverClient){
                 sendPacket(receiverClient.socket, PACKET_TYPES.IM_IN, Buffer.from(out, 'hex'));
+            }else{
+                // receiver is offline store the message
+                storeOfflineMessage(currentUid, uidToDec(receiver), content);
             }
             break;
         case PACKET_TYPES.ROOM_JOIN:
@@ -260,7 +269,7 @@ async function processPacket(socket, packetType, payload) {
                 usersRef.where('nickname', '==', exnick)
                         .where('listed', '==', true).get().then(snapshot => {
                     snapshot.forEach(doc => {
-                        searchResults.push(doc.data());
+                        searchResults.push({ uid: doc.id, ...doc.data() });
                     });
                     processSearchResults(searchResults, socket); // Process results after fetching
                 }).catch(error => {
@@ -274,7 +283,7 @@ async function processPacket(socket, packetType, payload) {
                         .where('nickname', '<=', startswith + '\uf8ff')
                         .where('listed', '==', true).get().then(snapshot => {
                     snapshot.forEach(doc => {
-                        searchResults.push(doc.data());
+                        searchResults.push({ uid: doc.id, ...doc.data() });
                     });
                     processSearchResults(searchResults, socket); // Process results after fetching
                 }).catch(error => {
@@ -310,6 +319,34 @@ async function processPacket(socket, packetType, payload) {
                 console.log('No handler for received packet type.');
                 break;
     }
+}
+
+function uidToDec(uid) {
+    return parseInt(uid.toString('hex'), 16);
+}
+
+function uidToHex(uid) {
+    return parseInt(uid).toString(16).padStart(8, '0');
+}
+
+function storeOfflineMessage(sender, receiver, content) {
+
+    let offlineMessage = {
+        sender: sender,
+        receiver: receiver,
+        sent: new Date(),
+        status: 'pending',
+        content: content.toString('utf8')
+    };
+
+    // Add document to the Firestore collection
+    db.collection('offline_messages').add(offlineMessage)
+    .then(docRef => {
+        console.log('Received offline messgae:', docRef.id);
+    })
+    .catch(error => {
+        console.error('Error adding offline message:', error);
+    });
 }
 
 function processSearchResults(searchResults, socket) {
@@ -350,7 +387,7 @@ async function handleLogin(socket, payload) {
     user.buddies.forEach(buddy => {
         let buddySocket = currentSockets.get(buddy.uid);
         if (buddySocket || (buddy.nickname == 'Paltalk' && user.admin)){
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(parseInt(buddy.uid).toString(16).padStart(8, '0') + '0000001E', 'hex'));
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(buddy.uid) + '0000001E', 'hex'));
         }
     });
 
@@ -359,6 +396,40 @@ async function handleLogin(socket, payload) {
 
     // the below is required to show the groups list window
     sendPacket(socket, 0x019c, Buffer.alloc(0));
+
+    // send any offline messages
+    offlineMessagesRef.where('receiver', '==', user.uid).where('status', '==', 'pending').get().then(snapshot => {
+        if (snapshot.empty) {
+            console.log('No offline messages to send.');
+            return;
+        }
+    
+        snapshot.forEach(doc => {
+            let message = doc.data();
+            
+            // Ensure that sender and content are converted to buffers if they are strings
+            let senderBuffer = Buffer.from(uidToHex(message.sender), 'hex');
+            let contentBuffer = Buffer.from(message.content, 'utf8');
+            
+            // Concatenate both buffers
+            let out = Buffer.concat([senderBuffer, contentBuffer]);
+    
+            // Send the packet (assuming 'out' is a correct buffer)
+            sendPacket(socket, PACKET_TYPES.IM_IN, out);
+    
+            // Delete the message document after sending
+            offlineMessagesRef.doc(doc.id).update({
+                status: 'sent'
+            }).then(() => {
+                console.log(`Message ${doc.id} status updated to 'sent' successfully.`);
+            }).catch(error => {
+                console.error(`Failed to update status of message ${doc.id}:`, error);
+            });
+        });
+    }).catch(error => {
+        console.error('Error retrieving offline messages:', error);
+    });
+    
 }
 
 function parseCommand(currentUid, content, socket){
@@ -445,14 +516,14 @@ async function findUser(identifier) {
         const doc = await docRef.get();
         if (doc.exists) {
             console.log('User data:', doc.data());
-            return { uid: doc.id, ...doc.data() };
+            return { uid: parseInt(doc.id), ...doc.data() };
         } else {
             // If not found by UID, attempt to search by nickname
             const querySnapshot = await usersRef.where('nickname', '==', identifier).get();
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0];
                 console.log('User data:', userDoc.data());
-                return { uid: userDoc.id, ...userDoc.data() };
+                return { uid: parseInt(userDoc.id), ...userDoc.data() };
             } else {
                 console.log('No such user!');
                 return null;
