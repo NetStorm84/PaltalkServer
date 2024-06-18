@@ -56,6 +56,7 @@ const PACKET_TYPES = {
     REFRESH_CATEGORIES: -330,
     ALERT_ADMIN: -305,
     EMAIL_INVITE: -200,
+    BLOCK_BUDDY: -500,
     INVITE_OUT: -360,
     INVITE_IN: 0x0168,
 };
@@ -147,6 +148,8 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.ROOM_JOINED:
             sendPacket(socket, 0x00a2, Buffer.from('48f0e8bf'));
+            break;
+        case PACKET_TYPES.BLOCK_BUDDY:
             break;
         case PACKET_TYPES.LYMERICK:
             console.log('Received Lymerick');
