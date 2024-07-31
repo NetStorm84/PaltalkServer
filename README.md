@@ -1,6 +1,18 @@
 # Paltalk Server
 This is a recreation of the Patalk server from around 2002 using version 5.0 of the Paltalk client. Created in Node.js
 
+## Setup
+To get the server up and running, clone the repo to a local folder, enter the folder and run `npm start`. This will initialise the server on port 5001.
+
+### Preparing the client
+
+To prepare the client for connecting to the server we will need to change the IP address of the server that the client is currently trying to connect to. We can do this by downloading the unpacked version of the client and changing the IP address using resource hacker, available for download below.
+
+I have included a default username and password within the server that we can use to connect to the server. Tese are listed below.
+
+- **Username**: NetStorm
+- **Password**: h2kclan
+
 ## Resources
 Below are a list of resources that were useful in getting the Paltak server recreated.
 
