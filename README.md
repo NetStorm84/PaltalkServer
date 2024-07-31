@@ -8,7 +8,7 @@ To get the server up and running, clone the repo to a local folder, enter the fo
 
 To prepare the client for connecting to the server we will need to change the IP address of the server that the client is currently trying to connect to. We can do this by downloading the unpacked version of the client and changing the IP address using resource hacker, available for download below.
 
-I have included a default username and password within the server that we can use to connect to the server. Tese are listed below.
+I have included a default username and password within the server that we can use to connect to the server. These are listed below.
 
 - **Username**: NetStorm
 - **Password**: h2kclan
