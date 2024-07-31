@@ -4,6 +4,8 @@ This is a recreation of the Patalk server from around 2002 using version 5.0 of 
 ## Resources
 Below are a list of resources that were useful in getting the Paltak server recreated.
 
+### External links
+
 [Paltalk.fun](https://paltalk.fun/) The projects main home. Visit here for the latest news and updates regarding this project.
 
 [Paltalk Wikidot](http://paltalk.wikidot.com/introduction) Extremely useful information regarding packets and other tools that were instrumental in getting this up and running
@@ -18,5 +20,9 @@ Paltalk client
 [Resource Hacker](https://www.angusj.com/resourcehacker/) Used to change some strings within the client
 
 [Wayback Machine](https://web.archive.org/) Used to view websites as they were in 2002 and helpful in downloading old tools required to make this work
+
+### Downloads
+[Wireshark PCAP](./resources/paltalk-secured.pcap.pcapng)
+
 
 ![Paltalk client connected to our server recreation](./resources/image.png)
