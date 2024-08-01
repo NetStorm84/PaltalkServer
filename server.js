@@ -2,24 +2,15 @@ const net = require('net');
 const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
-const admin = require('firebase-admin');
-const serviceAccount = require('./includes/paltalkserver-d05a0-firebase-adminsdk-gz9ov-4a6dbc7323.json');
 const { sendPacket } = require('./packetSender'); 
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
-const db = admin.firestore();
-const usersRef = db.collection('users');
-const offlineMessagesRef = db.collection('offline_messages');
-const roomsRef = db.collection('rooms');
-const categoriesRef = db.collection('categories');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
 let decryptedString = encryption.decrypt(endcryptedString, 25);
 console.log(endcryptedString);
 console.log(decryptedString);
+
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('chat_app.db');
 
 // Packet types
 const PACKET_TYPES = {
@@ -474,8 +465,11 @@ function retrieveBuddyList(user) {
         return Buffer.from([]);
     }
 
+    // Parse the buddies JSON string into an array
+    buddies = JSON.parse(user.buddies);
+
     // Iterate over the buddies of the user to create buffers
-    user.buddies.forEach(buddy => {
+    buddies.forEach(buddy => {
         let userBuffer = Buffer.from(`uid=${buddy.uid}\nnickname=${buddy.nickname}`);
         buffers.push(userBuffer);
         buffers.push(Buffer.from([0xC8])); // Add delimiter
@@ -506,36 +500,49 @@ function getValueByKey(input, key) {
 }
 
 /**
- * Retrieves a user from the Firestore collection 'users' by UID or nickname.
- * @param {string} identifier - UID as a string, or a nickname.
- * @returns {Promise<Object|null>} The user document from the database or null if not found.
+ * Retrieves a user from the SQLite 'users' table by UID or nickname.
+ * @param {string|number} identifier - UID as a number, or a nickname as a string.
+ * @returns {Promise<Object|null>} The user object from the database or null if not found.
  */
 async function findUser(identifier) {
-    const usersRef = db.collection('users');
-
-    try {
-        // Attempt to retrieve the user by UID
-        const docRef = usersRef.doc(identifier.toString());
-        const doc = await docRef.get();
-        if (doc.exists) {
-            console.log('User data:', doc.data());
-            return { uid: parseInt(doc.id), ...doc.data() };
-        } else {
+    return new Promise((resolve, reject) => {
+        if (typeof identifier === 'number') {
+            // Attempt to retrieve the user by UID
+            db.get(`SELECT * FROM users WHERE uid = ?`, [identifier], (err, row) => {
+                if (err) {
+                    console.error('Error fetching user by UID:', err);
+                    reject(err);
+                } else {
+                    if (row) {
+                        console.log('User data:', row);
+                        resolve(row);
+                    } else {
+                        console.log('No such user!');
+                        resolve(null);
+                    }
+                }
+            });
+        } else if (typeof identifier === 'string') {
             // If not found by UID, attempt to search by nickname
-            const querySnapshot = await usersRef.where('nickname', '==', identifier).get();
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                console.log('User data:', userDoc.data());
-                return { uid: parseInt(userDoc.id), ...userDoc.data() };
-            } else {
-                console.log('No such user!');
-                return null;
-            }
+            db.get(`SELECT * FROM users WHERE nickname = ?`, [identifier], (err, row) => {
+                if (err) {
+                    console.error('Error fetching user by nickname:', err);
+                    reject(err);
+                } else {
+                    if (row) {
+                        console.log('User data:', row);
+                        resolve(row);
+                    } else {
+                        console.log('No such user!');
+                        resolve(null);
+                    }
+                }
+            });
+        } else {
+            console.error('Invalid identifier type');
+            resolve(null);
         }
-    } catch (error) {
-        console.error('Error fetching user:', error);
-        return null;
-    }
+    });
 }
 
 server.listen(5001, () => {
