@@ -14,9 +14,9 @@ To prepare the client for connecting to the server we will need to change the IP
 
 The client I have available for download below connects to the IP address 192.168.001.16, we can search this IP address within HxD and replace it with our own local IP, remembering that the length must remian the same.
 
-It seems we then need to restart the PC before the client attempts to connect to this new IP address, It must somehow be cached.
+It seems we then need to restart the PC before the client attempts to connect to this new IP address, I think if we have tried connecting before, the IP is also stored in the registry and tries to connect to this IP first. We could delete that entry if it exists... HKEY_CURRENT_USER > Software > PalTalk > host. Maybe we can just change the IP in the registry without modifying the client, I would need to look in to this some more.
 
-I have added a default username and password to the databse setup that we can use to connect to the server. These are listed below. Although, currently, password authentication isn't yet working.
+I have added a default username and password to the databse setup that we can use to connect to the server. These are listed below. Although, currently, password authentication isn't yet working, so any password would do.
 
 - **Username**: NetStorm
 - **Password**: h2kclan
