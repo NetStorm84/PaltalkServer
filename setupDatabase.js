@@ -23,7 +23,7 @@ db.serialize(() => {
   // Insert a default user
   db.run(`INSERT INTO users (uid, nickname, firstname, lastname, email, paid, password, lastLogin, admin, color, buddies, blocked, listed) 
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-          [1000002, 'NetStorm', 'Default', 'User', 'default@example.com', 0, 'default_password_hash', new Date().toISOString(), 1, '#FFFFFF', '[{"uid": 1000001, "nickname": "Paltalk"}]', '', 1], 
+          [1000002, 'NetStorm', 'Default', 'User', 'default@example.com', 1, 'default_password_hash', new Date().toISOString(), 1, '#FFFFFF', '[{"uid": 1000001, "nickname": "Paltalk"}]', '', 1], 
           (err) => {
             if (err) {
               return console.error('Error inserting default user:', err.message);
@@ -40,6 +40,17 @@ db.serialize(() => {
     status TEXT,
     content TEXT
   )`);
+
+    // Insert an offline message
+    db.run(`INSERT INTO offline_messages (sender, receiver, sent, status, content) 
+      VALUES (?, ?, ?, ?, ?)`, 
+      [1000001, 1000002, '2024-08-02T10:17:29.253Z', 'pending', 'Welcome :)'], 
+      (err) => {
+        if (err) {
+          return console.error('Error inserting offline message', err.message);
+        }
+        console.log('Offline message added to the database.');
+      });
 
   // Create rooms table
   db.run(`CREATE TABLE IF NOT EXISTS rooms (

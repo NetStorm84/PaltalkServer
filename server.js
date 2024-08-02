@@ -72,6 +72,8 @@ const server = net.createServer(socket => {
 function handleData(socket, data) {
     recvBuffer = Buffer.concat([recvBuffer, data]);
 
+    console.log(`Received data: ${data.toString('hex')}`);
+
     while (recvBuffer.length >= 6) {
         const packetType = recvBuffer.readInt16BE(0);
         const length = recvBuffer.readUInt16BE(4);
@@ -285,24 +287,29 @@ async function processPacket(socket, packetType, payload) {
                 });
             }
             break;
-
             case PACKET_TYPES.EMAIL_INVITE:
+                // Extract the email from the payload
                 let email = getValueByKey(payload.toString('utf8'), 'email');
 
-                const emailInviteDoc = {
+                // Prepare the email invite object
+                const emailInvite = {
                     email: email,
-                    requestedAt: new Date(),
+                    requestedAt: new Date().toISOString(), // Store the timestamp in ISO format
                     status: 'pending'
                 };
-            
-                // Add document to the Firestore collection
-                db.collection('email_invites').add(emailInviteDoc)
-                    .then(docRef => {
-                        console.log('Email invite enqueued with ID:', docRef.id);
-                    })
-                    .catch(error => {
-                        console.error('Error adding email invite to queue:', error);
-                    });
+
+                // Insert the email invite into the SQLite database
+                db.run(
+                    `INSERT INTO email_invites (email, requestedAt, status) VALUES (?, ?, ?)`,
+                    [emailInvite.email, emailInvite.requestedAt, emailInvite.status],
+                    function (err) {
+                        if (err) {
+                            console.error('Error adding email invite to queue:', err.message);
+                        } else {
+                            console.log('Email invite enqueued with ID:', this.lastID);
+                        }
+                    }
+                );
                 break;
             case PACKET_TYPES.REFRESH_CATEGORIES:
                 //sendPacket(socket, 0x014d,  Buffer.from('id=2300\nnm=Friends, Love and Romance\u00C8', 'utf8')););
@@ -324,23 +331,29 @@ function uidToHex(uid) {
 }
 
 function storeOfflineMessage(sender, receiver, content) {
+    const sentTime = new Date().toISOString(); // Convert to ISO string format
 
-    let offlineMessage = {
+    // Prepare the offline message object
+    const offlineMessage = {
         sender: sender,
         receiver: receiver,
-        sent: new Date(),
+        sent: sentTime,
         status: 'pending',
         content: content.toString('utf8')
     };
 
-    // Add document to the Firestore collection
-    db.collection('offline_messages').add(offlineMessage)
-    .then(docRef => {
-        console.log('Received offline messgae:', docRef.id);
-    })
-    .catch(error => {
-        console.error('Error adding offline message:', error);
-    });
+    // Insert the offline message into the SQLite database
+    db.run(
+        `INSERT INTO offline_messages (sender, receiver, sent, status, content) VALUES (?, ?, ?, ?, ?)`,
+        [offlineMessage.sender, offlineMessage.receiver, offlineMessage.sent, offlineMessage.status, offlineMessage.content],
+        function (err) {
+            if (err) {
+                console.error('Error adding offline message:', err.message);
+            } else {
+                console.log('Offline message stored successfully with ID:', this.lastID);
+            }
+        }
+    );
 }
 
 function processSearchResults(searchResults, socket) {
@@ -378,29 +391,38 @@ async function handleLogin(socket, payload) {
     sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
     sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
 
-    user.buddies.forEach(buddy => {
+    // Parse the buddies JSON string into an array
+    buddies = JSON.parse(user.buddies);
+    buddies.forEach(buddy => {
         let buddySocket = currentSockets.get(buddy.uid);
         if (buddySocket || (buddy.nickname == 'Paltalk' && user.admin)){
             sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(buddy.uid) + '0000001E', 'hex'));
         }
     });
 
-    // this si required to show the buddy list window
+    // this is required to show the buddy list window, not sure why
     sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
 
     // the below is required to show the groups list window
     sendPacket(socket, 0x019c, Buffer.alloc(0));
 
-    // send any offline messages
-    offlineMessagesRef.where('receiver', '==', user.uid).where('status', '==', 'pending').get().then(snapshot => {
-        if (snapshot.empty) {
+   //send any offline messages
+   sendOfflineMessages(user, socket);
+}
+
+function sendOfflineMessages(user, socket) {
+    db.all(`SELECT * FROM offline_messages WHERE receiver = ? AND status = ?`, [user.uid, 'pending'], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving offline messages:', err);
+            return;
+        }
+
+        if (rows.length === 0) {
             console.log('No offline messages to send.');
             return;
         }
-    
-        snapshot.forEach(doc => {
-            let message = doc.data();
-            
+
+        rows.forEach(message => {
             // Ensure that sender and content are converted to buffers if they are strings
             let senderBuffer = Buffer.from(uidToHex(message.sender), 'hex');
             let contentBuffer = Buffer.from(message.content, 'utf8');
@@ -411,19 +433,16 @@ async function handleLogin(socket, payload) {
             // Send the packet (assuming 'out' is a correct buffer)
             sendPacket(socket, PACKET_TYPES.IM_IN, out);
     
-            // Delete the message document after sending
-            offlineMessagesRef.doc(doc.id).update({
-                status: 'sent'
-            }).then(() => {
-                console.log(`Message ${doc.id} status updated to 'sent' successfully.`);
-            }).catch(error => {
-                console.error(`Failed to update status of message ${doc.id}:`, error);
+            // Update the message status to 'sent'
+            db.run(`UPDATE offline_messages SET status = ? WHERE id = ?`, ['sent', message.id], (updateErr) => {
+                if (updateErr) {
+                    console.error(`Failed to update status of message ${message.id}:`, updateErr);
+                } else {
+                    console.log(`Message ${message.id} status updated to 'sent' successfully.`);
+                }
             });
         });
-    }).catch(error => {
-        console.error('Error retrieving offline messages:', error);
     });
-    
 }
 
 function parseCommand(currentUid, content, socket){
