@@ -1,81 +1,40 @@
 # Paltalk Server
-This is a recreation of the Patalk server from 2002
+This is a recreation of the Patalk server from around 2002 using version 5.0 of the Paltalk client. Created in Node.js
 
-## Packets
+## Setup
+To get the server up and running, clone the repo to a local folder, enter the folder and run `npm start`. This will initialise the server on port 5001.
 
-- 0x0136
-- 0x0138
-- 0x013B
-- 0x0014
-- 0x0140
-- 0x014A  //LIST ROOMS?
-- 0x014B
-- 0x014C  //LIST CATEGORIES?
-- 0x014D  //LIST AFFILIATES - `id=1\nnm=affiliate name0xC8`
-- 0x014E
-- 0x0154
-- 0x015E
-- 0x015F
-- 0x0163
-- 0x0168
-- 0x0172
-- 0x0174
-- 0x017C
-- 0x017D
-- 0x17D4
-- 0x17DE
-- 0x17E8
-- 0x17F2
-- 0x018C
-- 0x018D
-- 0x018F
-- 0x0190
-- 0x019A  //USER DATA
-- 0x019C
-- 0x019F
-- 0x001A
-- 0x01A4
-- 0x01BB
-- 0x01BC
-- 0x01BD
-- 0x01C0
-- 0x01C1
-- 0x01C2
-- 0x01C3
-- 0x01F4
-- 0x01FE
-- 0x0027
-- 0x0294
-- 0x02B2
-- 0x02BC
-- 0x02BD
-- 0x02C6
-- 0x02D0
-- 0x0320
-- 0x032A
-- 0x0384
-- 0x0043  //BUDDLY LIST
-- 0x0044
-- 0x044C
-- 0x0045
-- 0x0474
-- 0x0488
-- 0x04A6
-- 0x0064
-- 0x006E
-- 0x0078
-- 0x0834
-- 0x0837
-- 0x0838
-- 0x0839
-- 0x084A
-- 0x0898
-- 0x09C4
-- 0x00C8
-- 0x00C9
-- 0xFFB1
-- 0xFFBB
-- 0xFFBD
-- 0xFFBF
-- 0xFFD9
-- 0xFFEC
+### Preparing the client
+
+To prepare the client for connecting to the server we will need to change the IP address of the server that the client is currently trying to connect to. We can do this by downloading the unpacked version of the client and changing the IP address using resource hacker, available for download below.
+
+I have included a default username and password within the server that we can use to connect to the server. These are listed below.
+
+- **Username**: NetStorm
+- **Password**: h2kclan
+
+## Resources
+Below are a list of resources that were useful in getting the Paltak server recreated.
+
+### External links
+
+[Paltalk.fun](https://paltalk.fun/) This projects main home. Visit here for the latest news and updates regarding this project.
+
+[Paltalk Wikidot](http://paltalk.wikidot.com/introduction) Extremely useful information regarding packets and other tools that were instrumental in getting this up and running
+
+[Olly Dbg](http://www.ollydbg.de/) Tool used to reverse engineer the Paltalk Client
+
+[Wireshark](http://www.wireshark.org/) Used for discecting the pcp file
+
+[WWPack32](https://www.wwpack32.venti.pl/wwpack32_download.html) Used to unpack the original 
+Paltalk client
+
+[Resource Hacker](https://www.angusj.com/resourcehacker/) Used to change some strings within the client
+
+[Wayback Machine](https://web.archive.org/) Used to view websites as they were in 2002 and helpful in downloading old tools required to make this work
+
+### Downloads
+[Wireshark PCAP](./resources/paltalk-secured.pcap.pcapng)
+
+
+![Paltalk client connected to our server recreation](./resources/image.png)
