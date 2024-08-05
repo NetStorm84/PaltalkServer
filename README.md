@@ -1,5 +1,5 @@
 # Introduction
-This is a recreation of the Patalk server from around 2002 using version 5.0 of the Paltalk client. Created in Node.js. This code is very messy and nowhere near complete but I wanted to get something out there so that what I have done so far isn't lost forever, hopefully other people will get involved and by the end we would have a fully working Paltalk server with all the features taht existed back in the early noughties.
+This is a recreation of the Patalk server from around 2002 using version 5.0 of the Paltalk client. Created in Node.js. This code is very messy and nowhere near complete but I wanted to get something out there so that what I have done so far isn't lost forever, hopefully other people will get involved and by the end we would have a fully working Paltalk server with all the features that existed back in the early noughties.
 
 ## Setup
 To get the server up and running, clone the repo to a local folder, enter the folder and run the following commands

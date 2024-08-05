@@ -185,11 +185,29 @@ async function processPacket(socket, packetType, payload) {
             let currentUser = currentSockets.get(socket.id);
             let delim = Buffer.from([0xC8]);
 
+            let room_details = {
+                // room_id: '59846',
+                // room_name: 'Private 59846',
+                codec: 'spexproj.dll',
+                qual: 2,
+                channels: 1,
+                va: 'Y',
+                ss:'F',
+                own: 'NetStorm',
+                cr: '56958546',
+                sr: 0,
+                sra: 0,
+                sru: 0,
+                srf: 0,
+                srh: 0
+            };
+
             // join room
             //sendPacket(socket, PACKET_TYPES.LOOKAHEAD, Buffer.from('fed200000000e9d6000150726976617465203539383436', 'hex'));
             //sendPacket(socket, 0x013b, Buffer.from('0000e9d63ff052e60001869f000031ae', 'hex'));
-            sendPacket(socket, 0x0136, Buffer.from('0000e9c600010000000000000bb8232800010006000341507269766174652035393834360a313831373138393239343738383030333335313335333734383339360a3230343833373537353235343431343634393832323231390a4e0a636f6465633d7370657870726f6a2e646c6c0a7175616c3d320a6368616e6e656c733d310a76613d590a73733d460a6f776e3d4E657453746F726D0a63723d35363935383534360a73723d300a7372613d300a7372753d300a7372663d300a7372683d30', 'hex'));
-  
+            //sendPacket(socket, 0x0136, Buffer.from('0000e9c600010000000000000bb8232800010006000341507269766174652035393834360a313831373138393239343738383030333335313335333734383339360a3230343833373537353235343431343634393832323231390a4e0a636f6465633d7370657870726f6a2e646c6c0a7175616c3d320a6368616e6e656c733d310a76613d590a73733d460a6f776e3d4E657453746F726D0a63723d35363935383534360a73723d300a7372613d300a7372753d300a7372663d300a7372683d30', 'hex'));
+            sendPacket(socket, 0x0136, Buffer.from('0000e9c600010000000000000bb8232800010006000341507269766174652035393834360a313831373138393239343738383030333335313335333734383339360a3230343833373537353235343431343634393832323231390a4e0a' + convertToJsonString(room_details), 'hex'));
+
             // Add the room message
             let messageHex = Buffer.from("This room is private, meaning the room does not show up in the room list. The only way someone can join this room is by being invited by someone already in the room.").toString('hex');
             let combinedHex = roomIdHex + spacerHex + messageHex;
@@ -328,6 +346,10 @@ function uidToDec(uid) {
 
 function uidToHex(uid) {
     return parseInt(uid).toString(16).padStart(8, '0');
+}
+
+function convertToJsonString(obj) {
+    return Object.entries(obj).map(([key, value]) => `${key}=${value}`).join('\n');
 }
 
 function storeOfflineMessage(sender, receiver, content) {
