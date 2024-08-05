@@ -176,8 +176,8 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.ROOM_JOIN:
 
             let room = {
-                room_id: '59846',
-                room_name: 'Private 59846'
+                room_id: '56476',
+                room_name: 'Test room'
             };
 
             const roomIdHex = parseInt(room.room_id).toString(16).padStart(8, '0');
@@ -206,7 +206,7 @@ async function processPacket(socket, packetType, payload) {
             //sendPacket(socket, PACKET_TYPES.LOOKAHEAD, Buffer.from('fed200000000e9d6000150726976617465203539383436', 'hex'));
             //sendPacket(socket, 0x013b, Buffer.from('0000e9d63ff052e60001869f000031ae', 'hex'));
             //sendPacket(socket, 0x0136, Buffer.from('0000e9c600010000000000000bb8232800010006000341507269766174652035393834360a313831373138393239343738383030333335313335333734383339360a3230343833373537353235343431343634393832323231390a4e0a636f6465633d7370657870726f6a2e646c6c0a7175616c3d320a6368616e6e656c733d310a76613d590a73733d460a6f776e3d4E657453746F726D0a63723d35363935383534360a73723d300a7372613d300a7372753d300a7372663d300a7372683d30', 'hex'));
-            sendPacket(socket, 0x0136, Buffer.from('0000e9c600010000000000000bb8232800010006000341507269766174652035393834360a313831373138393239343738383030333335313335333734383339360a3230343833373537353235343431343634393832323231390a4e0a' + convertToJsonString(room_details), 'hex'));
+            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + '00030000'+'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.room_name)+'' + convertToJsonString(room_details), 'hex'));
 
             // Add the room message
             let messageHex = Buffer.from("This room is private, meaning the room does not show up in the room list. The only way someone can join this room is by being invited by someone already in the room.").toString('hex');
@@ -229,8 +229,8 @@ async function processPacket(socket, packetType, payload) {
             // get the current list of users and set the user list
             let users = [
                 {
-                    group_id:'59846',
-                    uid: '56958546',
+                    group_id: room.room_id,
+                    uid: socket.id,
                     nickname: 'NetStorm',
                     admin: 0,
                     color: '000128000',
@@ -239,10 +239,10 @@ async function processPacket(socket, packetType, payload) {
                     away: 0,
                     eof: 'Y'
                 },{
-                    group_id:'59846',
-                    uid: '56958542',
-                    nickname: 'good_pal',
-                    admin: 1,
+                    group_id: room.room_id,
+                    uid: 1000001,
+                    nickname: 'Medianoche (co-admin)',
+                    admin: 0,
                     color: '128000000',
                     mic: 1,
                     pub: 0,
@@ -266,7 +266,7 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
             //turn off red dot? doesnt seem to work
-            sendPacket(socket, -397, Buffer.from('0000e9c603651e52','hex'));
+            sendPacket(socket, -397, Buffer.from('0000d9c603651e52','hex'));
             break;
         case PACKET_TYPES.LOGIN:
             handleLogin(socket, payload);
@@ -350,6 +350,14 @@ function uidToHex(uid) {
 
 function convertToJsonString(obj) {
     return Object.entries(obj).map(([key, value]) => `${key}=${value}`).join('\n');
+}
+
+function asciiToHex(str) {
+    let hex = '';
+    for (let i = 0; i < str.length; i++) {
+        hex += str.charCodeAt(i).toString(16);
+    }
+    return hex;
 }
 
 function storeOfflineMessage(sender, receiver, content) {
