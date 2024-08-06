@@ -262,7 +262,7 @@ async function processPacket(socket, packetType, payload) {
 
             let eof = Buffer.from('eof=Y', 'hex');
         
-            let userList =  Buffer.concat(buffers,eof);
+            let userList =  Buffer.concat([buffers, eof, delim]);
             sendPacket(socket, 0x0154, userList, 'hex');
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
