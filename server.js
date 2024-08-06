@@ -3,6 +3,7 @@ const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
+const e = require('express');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
 let decryptedString = encryption.decrypt(endcryptedString, 25);
@@ -258,8 +259,10 @@ async function processPacket(socket, packetType, payload) {
                 buffers.push(userBuffer);
                 buffers.push(delim);
             });
+
+            let eof = Buffer.from('eof=Y', 'hex');
         
-            let userList =  Buffer.concat(buffers);
+            let userList =  Buffer.concat(buffers,eof);
             sendPacket(socket, 0x0154, userList, 'hex');
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
