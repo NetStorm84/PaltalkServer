@@ -236,8 +236,7 @@ async function processPacket(socket, packetType, payload) {
                     color: '000128000',
                     mic: 1,
                     pub: 0,
-                    away: 0,
-                    eof: 'Y'
+                    away: 0
                 },{
                     group_id: room.room_id,
                     uid: 1000001,
@@ -246,8 +245,7 @@ async function processPacket(socket, packetType, payload) {
                     color: '128000000',
                     mic: 1,
                     pub: 0,
-                    away: 0,
-                    eof: 'N'
+                    away: 0
                 }
             ];
 
@@ -255,7 +253,7 @@ async function processPacket(socket, packetType, payload) {
 
             users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
-                let userString = `group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
+                let userString = convertToJsonString(user);
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
                 buffers.push(delim);
