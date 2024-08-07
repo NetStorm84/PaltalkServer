@@ -12,6 +12,43 @@ console.log(decryptedString);
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('chat_app.db');
 
+//TOOD: move to database
+let rooms = [{
+    id: 54736,
+    name: 'Room 1',
+    count: 17,
+    voice: 1,
+    locked: 0,
+    rating: 1,
+    users: [
+        {
+            uid: 1000002,
+            nickname: 'NetStorm',
+            admin: 0,
+            color: '000128000',
+            mic: 1,
+            pub: 0,
+            away: 0,
+        },{
+            uid: 1000001,
+            nickname: 'Medianoche (co-admin)',
+            admin: 1,
+            color: '128000000',
+            mic: 1,
+            pub: 0,
+            away: 0
+        }
+    ]
+},{
+    id: 54737,
+    name: 'Room 2',
+    count: 2,
+    voice: 1,
+    locked: 0,
+    rating: 1,
+    users: []
+}]
+
 // Packet types
 const PACKET_TYPES = {
     LOGIN_NOT_COMPLETE: -160,
@@ -32,13 +69,13 @@ const PACKET_TYPES = {
     ANNOUNCEMENT: -39,
     IM_IN: 0x0014,
     ROOM_JOIN: -310,
+    ROOM_JOINED: 0x0136,
     VERSIONS: -2102,
     LOGIN_UNKNOWN: 0x04A6,
     BLOCKED_BUDDIES: 0x01FE,
     ROOM_CATEGORIES: 0x019D,
     ROOMS: 0x019E,
     IM_OUT: -20,
-    ROOM_JOINED: 0x0136,
     ROOM_MEDIA_SERVER: 0x013B,
     AWAY_MODE: -600,
     ONLINE_MODE: -610,
@@ -141,15 +178,6 @@ async function processPacket(socket, packetType, payload) {
 
             //TODO invite the user to the room
             break;
-        case PACKET_TYPES.ROOM_JOINED:
-            // I think this is room count, first 3 bytes are room id, last byte is the count
-            sendPacket(socket, PACKET_TYPES.ROOM_MEMBER_COUNT, Buffer.from('00dc9c02'));
-
-            const roomHex = '00dc9c'; // 56476
-            const ipHex = '3ff052e6'; // 63.240.82.230
-            const portHex = '31ae'; // 12718
-            sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomHex + ipHex + portHex, 'hex'));
-            break;
         case PACKET_TYPES.BLOCK_BUDDY:
             break;
         case PACKET_TYPES.LYMERICK:
@@ -183,12 +211,9 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.ROOM_JOIN:
 
-            let room = {
-                room_id: '56476',
-                room_name: 'Test room'
-            };
+            let room = lookupRoom(payload.slice(0, 4).toString('hex'));
 
-            const roomIdHex = parseInt(room.room_id).toString(16).padStart(8, '0');
+            const roomIdHex = payload.slice(0, 4).toString('hex');
             const spacerHex = "00000000";
             let currentUser = currentSockets.get(socket.id);
             let delim = Buffer.from([0xC8]);
@@ -210,7 +235,7 @@ async function processPacket(socket, packetType, payload) {
             };
 
             // join room
-            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + '00030001'+'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.room_name)+'' + convertToJsonString(room_details), 'hex'));
+            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + '00030001'+'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
 
             // Add the room message
             let messageHex = Buffer.from("This room is private, meaning the room does not show up in the room list. The only way someone can join this room is by being invited by someone already in the room.").toString('hex');
@@ -230,33 +255,11 @@ async function processPacket(socket, packetType, payload) {
             finalBuffer = Buffer.from(combinedHex, 'hex');
             sendPacket(socket, 0x015f, finalBuffer);
 
-            // get the current list of users and set the user list
-            let users = [
-                {
-                    group_id: room.room_id,
-                    uid: socket.id,
-                    nickname: 'NetStorm',
-                    admin: 0,
-                    color: '000128000',
-                    mic: 1,
-                    pub: 0,
-                    away: 0,
-                },{
-                    group_id: room.room_id,
-                    uid: 1000001,
-                    nickname: 'Medianoche (co-admin)',
-                    admin: 1,
-                    color: '128000000',
-                    mic: 1,
-                    pub: 0,
-                    away: 0
-                }
-            ];
-
             let buffers = [];
 
-            users.forEach(user => {
+            room.users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
+                user.group_id = room.id;
                 let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
@@ -269,6 +272,11 @@ async function processPacket(socket, packetType, payload) {
             let userList =  Buffer.concat(buffers);
             sendPacket(socket, 0x0154, userList, 'hex');
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
+
+            // const roomHex = '00dc9c'; // 56476
+            // const ipHex = '3ff052e6'; // 63.240.82.230
+            // const portHex = '31ae'; // 12718
+            // sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomHex + ipHex + portHex, 'hex'));
 
             //turn off red dot? doesnt seem to work
             //sendPacket(socket, -397, Buffer.from('0000d9c603651e52','hex'));
@@ -335,7 +343,18 @@ async function processPacket(socket, packetType, payload) {
                 );
                 break;
             case PACKET_TYPES.REFRESH_CATEGORIES:
-                sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=*** The Royal Oak ***\n#=12\u00c8id=54321\nnm=Here is another room*\n#=64\u00c8', 'utf8'));
+
+                let roomBuffers = [];
+
+                rooms.forEach(room => {
+                    let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.name}\n#=${room.count}\nv=${room.voice}\nl=${room.locked}\nr=${room.rating}`);
+                    roomBuffers.push(roomBuffer);
+                    roomBuffers.push(Buffer.from([0xC8]));
+                });
+
+                sendPacket(socket, 0x014c, Buffer.concat(roomBuffers));
+
+                //sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=\n#=12\nv=1\nl=0\nr=1\u00c8id=54321\nnm=*** The White Horse ***\n#=24\nv=1\nl=0\nr=1\u00c8', 'utf8'));
                 //sendPacket(socket, 0x014e,  Buffer.from('id=2300\nnm=Test ROom\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8', 'utf8'));
                 //sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
                 //sendPacket(socket, 0x014d, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
@@ -403,6 +422,10 @@ function processSearchResults(searchResults, socket) {
         });
         sendPacket(socket, PACKET_TYPES.SEARCH_RESPONSE, Buffer.concat(buffers));
     }
+}
+
+function lookupRoom(roomId) {
+    return rooms.find(room => room.id === parseInt(roomId, 16));
 }
 
 async function handleLogin(socket, payload) {
