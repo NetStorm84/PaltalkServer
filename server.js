@@ -19,6 +19,7 @@ const PACKET_TYPES = {
     CLIENT_HELLO: -100,
     HELLO: -117,
     GET_UIN: -1131,
+    ROOM_MEMBER_COUNT: 0x00A2,
     UIN_RESPONSE: 0x046B,
     LYMERICK: -1130,
     REDIRECT: -1143,
@@ -39,6 +40,7 @@ const PACKET_TYPES = {
     ROOMS: 0x019E,
     IM_OUT: -20,
     ROOM_JOINED: 0x0136,
+    ROOM_MEDIA_SERVER: 0x013B,
     AWAY_MODE: -600,
     ONLINE_MODE: -610,
     ROOM_MESSAGE_OUT: -350,
@@ -141,7 +143,13 @@ async function processPacket(socket, packetType, payload) {
             //TODO invite the user to the room
             break;
         case PACKET_TYPES.ROOM_JOINED:
-            sendPacket(socket, 0x00a2, Buffer.from('48f0e8bf'));
+            // I think this is room count, first 3 bytes are room id, last byte is the count
+            sendPacket(socket, PACKET_TYPES.ROOM_MEMBER_COUNT, Buffer.from('00dc9c02'));
+
+            const roomHex = '00dc9c'; // 56476
+            const ipHex = '3ff052e6'; // 63.240.82.230
+            const portHex = '31ae'; // 12718
+            sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomHex + ipHex + portHex, 'hex'));
             break;
         case PACKET_TYPES.BLOCK_BUDDY:
             break;
