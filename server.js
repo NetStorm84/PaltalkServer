@@ -347,7 +347,7 @@ async function processPacket(socket, packetType, payload) {
                 let roomBuffers = [];
 
                 rooms.forEach(room => {
-                    let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.name}\n#=${room.count}\nv=${room.voice}\nl=${room.locked}\nr=${room.rating}`);
+                    let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.name}\n#=${room.users.length}\nv=${room.voice}\nl=${room.locked}\nr=${room.rating}`);
                     roomBuffers.push(roomBuffer);
                     roomBuffers.push(Buffer.from([0xC8]));
                 });
