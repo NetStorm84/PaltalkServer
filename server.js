@@ -14,9 +14,8 @@ const db = new sqlite3.Database('chat_app.db');
 
 //TOOD: move to database
 let rooms = [{
-    id: 54736,
-    name: 'Room 1',
-    count: 17,
+    id: 50001,
+    name: '*** The Royal Oak ***',
     voice: 1,
     locked: 0,
     rating: 1,
@@ -30,19 +29,19 @@ let rooms = [{
             pub: 0,
             away: 0,
         },{
-            uid: 1000001,
+            uid: 1000003,
             nickname: 'Medianoche (co-admin)',
             admin: 1,
             color: '128000000',
             mic: 1,
             pub: 0,
-            away: 0
+            away: 0,
+            visible: 0
         }
     ]
 },{
-    id: 54737,
-    name: 'Room 2',
-    count: 2,
+    id: 50002,
+    name: 'H2K Chat',
     voice: 1,
     locked: 0,
     rating: 1,
