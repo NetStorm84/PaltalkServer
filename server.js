@@ -3,7 +3,6 @@ const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
-const e = require('express');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
 let decryptedString = encryption.decrypt(endcryptedString, 25);
@@ -160,7 +159,7 @@ async function processPacket(socket, packetType, payload) {
             let receiver = payload.slice(0, 4);
             let content = payload.slice(4);
 
-            if (receiver.toString('hex') === '000f4241'){
+            if (receiver.toString('hex') === uidToHex('1000001')){
                 parseCommand(currentUid, content, socket);
                 return; 
             }
@@ -187,11 +186,10 @@ async function processPacket(socket, packetType, payload) {
             let delim = Buffer.from([0xC8]);
 
             let room_details = {
-                // room_id: '59846',
-                // room_name: 'Private 59846',
                 codec: 'spexproj.dll',
                 qual: 2,
                 channels: 1,
+                premium: 1,
                 va: 'Y',
                 ss:'F',
                 own: 'NetStorm',
@@ -204,10 +202,7 @@ async function processPacket(socket, packetType, payload) {
             };
 
             // join room
-            //sendPacket(socket, PACKET_TYPES.LOOKAHEAD, Buffer.from('fed200000000e9d6000150726976617465203539383436', 'hex'));
-            //sendPacket(socket, 0x013b, Buffer.from('0000e9d63ff052e60001869f000031ae', 'hex'));
-            //sendPacket(socket, 0x0136, Buffer.from('0000e9c600010000000000000bb8232800010006000341507269766174652035393834360a313831373138393239343738383030333335313335333734383339360a3230343833373537353235343431343634393832323231390a4e0a636f6465633d7370657870726f6a2e646c6c0a7175616c3d320a6368616e6e656c733d310a76613d590a73733d460a6f776e3d4E657453746F726D0a63723d35363935383534360a73723d300a7372613d300a7372753d300a7372663d300a7372683d30', 'hex'));
-            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + '00030000'+'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.room_name)+'' + convertToJsonString(room_details), 'hex'));
+            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + '00030001'+'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.room_name)+'' + convertToJsonString(room_details), 'hex'));
 
             // Add the room message
             let messageHex = Buffer.from("This room is private, meaning the room does not show up in the room list. The only way someone can join this room is by being invited by someone already in the room.").toString('hex');
@@ -237,12 +232,12 @@ async function processPacket(socket, packetType, payload) {
                     color: '000128000',
                     mic: 1,
                     pub: 0,
-                    away: 0
+                    away: 0,
                 },{
                     group_id: room.room_id,
                     uid: 1000001,
                     nickname: 'Medianoche (co-admin)',
-                    admin: 0,
+                    admin: 1,
                     color: '128000000',
                     mic: 1,
                     pub: 0,
@@ -254,20 +249,21 @@ async function processPacket(socket, packetType, payload) {
 
             users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
-                let userString = convertToJsonString(user);
+                let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
                 buffers.push(delim);
             });
 
-            let eof = Buffer.from('eof=Y', 'hex');
+            // add eof to the end of the user list
+            buffers.push(Buffer.from('eof=1', 'hex'));
         
-            let userList =  Buffer.concat([buffers, eof, delim]);
+            let userList =  Buffer.concat(buffers);
             sendPacket(socket, 0x0154, userList, 'hex');
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
             //turn off red dot? doesnt seem to work
-            sendPacket(socket, -397, Buffer.from('0000d9c603651e52','hex'));
+            //sendPacket(socket, -397, Buffer.from('0000d9c603651e52','hex'));
             break;
         case PACKET_TYPES.LOGIN:
             handleLogin(socket, payload);
@@ -331,9 +327,11 @@ async function processPacket(socket, packetType, payload) {
                 );
                 break;
             case PACKET_TYPES.REFRESH_CATEGORIES:
-                //sendPacket(socket, 0x014d,  Buffer.from('id=2300\nnm=Friends, Love and Romance\u00C8', 'utf8')););
-                sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
-                //sendPacket(socket, 0x014c, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
+                sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=*** The Royal Oak ***\n#=12\u00c8id=54321\nnm=Here is another room*\n#=64\u00c8', 'utf8'));
+                //sendPacket(socket, 0x014e,  Buffer.from('id=2300\nnm=Test ROom\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8', 'utf8'));
+                //sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
+                //sendPacket(socket, 0x014d, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
+                //sendPacket(socket, 0x014e, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
                 break;
             default:
                 console.log('No handler for received packet type.');
@@ -604,11 +602,11 @@ server.listen(5001, () => {
 // let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance');
 // let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island');
 // let catid = Buffer.from('catg=30100','hex');
-// //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
-// //num_members
+// // //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
+// // //num_members
 // let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19');
 
-// // the below is required to show the groups list window
+// // // the below is required to show the groups list window
 // sendPacket(socket, 0x019c, Buffer.alloc(0));
 // // sendPacket(socket, 0x019d, Buffer.concat([cats, delim2]));
 // // sendPacket(socket, 0x019e, Buffer.concat([subcats, delim2]));
