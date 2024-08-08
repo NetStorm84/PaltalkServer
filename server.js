@@ -272,13 +272,12 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, 0x0154, userList, 'hex');
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
-            // const roomHex = '00dc9c'; // 56476
+            // const roomHex = '0000C351'; // 50001
             // const ipHex = '3ff052e6'; // 63.240.82.230
+            // const notsure = '0001869f';
+            // const spacer = '0000';
             // const portHex = '31ae'; // 12718
-            // sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomHex + ipHex + portHex, 'hex'));
-
-            //turn off red dot? doesnt seem to work
-            //sendPacket(socket, -397, Buffer.from('0000d9c603651e52','hex'));
+            // sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomHex + ipHex + notsure + spacer + portHex, 'hex'));
             break;
         case PACKET_TYPES.LOGIN:
             handleLogin(socket, payload);
