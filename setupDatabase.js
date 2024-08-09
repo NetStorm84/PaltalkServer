@@ -16,9 +16,10 @@ const db = new sqlite3.Database("chat_app.db", err => {
         lastname TEXT,
         email TEXT,
         paid INTEGER,
+        plus INTEGER,
+        admin INTEGER,
         password TEXT,
         lastLogin TEXT,
-        admin INTEGER,
         color TEXT,
         buddies TEXT,
         blocked TEXT,
@@ -30,17 +31,17 @@ const db = new sqlite3.Database("chat_app.db", err => {
       }
 
       const stmt = db.prepare(`
-        INSERT INTO users (uid, nickname, firstname, lastname, email, paid, password, lastLogin, admin, color, buddies, blocked, listed) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, err => {
+        INSERT INTO users (uid, nickname, firstname, lastname, email, paid, plus, admin, password, lastLogin, color, buddies, blocked, listed) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, err => {
         if (err) {
           console.error("Error preparing insert statement for users:", err.message);
           return db.run("ROLLBACK", () => db.close());
         }
 
         const users = [
-          [1000001, 'Paltalk', 'Default', 'User', 'default@example.com', 1, 'default_password_hash', new Date().toISOString(), 1, '000000128', '', '', 0],
-          [1000002, 'NetStorm', 'Default', 'User', 'default@example.com', 0, 'default_password_hash', new Date().toISOString(), 1, '000128000', '[{"uid": 1000001, "nickname": "Paltalk"}]', '', 1],
-          [1000003, 'Medianoche (co-admin)', 'Median', 'Oche', 'medianoche@example.com', 1, 'another_password_hash', new Date().toISOString(), 0, '128000000', '[]', '', 0]
+          [1000001, 'Paltalk', 'Default', 'User', 'default@example.com', 1, 1, 1,'default_password_hash', new Date().toISOString(), '000000128', '', '', 0],
+          [1000002, 'NetStorm', 'Default', 'User', 'default@example.com', 1, 1, 0,'default_password_hash', new Date().toISOString(), '000128000', '[{"uid": 1000001, "nickname": "Paltalk"}]', '', 1],
+          [1000003, 'Medianoche (co-admin)', 'Median', 'Oche', 'medianoche@example.com', 1, 1, 1, 'another_password_hash', new Date().toISOString(), '128000000', '[]', '', 1]
         ];
         users.forEach(user => {
           stmt.run(user, err => {
