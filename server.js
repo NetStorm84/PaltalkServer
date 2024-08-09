@@ -3,6 +3,7 @@ const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
+const Group = require('./Models/Group');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
 let decryptedString = encryption.decrypt(endcryptedString, 25);
@@ -11,42 +12,18 @@ console.log(decryptedString);
 
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('chat_app.db');
+let currentUser;
+let groups = [];
 
-//TOOD: move to database
-let rooms = [{
-    id: 50001,
-    name: '*** The Royal Oak ***',
-    voice: 1,
-    locked: 1,
-    rating: 'A',
-    users: [
-        {
-            uid: 1000002,
-            nickname: 'NetStorm',
-            admin: 0,
-            color: '000128000',
-            mic: 1,
-            pub: 0,
-            away: 0,
-        },{
-            uid: 1000003,
-            nickname: 'Medianoche (co-admin)',
-            admin: 1,
-            color: '128000000',
-            mic: 1,
-            pub: 0,
-            away: 0,
-            visible: 0
-        }
-    ]
-},{
-    id: 50002,
-    name: 'H2K Chat',
-    voice: 0,
-    locked: 0,
-    rating: 'G',
-    users: []
-}]
+// load all the groups
+db.all(`SELECT * FROM groups`, (err, rows) => {
+    console.log('Loading groups',err);
+    rows.forEach(group => {
+        let grp = new Group(group.uid, group.name, group.voice, group.locked, group.rating, group.status_message);
+        console.log('Group:', grp);
+        groups.push(grp);
+    });
+});
 
 // Packet types
 const PACKET_TYPES = {
@@ -68,6 +45,10 @@ const PACKET_TYPES = {
     ANNOUNCEMENT: -39,
     IM_IN: 0x0014,
     ROOM_JOIN: -310,
+    ROOM_LEAVE: -320,
+    REQ_MIC: -398,
+    MAINTENANCE_KICK: 0x002A,
+    UNREQ_MIC: -399,
     ROOM_JOINED: 0x0136,
     VERSIONS: -2102,
     LOGIN_UNKNOWN: 0x04A6,
@@ -169,6 +150,9 @@ async function processPacket(socket, packetType, payload) {
 
             //TODO alert online admins to take a look
             break;
+        case PACKET_TYPES.REQ_MIC:
+            //sendPacket(socket, 0x018d, Buffer.from(payload.slice(0, 4), 'hex'));
+            break;
         case PACKET_TYPES.INVITE_OUT:
             let invitee = payload.slice(4, 8);
             let room_id = payload.slice(0, 4);
@@ -214,7 +198,7 @@ async function processPacket(socket, packetType, payload) {
 
             const roomIdHex = payload.slice(0, 4).toString('hex');
             const spacerHex = "00000000";
-            let currentUser = currentSockets.get(socket.id);
+            currentUser = currentSockets.get(socket.id);
             let delim = Buffer.from([0xC8]);
 
             let room_details = {
@@ -233,8 +217,10 @@ async function processPacket(socket, packetType, payload) {
                 srh: 0
             };
 
+            let roomType = room.voice ? '00030001' : '00060001';
+
             // join room
-            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + '00030001'+'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
+            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType +'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
 
             // Add the room message
             let messageHex = Buffer.from("This room is private, meaning the room does not show up in the room list. The only way someone can join this room is by being invited by someone already in the room.").toString('hex');
@@ -243,22 +229,24 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, 0x015e, finalBuffer);
 
             // add a welcome message
-            messageHex = Buffer.from(`${currentUser.user.nickname}, welcome to the room ${room.room_name}.`).toString('hex');
+            messageHex = Buffer.from(`${currentUser.user.nickname}, welcome to the room ${room.name}.`).toString('hex');
             combinedHex = roomIdHex + spacerHex + messageHex;
             finalBuffer = Buffer.from(combinedHex, 'hex');
             sendPacket(socket, 0x015e, finalBuffer);
 
             // set the welcome message banner
-            messageHex = Buffer.from("Please support our sponsors.").toString('hex');
+            messageHex = Buffer.from(room.status_message).toString('hex');
             combinedHex = roomIdHex + spacerHex + messageHex;
             finalBuffer = Buffer.from(combinedHex, 'hex');
             sendPacket(socket, 0x015f, finalBuffer);
 
             let buffers = [];
 
+            room.addUser(currentUser.user);
+
             room.users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
-                user.group_id = room.id;
+                user.group_id = room.uid;
                 let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
@@ -272,12 +260,15 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, 0x0154, userList, 'hex');
             sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
-            const roomHex = '0000C351'; // 50001
-            const ipHex =  'c0a80110'; //'3ff052e6'; // 63.240.82.230
+            const ipHex =  'c0a80023';
             const notsure = '0001869f';
             const spacer = '0000';
             const portHex = '31ae'; // 12718
-            sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomHex + ipHex + notsure + spacer + portHex, 'hex'));
+            sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
+            break;
+        case PACKET_TYPES.ROOM_LEAVE:
+            let roomToLeave = lookupRoom(payload.slice(0, 4).toString('hex'));
+            roomToLeave.removeUser(currentUser);
             break;
         case PACKET_TYPES.LOGIN:
             handleLogin(socket, payload);
@@ -344,8 +335,8 @@ async function processPacket(socket, packetType, payload) {
 
                 let roomBuffers = [];
 
-                rooms.forEach(room => {
-                    let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.name}\n#=${room.users.length}\nv=${room.voice}\nl=${room.locked}\nr=${room.rating}`);
+                groups.forEach(room => {
+                    let roomBuffer = Buffer.from(`id=${room.uid}\nnm=${room.name}\n#=${room.getUserCount()}\nv=${room.voice}\nl=${room.locked}\nr=${room.rating}`);
                     roomBuffers.push(roomBuffer);
                     roomBuffers.push(Buffer.from([0xC8]));
                 });
@@ -422,7 +413,7 @@ function processSearchResults(searchResults, socket) {
 }
 
 function lookupRoom(roomId) {
-    return rooms.find(room => room.id === parseInt(roomId, 16));
+    return groups.find(room => room.uid === parseInt(roomId, 16));
 }
 
 async function handleLogin(socket, payload) {
@@ -516,8 +507,10 @@ function parseCommand(currentUid, content, socket){
             contentBuffer = Buffer.from(`There are currently ${currentSockets.size} users online`, 'utf8');
             break;
         case '/help':
-            contentBuffer = Buffer.from("Commands:\n/users - Number of users currently online\n/help - List all the currently available commands\n/alert {message} - Sends a messagebox alert to all currently connected users", 'utf8');
+            contentBuffer = Buffer.from("Commands:\n/users - Number of users currently online\n/help - List all the currently available commands\n/alert {message} - Sends a messagebox alert to all currently connected users\n/kickall {message} - Removes all users from the server", 'utf8');
             break;
+        case '/kickall':
+            sendPacket(socket, PACKET_TYPES.MAINTENANCE_KICK, Buffer.from(content.toString('utf8').replace(command[0], '').trim()), 'utf8');
         default:
             contentBuffer = Buffer.from("Command not found. Enter /help for a list of commands", 'utf8');
             break;
@@ -624,23 +617,3 @@ async function findUser(identifier) {
 server.listen(5001, () => {
     console.log('Server listening on port 5001');
 });
-
-
-// let delim2 = Buffer.from([0xC8]);
-// let cats = Buffer.from('catg=2250\ndisp=200\nname=Friends, Love and Romance');
-// let subcats = Buffer.from('catg=2250\nsubcatg=30100\ndisp=470\nname=Rhode Island');
-// let catid = Buffer.from('catg=30100','hex');
-// // //let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19', 'hex');
-// // //num_members
-// let rooms = Buffer.from('id=10035\np=1\nv=1\nl=0\nr=G\nc=000128000\nnm=My Test Room\n#=19');
-
-// // // the below is required to show the groups list window
-// sendPacket(socket, 0x019c, Buffer.alloc(0));
-// // sendPacket(socket, 0x019d, Buffer.concat([cats, delim2]));
-// // sendPacket(socket, 0x019e, Buffer.concat([subcats, delim2]));
-// // sendPacket(socket, 0x014c, Buffer.concat([catid, delim2, rooms, delim2]));
-
-// sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((currentUserUidHex + '0000001E'), 'hex'));
-
-// // put the Paltalk buddy online 000F4241
-// sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from('000F42410000001E', 'hex'));
