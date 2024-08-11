@@ -9,7 +9,7 @@ class Group {
     status_message = 'Please support our sponsors.';
     users = [];
 
-    constructor(uid, name, voice, locked, rating, status_message) {
+    constructor(uid, name, voice, locked, rating, status_message, welcome_message) {
 
         this.uid = uid;
         this.name = name;
@@ -17,6 +17,7 @@ class Group {
         this.locked = locked;
         this.rating = rating;
         this.status_message = status_message;
+        this.welcome_message = welcome_message;
     }
 
     getUserCount() {

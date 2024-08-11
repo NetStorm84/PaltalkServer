@@ -100,10 +100,10 @@ const db = new sqlite3.Database("database.db", err => {
           INSERT INTO groups (uid, name, created, color, rating, locked, voice, owner_uid, status_message, welcome_message) 
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
         const groups = [
-          [50001, '*** The Royal Oak ***', new Date().toISOString(), '000000000', 'G', 0, 1, 10000002, 'Please support our sponsors.', 'Welcome MOFOS'],
-          [50002, '*** The White Horse ***', new Date().toISOString(), '000000000', 'G', 0, 1, 10000002, 'Please support our sponsors.', 'Welcome MOFOS'],
-          [50003, '*** The Tuck INN ***', new Date().toISOString(), '000000000', 'G', 0, 1, 10000002, 'Please support our sponsors.', 'Welcome MOFOS'],
-          [50004, '*** The Quiet Side ***', new Date().toISOString(), '000000000', 'G', 0, 0, 10000002, 'Please support our sponsors.', 'Welcome MOFOS']
+          [50001, '*** The Royal Oak ***', new Date().toISOString(), '000000000', 'G', 0, 1, 10000002, 'Please support our sponsors.', 'This is a G rated room intended for a General Audience including minors.  Offensive language is not permitted.'],
+          [50002, '*** The White Horse ***', new Date().toISOString(), '000000000', 'G', 0, 1, 10000002, 'Please support our sponsors.', 'This is a G rated room intended for a General Audience including minors.  Offensive language is not permitted.'],
+          [50003, '*** The Tuck INN ***', new Date().toISOString(), '000000000', 'G', 0, 1, 10000002, 'Please support our sponsors.', 'This is a G rated room intended for a General Audience including minors.  Offensive language is not permitted.'],
+          [50004, '*** The Quiet Side ***', new Date().toISOString(), '000000000', 'G', 0, 0, 10000002, 'Please support our sponsors.', 'This is a G rated room intended for a General Audience including minors.  Offensive language is not permitted.']
         ];
         groups.forEach(group => {
           groupStmt.run(group, err => {

@@ -64,12 +64,23 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.ADD_PAL:
             userToAdd = await findUser(parseInt(payload.slice(0, 4).toString('hex'), 16));
             let thisUser = currentSockets.get(socket.id).user;
+            let userBuddies = JSON.parse(thisUser.buddies);
             if (!thisUser.buddies.includes(userToAdd.uid)) {
-                thisUser.buddies.push({
+                userBuddies.push({
                     uid: userToAdd.uid,
                     nickname: userToAdd.nickname
                 });
-                await usersRef.doc(thisUser.uid.toString()).update({ buddies: thisUser.buddies });
+
+                // set the buddies back on the user
+                thisUser.buddies = JSON.stringify(userBuddies);
+
+                // update the users buddy list in the database
+                db.run(`UPDATE users SET buddies = ? WHERE uid = ?`, [thisUser.buddies, thisUser.uid], (err) => {
+                    if (err) {
+                        console.error('Error updating user buddies:', err);
+                    }
+                });
+
                 sendPacket(socket, PACKET_TYPES.BUDDY_LIST, retrieveBuddyList(thisUser));
                 userIdHex = uidToHex(userToAdd.uid);
                 if (currentSockets.get(userToAdd.uid)){
@@ -178,7 +189,7 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType +'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
 
             // Add the room message
-            let messageHex = Buffer.from("This room is private, meaning the room does not show up in the room list. The only way someone can join this room is by being invited by someone already in the room.").toString('hex');
+            let messageHex = Buffer.from(room.welcome_message).toString('hex');
             let combinedHex = roomIdHex + spacerHex + messageHex;
             let finalBuffer = Buffer.from(combinedHex, 'hex');
             sendPacket(socket, 0x015e, finalBuffer);
@@ -273,28 +284,29 @@ async function processPacket(socket, packetType, payload) {
 
             // Query for exact match of 'nickname'
             if (exnick !== undefined) {
-                usersRef.where('nickname', '==', exnick)
-                        .where('listed', '==', true).get().then(snapshot => {
-                    snapshot.forEach(doc => {
-                        searchResults.push({ uid: doc.id, ...doc.data() });
+                db.all(`SELECT * FROM users WHERE nickname = ? AND listed = ?`, [exnick, 1], (err, rows) => {
+                    if (err) {
+                        console.error('Error querying users by nickname:', err);
+                        return;
+                    }
+                    rows.forEach(row => {
+                        searchResults.push({uid: row.uid, ...row});
                     });
                     processSearchResults(searchResults, socket); // Process results after fetching
-                }).catch(error => {
-                    console.error('Error querying users by nickname:', error);
                 });
             }
 
             // Query for nicknames that start with a specific string
             if (startswith !== undefined) {
-                usersRef.where('nickname', '>=', startswith)
-                        .where('nickname', '<=', startswith + '\uf8ff')
-                        .where('listed', '==', true).get().then(snapshot => {
-                    snapshot.forEach(doc => {
-                        searchResults.push({ uid: doc.id, ...doc.data() });
+                db.all(`SELECT * FROM users WHERE nickname LIKE ? AND listed = ?`, [startswith + '%', 1], (err, rows) => {
+                    if (err) {
+                        console.error('Error querying users by starting nickname:', err);
+                        return;
+                    }
+                    rows.forEach(row => {
+                        searchResults.push({uid: row.uid, ...row});
                     });
-                    processSearchResults(searchResults, socket); // Process results after fetching
-                }).catch(error => {
-                    console.error('Error querying users by starting nickname:', error);
+                    processSearchResults(searchResults, socket);
                 });
             }
             break;
@@ -616,7 +628,7 @@ function createGroups(){
     // load all the groups
     db.all(`SELECT * FROM groups`, (err, rows) => {
         rows.forEach(group => {
-            let grp = new Group(group.uid, group.name, group.voice, group.locked, group.rating, group.status_message);
+            let grp = new Group(group.uid, group.name, group.voice, group.locked, group.rating, group.status_message, group.welcome_message);
             groups.push(grp);
         });
     });
