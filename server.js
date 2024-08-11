@@ -1,8 +1,10 @@
 const net = require('net');
-const { send } = require('process');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
+const { PACKET_TYPES } = require('./PacketHeaders');
+const { serverFunctions } = require('./serverFunctions');
+
 const Group = require('./Models/Group');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
@@ -11,65 +13,12 @@ console.log(endcryptedString);
 console.log(decryptedString);
 
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('chat_app.db');
+const db = new sqlite3.Database('database.db');
 let currentUser;
 let groups = [];
 
-// load all the groups
-db.all(`SELECT * FROM groups`, (err, rows) => {
-    console.log('Loading groups',err);
-    rows.forEach(group => {
-        let grp = new Group(group.uid, group.name, group.voice, group.locked, group.rating, group.status_message);
-        console.log('Group:', grp);
-        groups.push(grp);
-    });
-});
-
-// Packet types
-const PACKET_TYPES = {
-    LOGIN_NOT_COMPLETE: -160,
-    CLIENT_HELLO: -100,
-    HELLO: -117,
-    GET_UIN: -1131,
-    ROOM_MEMBER_COUNT: 0x00A2,
-    UIN_RESPONSE: 0x046B,
-    LYMERICK: -1130,
-    REDIRECT: -1143,
-    SERVER_KEY: 0x0474,
-    LOGIN: -1148,
-    USER_DATA: 0x019A,
-    BUDDY_LIST: 0x0043,
-    LOOKAHEAD: 0x0064,
-    STATUS_CHANGE: 0x0190,
-    WM_MESSAGE: 0x02B2,
-    ANNOUNCEMENT: -39,
-    IM_IN: 0x0014,
-    ROOM_JOIN: -310,
-    ROOM_LEAVE: -320,
-    REQ_MIC: -398,
-    MAINTENANCE_KICK: 0x002A,
-    UNREQ_MIC: -399,
-    ROOM_JOINED: 0x0136,
-    VERSIONS: -2102,
-    LOGIN_UNKNOWN: 0x04A6,
-    BLOCKED_BUDDIES: 0x01FE,
-    ROOM_CATEGORIES: 0x019D,
-    ROOMS: 0x019E,
-    IM_OUT: -20,
-    ROOM_MEDIA_SERVER: 0x013B,
-    AWAY_MODE: -600,
-    ONLINE_MODE: -610,
-    ROOM_MESSAGE_OUT: -350,
-    SEARCH_RESPONSE: 0x0045,
-    USER_SEARCH: -69,
-    ADD_PAL: -67,
-    REFRESH_CATEGORIES: -330,
-    ALERT_ADMIN: -305,
-    EMAIL_INVITE: -200,
-    BLOCK_BUDDY: -500,
-    INVITE_OUT: -360,
-    INVITE_IN: 0x0168,
-};
+// initialize the server, create the groups etc
+initServer();
 
 const currentSockets = new Map()
 
@@ -90,7 +39,6 @@ const server = net.createServer(socket => {
 
 function handleData(socket, data) {
     recvBuffer = Buffer.concat([recvBuffer, data]);
-
     console.log(`Received data: ${data.toString('hex')}`);
 
     while (recvBuffer.length >= 6) {
@@ -98,7 +46,6 @@ function handleData(socket, data) {
         const length = recvBuffer.readUInt16BE(4);
 
         if (recvBuffer.length < length + 6) {
-            console.log('Data received is not complete');
             break;
         }
 
@@ -135,11 +82,9 @@ async function processPacket(socket, packetType, payload) {
             }
             break;
         case PACKET_TYPES.CLIENT_HELLO:
-            console.log('Received Client Hello');
             sendPacket(socket, PACKET_TYPES.HELLO, Buffer.from('Hello-From:PaLTALK'));
             break;
         case PACKET_TYPES.GET_UIN:
-            console.log('Received Get UIN');
             user = await findUser(payload.slice(4).toString('utf8'));
             sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\n`));
             break;
@@ -149,6 +94,16 @@ async function processPacket(socket, packetType, payload) {
             let reason = payload.slice(8);
 
             //TODO alert online admins to take a look
+            break;
+        case PACKET_TYPES.ROOM_MESSAGE_OUT:
+            let grp_id = payload.slice(0, 4);
+            let grp = groups.find(group => group.uid === parseInt(grp_id.toString('hex'), 16));
+            grp.users.forEach(userInGroup => {
+                connectedUser = currentSockets.get(userInGroup.uid);
+                if (connectedUser.uid !== socket.id){
+                    sendPacket(connectedUser.socket, PACKET_TYPES.ROOM_MESSAGE_IN, Buffer.from(payload.slice(0, 4).toString('hex')+uidToHex(socket.id) + payload.slice(4).toString('hex'), 'hex'));
+                }
+            });
             break;
         case PACKET_TYPES.REQ_MIC:
             //sendPacket(socket, 0x018d, Buffer.from(payload.slice(0, 4), 'hex'));
@@ -247,6 +202,7 @@ async function processPacket(socket, packetType, payload) {
             room.users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
                 user.group_id = room.uid;
+                user.mic = 1;
                 let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
@@ -258,17 +214,52 @@ async function processPacket(socket, packetType, payload) {
         
             let userList =  Buffer.concat(buffers);
             sendPacket(socket, 0x0154, userList, 'hex');
-            sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
+            room.users.forEach(user => {
+                let userSocket = currentSockets.get(user.uid);
+                if (userSocket){
+                    // send the updated list of users to all users in the room
+                    sendPacket(userSocket.socket, 0x0154, userList, 'hex');
+                }
+            });
+            // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
-            const ipHex =  'c0a80023';
-            const notsure = '0001869f';
-            const spacer = '0000';
-            const portHex = '31ae'; // 12718
-            sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
+            if (room.voice){    
+                const ipHex =  'c0a80023';
+                const notsure = '0001869f';
+                const spacer = '0000';
+                const portHex = '31ae'; // 12718
+                sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
+            }
+
+            // set the banner url
+            //sendPacket(socket, 0x0320, Buffer.from('http://google.com'), 'hex');
             break;
         case PACKET_TYPES.ROOM_LEAVE:
             let roomToLeave = lookupRoom(payload.slice(0, 4).toString('hex'));
-            roomToLeave.removeUser(currentUser);
+            let del = Buffer.from([0xC8]);
+            let cUser = currentSockets.get(socket.id);
+            let buf = [];
+
+            roomToLeave.removeUser(cUser);
+            roomToLeave.users.forEach(user => {
+                user.group_id = roomToLeave.uid;
+                let userString = convertToJsonString(user);
+                let userBuffer = Buffer.from(userString);
+                buf.push(userBuffer);
+                buf.push(del);
+            });
+
+            // add eof to the end of the user list
+            buf.push(Buffer.from('eof=1', 'hex'));
+            let userL =  Buffer.concat(buf);
+
+            roomToLeave.users.forEach(user => {
+                let userSocket = currentSockets.get(user.uid);
+                if (userSocket){
+                    // send the updated list of users to all users in the room
+                    sendPacket(userSocket.socket, 0x0154, userL, 'hex');
+                }
+            });
             break;
         case PACKET_TYPES.LOGIN:
             handleLogin(socket, payload);
@@ -611,6 +602,23 @@ async function findUser(identifier) {
             console.error('Invalid identifier type');
             resolve(null);
         }
+    });
+}
+
+function initServer(){
+    createGroups();
+}
+
+/**
+ * Create the groups from the database
+ */
+function createGroups(){
+    // load all the groups
+    db.all(`SELECT * FROM groups`, (err, rows) => {
+        rows.forEach(group => {
+            let grp = new Group(group.uid, group.name, group.voice, group.locked, group.rating, group.status_message);
+            groups.push(grp);
+        });
     });
 }
 

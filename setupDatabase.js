@@ -1,5 +1,5 @@
 const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("chat_app.db", err => {
+const db = new sqlite3.Database("database.db", err => {
   if (err) {
     console.error("Error opening database:", err.message);
     return;
@@ -41,7 +41,8 @@ const db = new sqlite3.Database("chat_app.db", err => {
         const users = [
           [1000001, 'Paltalk', 'Default', 'User', 'default@example.com', 1, 1, 1,'default_password_hash', new Date().toISOString(), '000000128', '', '', 0],
           [1000002, 'NetStorm', 'Default', 'User', 'default@example.com', 1, 1, 0,'default_password_hash', new Date().toISOString(), '000128000', '[{"uid": 1000001, "nickname": "Paltalk"}]', '', 1],
-          [1000003, 'Medianoche (co-admin)', 'Median', 'Oche', 'medianoche@example.com', 1, 1, 1, 'another_password_hash', new Date().toISOString(), '128000000', '[]', '', 1]
+          [1000003, 'Medianoche (co-admin)', 'Median', 'Oche', 'medianoche@example.com', 1, 1, 1, 'another_password_hash', new Date().toISOString(), '128000000', '[]', '', 1],
+          [1000004, 'Dan', 'Dan', '', 'dan@example.com', 1, 1, 0, 'another_password_hash', new Date().toISOString(), '000128000', '[]', '', 1]
         ];
         users.forEach(user => {
           stmt.run(user, err => {

@@ -1,3 +1,4 @@
 node_modules/
-chat_app.db
+database.db
+receivedData.txt
 .vscode/
