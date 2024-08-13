@@ -148,11 +148,13 @@ async function processPacket(socket, packetType, payload) {
                 parseCommand(currentUid, content, socket);
                 return; 
             }
+            // how to get the senders uid??
+            let senderBuf = Buffer.from(uidToHex(socket.id), 'hex');
 
-            let out = Buffer.concat([receiver, content]);
+            let out = Buffer.concat([senderBuf, content]);
             let receiverClient = currentSockets.get(uidToDec(receiver));
             if (receiverClient){
-                sendPacket(receiverClient.socket, PACKET_TYPES.IM_IN, Buffer.from(out, 'hex'));
+                sendPacket(receiverClient.socket, PACKET_TYPES.IM_IN, out);
             }else{
                 // receiver is offline store the message
                 storeOfflineMessage(currentUid, uidToDec(receiver), content);
