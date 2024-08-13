@@ -34,16 +34,18 @@ server.listen(12718, () => {
 });
 
 function handleData(socket, data) {
+    // Convert data to hex format
+    const hexData = data.toString('hex');
 
-    // Define the path where the data will be saved
-    const filePath = path.join(__dirname, 'receivedData.txt');
-
-    // Write the received data to a file
-    fs.appendFile(filePath, data.toString('hex') + '\n', (err) => {
-        if (err) {
-            console.error('Failed to write data to file:', err);
-        } else {
-            console.log('Data written to file successfully.');
-        }
-    });
+    if (data.length > 30){
+        
+            // Echo back the hex data to the client
+            socket.write(hexData + '\n', 'utf8', (err) => {
+                if (err) {
+                    console.error('Failed to send data back to client:', err);
+                } else {
+                    console.log('Data echoed back to client successfully.');
+                }
+            });
+    }
 }

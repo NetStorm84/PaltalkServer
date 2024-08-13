@@ -213,7 +213,6 @@ async function processPacket(socket, packetType, payload) {
             room.users.forEach(user => {
                 // Create a string from the user object, format can be adjusted as needed
                 user.group_id = room.uid;
-                user.mic = 1;
                 let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
                 let userBuffer = Buffer.from(userString);
                 buffers.push(userBuffer);
@@ -246,29 +245,15 @@ async function processPacket(socket, packetType, payload) {
             //sendPacket(socket, 0x0320, Buffer.from('http://google.com'), 'hex');
             break;
         case PACKET_TYPES.ROOM_LEAVE:
+            let roomHex = payload.slice(0, 4).toString('hex');
             let roomToLeave = lookupRoom(payload.slice(0, 4).toString('hex'));
-            let del = Buffer.from([0xC8]);
             let cUser = currentSockets.get(socket.id);
-            let buf = [];
 
             roomToLeave.removeUser(cUser);
-            roomToLeave.users.forEach(user => {
-                user.group_id = roomToLeave.uid;
-                let userString = convertToJsonString(user);
-                let userBuffer = Buffer.from(userString);
-                buf.push(userBuffer);
-                buf.push(del);
-            });
-
-            // add eof to the end of the user list
-            buf.push(Buffer.from('eof=1', 'hex'));
-            let userL =  Buffer.concat(buf);
-
-            roomToLeave.users.forEach(user => {
-                let userSocket = currentSockets.get(user.uid);
-                if (userSocket){
-                    // send the updated list of users to all users in the room
-                    sendPacket(userSocket.socket, 0x0154, userL, 'hex');
+            roomToLeave.users.forEach(element => {
+                user = currentSockets.get(element.uid);
+                if (user){
+                    sendPacket(user.socket, PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(roomHex + uidToHex(socket.id), 'hex'));
                 }
             });
             break;
