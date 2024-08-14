@@ -99,6 +99,8 @@ async function processPacket(socket, packetType, payload) {
             user = await findUser(payload.slice(4).toString('utf8'));
             sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\n`));
             break;
+        case PACKET_TYPES.ROOM_BOUNCE:
+            bounceUser(socket, payload);
         case PACKET_TYPES.ALERT_ADMIN:
             let group_id = payload.slice(0, 4);
             let reportedUser = payload.slice(4, 8);
@@ -160,91 +162,12 @@ async function processPacket(socket, packetType, payload) {
                 storeOfflineMessage(currentUid, uidToDec(receiver), content);
             }
             break;
+        case PACKET_TYPES.ROOM_JOIN_AS_ADMIN:
+            checkAdminGroupPassword(socket, payload);
+            break;
         case PACKET_TYPES.ROOM_JOIN:
-
-            let room = lookupRoom(payload.slice(0, 4).toString('hex'));
-
-            const roomIdHex = payload.slice(0, 4).toString('hex');
-            const spacerHex = "00000000";
-            currentUser = currentSockets.get(socket.id);
-            let delim = Buffer.from([0xC8]);
-
-            let room_details = {
-                codec: 'spexproj.dll',
-                qual: 2,
-                channels: 1,
-                premium: 1,
-                va: 'Y',
-                ss:'F',
-                own: 'NetStorm',
-                cr: '56958546',
-                sr: 0,
-                sra: 0,
-                sru: 0,
-                srf: 0,
-                srh: 0
-            };
-
-            let roomType = room.voice ? '00030001' : '00060001';
-
-            // join room
-            sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType +'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
-
-            // Add the room message
-            let messageHex = Buffer.from(room.welcome_message).toString('hex');
-            let combinedHex = roomIdHex + spacerHex + messageHex;
-            let finalBuffer = Buffer.from(combinedHex, 'hex');
-            sendPacket(socket, 0x015e, finalBuffer);
-
-            // add a welcome message
-            messageHex = Buffer.from(`${currentUser.user.nickname}, welcome to the room ${room.name}.`).toString('hex');
-            combinedHex = roomIdHex + spacerHex + messageHex;
-            finalBuffer = Buffer.from(combinedHex, 'hex');
-            sendPacket(socket, 0x015e, finalBuffer);
-
-            // set the welcome message banner
-            messageHex = Buffer.from(room.status_message).toString('hex');
-            combinedHex = roomIdHex + spacerHex + messageHex;
-            finalBuffer = Buffer.from(combinedHex, 'hex');
-            sendPacket(socket, 0x015f, finalBuffer);
-
-            let buffers = [];
-
-            room.addUser(currentUser.user);
-
-            room.users.forEach(user => {
-                // Create a string from the user object, format can be adjusted as needed
-                user.group_id = room.uid;
-                let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
-                let userBuffer = Buffer.from(userString);
-                buffers.push(userBuffer);
-                buffers.push(delim);
-            });
-
-            // add eof to the end of the user list
-            buffers.push(Buffer.from('eof=1', 'hex'));
-        
-            let userList =  Buffer.concat(buffers);
-            sendPacket(socket, 0x0154, userList, 'hex');
-            room.users.forEach(user => {
-                let userSocket = currentSockets.get(user.uid);
-                if (userSocket){
-                    // send the updated list of users to all users in the room
-                    sendPacket(userSocket.socket, 0x0154, userList, 'hex');
-                }
-            });
-            // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
-
-            if (room.voice){    
-                const ipHex =  'c0a80023';
-                const notsure = '0001869f';
-                const spacer = '0000';
-                const portHex = '31ae'; // 12718
-                sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
-            }
-
-            // set the banner url
-            //sendPacket(socket, 0x0320, Buffer.from('http://google.com'), 'hex');
+            // join the room
+            joinRoom(socket, payload, false);
             break;
         case PACKET_TYPES.ROOM_LEAVE:
             let roomHex = payload.slice(0, 4).toString('hex');
@@ -362,6 +285,120 @@ function asciiToHex(str) {
         hex += str.charCodeAt(i).toString(16);
     }
     return hex;
+}
+
+function checkAdminGroupPassword(socket, payload) {
+    let user = payload.slice(0, 4);
+    let password = payload.slice(4, 8);
+    let port = payload.slice(8, 12); // voice port?? (2090)
+
+    if (true){
+        room = groups.find(room => room.uid === 50002, 16);
+        joinRoom(socket, payload, room, true);
+    }
+
+}
+
+//TODO this is not working, bounce the user
+function bounceUser(socket, payload) {
+    let user = payload.slice(0, 4);
+    let room = payload.slice(4, 8);
+}
+
+function joinRoom(socket, payload, room = false, isAdmin = false) {
+
+    if (!room){
+        room = lookupRoom(payload.slice(0, 4).toString('hex'));
+    }
+
+    const roomIdHex = uidToHex(room.uid);
+    const spacerHex = "00000000";
+    currentUser = currentSockets.get(socket.id);
+    let delim = Buffer.from([0xC8]);
+
+    let room_details = {
+        codec: 'spexproj.dll',
+        qual: 2,
+        channels: 1,
+        premium: 1,
+        va: 'Y',
+        ss:'F',
+        own: 'NetStorm',
+        cr: '56958546',
+        sr: 0,
+        sra: 0,
+        sru: 0,
+        srf: 0,
+        srh: 0
+    };
+
+    if (isAdmin && room.voice){
+        roomType = '00030001';
+    }else if (isAdmin && !room.voice){
+        roomType = '00060001';
+    }else if (!isAdmin && room.voice){
+        roomType = '00030000';
+    }else if (!isAdmin && !room.voice){
+        roomType = '00060000';
+    }
+
+    // join room
+    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType +'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
+
+    // Add the room message
+    let messageHex = Buffer.from(room.welcome_message).toString('hex');
+    let combinedHex = roomIdHex + spacerHex + messageHex;
+    let finalBuffer = Buffer.from(combinedHex, 'hex');
+    sendPacket(socket, 0x015e, finalBuffer);
+
+    // add a welcome message
+    messageHex = Buffer.from(`${currentUser.user.nickname}, welcome to the room ${room.name}.`).toString('hex');
+    combinedHex = roomIdHex + spacerHex + messageHex;
+    finalBuffer = Buffer.from(combinedHex, 'hex');
+    sendPacket(socket, 0x015e, finalBuffer);
+
+    // set the welcome message banner
+    messageHex = Buffer.from(room.status_message).toString('hex');
+    combinedHex = roomIdHex + spacerHex + messageHex;
+    finalBuffer = Buffer.from(combinedHex, 'hex');
+    sendPacket(socket, 0x015f, finalBuffer);
+
+    let buffers = [];
+
+    currentUser.user.admin = isAdmin?1:0;
+    room.addUser(currentUser.user);
+
+    room.users.forEach(user => {
+        // Create a string from the user object, format can be adjusted as needed
+        user.group_id = room.uid;
+        let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
+        let userBuffer = Buffer.from(userString);
+        buffers.push(userBuffer);
+        buffers.push(delim);
+    });
+
+    // add eof to the end of the user list
+    buffers.push(Buffer.from('eof=1', 'hex'));
+
+    let userList =  Buffer.concat(buffers);
+    sendPacket(socket, 0x0154, userList, 'hex');
+    room.users.forEach(user => {
+        let userSocket = currentSockets.get(user.uid);
+        if (userSocket){
+            // send the updated list of users to all users in the room
+            sendPacket(userSocket.socket, 0x0154, userList, 'hex');
+        }
+    });
+    // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
+
+    if (room.voice){    
+        const ipHex =  'c0a80023';
+        const notsure = '0001869f';
+        const spacer = '0000';
+        const portHex = '31ae'; // 12718
+        sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
+    }
+
 }
 
 function storeOfflineMessage(sender, receiver, content) {
