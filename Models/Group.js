@@ -20,6 +20,16 @@ class Group {
         this.welcome_message = welcome_message;
     }
 
+    broadcastGroupPacket(packetType, payload) {
+        for (let user in this.users) {
+            sendPacket(user.socket, packetType, payload);
+        }
+    }
+
+    getRoomUid() {
+        return this.uid;
+    }
+
     getUserCount() {
         return Object.keys(this.users).length;
     }

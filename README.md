@@ -7,6 +7,7 @@ To get the server up and running, clone the repo to a local folder, enter the fo
  - `npm install` to install the dependencies.
  - `node setupDatabase.js` to create the database.
  - Followed by `npm start`. This will initialise the server on port 5001.
+ - Followed by `node voiceServer.js` to start the Voice Server
 
 ### Preparing the client
 
