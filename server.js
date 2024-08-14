@@ -3,12 +3,11 @@ const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
 const { PACKET_TYPES } = require('./PacketHeaders');
-const { serverFunctions } = require('./serverFunctions');
 
 const Group = require('./Models/Group');
 
 let endcryptedString = encryption.encrypt('passsword', 25);
-let decryptedString = encryption.decrypt(endcryptedString, 25);
+let decryptedString = encryption.decrypt('endcryptedString', 25);
 console.log(endcryptedString);
 console.log(decryptedString);
 
@@ -236,7 +235,7 @@ async function processPacket(socket, packetType, payload) {
             // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
             if (room.voice){    
-                const ipHex =  'c0a80023';
+                const ipHex =  'c0a80110';
                 const notsure = '0001869f';
                 const spacer = '0000';
                 const portHex = '31ae'; // 12718
@@ -247,17 +246,7 @@ async function processPacket(socket, packetType, payload) {
             //sendPacket(socket, 0x0320, Buffer.from('http://google.com'), 'hex');
             break;
         case PACKET_TYPES.ROOM_LEAVE:
-            let roomHex = payload.slice(0, 4).toString('hex');
-            let roomToLeave = lookupRoom(payload.slice(0, 4).toString('hex'));
-            let cUser = currentSockets.get(socket.id);
-
-            roomToLeave.removeUser(cUser);
-            roomToLeave.users.forEach(element => {
-                user = currentSockets.get(element.uid);
-                if (user){
-                    sendPacket(user.socket, PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(roomHex + uidToHex(socket.id), 'hex'));
-                }
-            });
+            leaveGroup(socket, payload);
             break;
         case PACKET_TYPES.LOGIN:
             handleLogin(socket, payload);
@@ -481,6 +470,29 @@ function sendOfflineMessages(user, socket) {
             });
         });
     });
+}
+
+/**
+ * 
+ * @param {*} socket 
+ * @param {*} payload 
+ * 
+ * Removes the user from the group and
+ * broadcasts to the room that the user has left
+ */
+function leaveGroup(socket, payload) {
+
+    // get the group id from the payload
+    let groupId = payload.slice(0, 4).toString('hex');
+    
+    // get the room the user is leaving
+    let group = lookupRoom(groupId);
+
+    // remove user from the room
+    group.removeUser(currentSockets.get(socket.id));
+
+    // announce the user has left the room
+    group.broadcastPacket(PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(roomHex + uidToHex(socket.id), 'hex'));
 }
 
 function parseCommand(currentUid, content, socket){

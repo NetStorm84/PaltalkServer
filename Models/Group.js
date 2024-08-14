@@ -1,3 +1,5 @@
+const { sendPacket } = require('../PacketSender'); 
+
 class Group {
 
     uid;
@@ -18,6 +20,16 @@ class Group {
         this.rating = rating;
         this.status_message = status_message;
         this.welcome_message = welcome_message;
+    }
+
+    broadcastGroupPacket(packetType, payload) {
+        for (let user in this.users) {
+            sendPacket(user.socket, packetType, payload);
+        }
+    }
+
+    getRoomUid() {
+        return this.uid;
     }
 
     getUserCount() {
