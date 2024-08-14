@@ -1,5 +1,3 @@
-const { sendPacket } = require('../PacketSender'); 
-
 class Group {
 
     uid;

@@ -5,10 +5,11 @@ const { sendPacket } = require('./packetSender');
 const { PACKET_TYPES } = require('./PacketHeaders');
 
 const Group = require('./Models/Group');
+const User = require('./Models/User');
 
-let endcryptedString = encryption.encrypt('passsword', 25);
-let decryptedString = encryption.decrypt('endcryptedString', 25);
-console.log(endcryptedString);
+let encryptedString = encryption.encrypt('passsword', 25);
+let decryptedString = encryption.decrypt(encryptedString, 25);
+console.log(encryptedString);
 console.log(decryptedString);
 
 const sqlite3 = require('sqlite3').verbose();
