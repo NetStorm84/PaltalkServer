@@ -30,7 +30,23 @@ const server = net.createServer(socket => {
 
     socket.on('data', data => handleData(socket, data));
     socket.on('end', () =>  {
+
+        // get the user from the current sockets
+        let user = currentSockets.get(socket.id).user;
+
+        // delete this user from the active sockets
         currentSockets.delete(socket.id);
+
+        // alert all the users that the user has gone offline
+        currentSockets.forEach(socket => {
+            let userBuddies = JSON.parse(socket.user.buddies);
+            userBuddies.forEach(buddy => {
+                if (buddy.uid === user.uid){
+                    sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(user.uid) + '00000000', 'hex'));
+                }
+            });
+        });
+
         console.log(`UID ${currentUid} removed from active sockets`);
     });
         
@@ -434,8 +450,8 @@ function lookupRoom(roomId) {
 
 async function handleLogin(socket, payload) {
 
-    currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
-    user = await findUser(currentUid);
+    let currentUid = parseInt(payload.slice(0,4).toString('hex'), 16);
+    let user = await findUser(currentUid);
     
     // set the socket id as the users uid
     socket.id = user.uid;
@@ -452,11 +468,21 @@ async function handleLogin(socket, payload) {
     //get the users buddy list
     const buddyList = retrieveBuddyList(user);
 
+    // alert all the users that the user has come online
+    currentSockets.forEach(socket => {
+        let userBuddies = JSON.parse(socket.user.buddies);
+        userBuddies.forEach(buddy => {
+            if (buddy.uid === user.uid){
+                sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(user.uid) + '0000001E', 'hex'));
+            }
+        });
+    });
+
     sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList);
     sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'));
 
     // Parse the buddies JSON string into an array
-    buddies = JSON.parse(user.buddies);
+    let buddies = JSON.parse(user.buddies);
     buddies.forEach(buddy => {
         let buddySocket = currentSockets.get(buddy.uid);
         if (buddySocket || (buddy.nickname == 'Paltalk')){
