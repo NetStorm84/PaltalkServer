@@ -32,20 +32,22 @@ const server = net.createServer(socket => {
     socket.on('end', () =>  {
 
         // get the user from the current sockets
-        let user = currentSockets.get(socket.id).user;
+        let userSocket = currentSockets.get(socket.id)
+        if (userSocket){
 
-        // delete this user from the active sockets
-        currentSockets.delete(socket.id);
+            // delete this user from the active sockets
+            currentSockets.delete(socket.id);
 
-        // alert all the users that the user has gone offline
-        currentSockets.forEach(socket => {
-            let userBuddies = JSON.parse(socket.user.buddies);
-            userBuddies.forEach(buddy => {
-                if (buddy.uid === user.uid){
-                    sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(user.uid) + '00000000', 'hex'));
-                }
+            // alert all the users that the user has gone offline
+            currentSockets.forEach(socket => {
+                let userBuddies = JSON.parse(socket.user.buddies);
+                userBuddies.forEach(buddy => {
+                    if (buddy.uid === userSocket.user.uid){
+                        sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(userSocket.user.uid) + '00000000', 'hex'));
+                    }
+                });
             });
-        });
+        }
 
         console.log(`UID ${currentUid} removed from active sockets`);
     });
@@ -161,6 +163,7 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.IM_OUT:
             let receiver = payload.slice(0, 4);
             let content = payload.slice(4);
+            let currentUid = currentSockets.get(socket.id).uid;
 
             if (receiver.toString('hex') === uidToHex('1000001')){
                 parseCommand(currentUid, content, socket);
