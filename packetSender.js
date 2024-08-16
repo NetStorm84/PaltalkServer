@@ -8,12 +8,15 @@ const Buffer = require('buffer').Buffer;
  * @param {Buffer} payload - The payload of the packet.
  */
 function sendPacket(socket, packetType, payload) {
-    const header = Buffer.alloc(6);
-    header.writeInt16BE(packetType, 0);
-    header.writeUInt16BE(payload.length, 4);
-    const packet = Buffer.concat([header, payload]);
-    socket.write(packet);
-    console.log(`Sent packet of type ${packetType} with payload ${payload.toString('hex')}`);
+
+    if (socket) {
+        const header = Buffer.alloc(6);
+        header.writeInt16BE(packetType, 0);
+        header.writeUInt16BE(payload.length, 4);
+        const packet = Buffer.concat([header, payload]);
+        socket.write(packet);
+        console.log(`Sent packet of type ${packetType} with payload ${payload.toString('hex')}`);
+    }
 }
 
 module.exports = { sendPacket };

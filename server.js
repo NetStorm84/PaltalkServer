@@ -558,7 +558,7 @@ function leaveGroup(socket, payload) {
     group.removeUser(currentSockets.get(socket.id));
 
     // announce the user has left the room
-    group.broadcastGroupPacket(PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(uidToHex(groupId) + uidToHex(socket.id), 'hex'));
+    broadcastGroupPacket(PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(groupId + uidToHex(socket.id), 'hex'), group);
 }
 
 function parseCommand(currentUid, content, socket){
@@ -592,6 +592,15 @@ function parseCommand(currentUid, content, socket){
 
     // Send the packet with the concatenated buffer
     sendPacket(socket, PACKET_TYPES.IM_IN, out);
+}
+
+function broadcastGroupPacket(packetType, payload, group) {
+    group.users.forEach(user => {
+        let userSocket = currentSockets.get(user.uid);
+        if (userSocket){
+            sendPacket(userSocket.socket, packetType, payload);
+        }
+    });
 }
 
 function retrieveBuddyList(user) {
