@@ -315,8 +315,10 @@ function setGroupBanner(socket, payload) {
     let messageH = payload.slice(4).toString('hex');
     let spcrHex = '00000000';
     let cmbHex = gp_id.toString('hex') + spcrHex + messageH;
+    let room = lookupRoom(gp_id.toString('hex'));
     finalBuffer = Buffer.from(cmbHex, 'hex');
-    broadcastGroupPacket(0x015f, finalBuffer, lookupRoom(gp_id.toString('hex')));
+    room.status_message = payload.slice(4).toString('utf8');
+    broadcastGroupPacket(0x015f, finalBuffer, room);
 }
 
 //TODO this is not working, bounce the user
