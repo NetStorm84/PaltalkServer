@@ -139,6 +139,9 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.REQ_MIC:
             //sendPacket(socket, 0x018d, Buffer.from(payload.slice(0, 4), 'hex'));
             break;
+        case PACKET_TYPES.ROOM_BANNER_MESSAGE:
+            setGroupBanner(socket, payload);
+            break;
         case PACKET_TYPES.INVITE_OUT:
             let invitee = payload.slice(4, 8);
             let room_id = payload.slice(0, 4);
@@ -305,6 +308,15 @@ function checkAdminGroupPassword(socket, payload) {
         joinRoom(socket, payload, room, true);
     }
 
+}
+
+function setGroupBanner(socket, payload) {
+    let gp_id = payload.slice(0, 4);
+    let messageH = payload.slice(4).toString('hex');
+    let spcrHex = '00000000';
+    let cmbHex = gp_id.toString('hex') + spcrHex + messageH;
+    finalBuffer = Buffer.from(cmbHex, 'hex');
+    broadcastGroupPacket(0x015f, finalBuffer, lookupRoom(gp_id.toString('hex')));
 }
 
 //TODO this is not working, bounce the user
