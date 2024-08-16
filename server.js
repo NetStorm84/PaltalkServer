@@ -357,11 +357,11 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     if (isAdmin && room.voice){
         roomType = '00030001';
     }else if (isAdmin && !room.voice){
-        roomType = '00060001';
+        roomType = '00000001';
     }else if (!isAdmin && room.voice){
         roomType = '00030000';
     }else if (!isAdmin && !room.voice){
-        roomType = '00060000';
+        roomType = '00000000';
     }
 
     // join room
