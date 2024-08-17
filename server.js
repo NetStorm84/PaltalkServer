@@ -4,6 +4,12 @@ const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
 const { PACKET_TYPES } = require('./PacketHeaders');
 
+const TEXT_ROOM = 0x00000000;
+const VOICE_ROOM = 0x00030000;
+
+// Room permissions
+const ADMIN = 0x00000001;
+
 const Group = require('./Models/Group');
 const User = require('./Models/User');
 
@@ -152,6 +158,16 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.BLOCK_BUDDY:
             break;
+        case PACKET_TYPES.ROOM_CREATE:
+            //0003000000000000 082a 47 6464646464646464646464
+            let roomType = payload.slice(0, 4);
+            let rating = payload.slice(10, 11);
+            let roomName = payload.slice(11);
+
+            let room = new Group(groups.length + 1, roomName.toString(), roomType.toString('hex'), false, rating.toString(), 'Please support our sponsors.', 'Welcome to the room');
+            groups.push(room);
+            joinRoom(socket, Buffer.alloc(0), room, true);
+            break;
         case PACKET_TYPES.LYMERICK:
             console.log('Received Lymerick');
             sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0));
@@ -183,6 +199,9 @@ async function processPacket(socket, packetType, payload) {
                 // receiver is offline store the message
                 storeOfflineMessage(currentUid, uidToDec(receiver), content);
             }
+            break;
+        case PACKET_TYPES.ROOM_CLOSE:
+            //TODO close the room
             break;
         case PACKET_TYPES.ROOM_JOIN_AS_ADMIN:
             checkAdminGroupPassword(socket, payload);
@@ -359,13 +378,30 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     }else if (isAdmin && !room.voice){
         roomType = '00000001';
     }else if (!isAdmin && room.voice){
-        roomType = '00030000';
+        roomType = '00030000';   // 001 - private voice conf / 0002 group / 0003 - voice confernece
     }else if (!isAdmin && !room.voice){
         roomType = '00000000';
     }
 
+    //0000 = invisible text room
+    //0003 invisible voice room
+
+    //roomType = '00030003000100000';
+
+
+
+    // if (isAdmin && room.voice){
+    //     roomType = VOICE_ROOM | ADMIN;
+    // }else if (isAdmin && !room.voice){
+    //     roomType = TEXT_ROOM | ADMIN;
+    // }else if (!isAdmin && room.voice){
+    //     roomType = VOICE_ROOM;
+    // }else if (!isAdmin && !room.voice){
+    //     roomType = TEXT_ROOM;
+    // }
+
     // join room
-    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType +'000000000'+'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
+    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType + '000000000' +'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
 
     // Add the room message
     let messageHex = Buffer.from(room.welcome_message).toString('hex');
