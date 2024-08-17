@@ -250,6 +250,12 @@ async function processPacket(socket, packetType, payload) {
                 });
             }
             break;
+            case PACKET_TYPES.ROOM_START_PUBLISH_VIDEO:
+                //TODO start publishing video
+                break;
+            case PACKET_TYPES.ROOM_STOP_PUBLISH_VIDEO:
+                //TODO stop publishing video
+                break;
             case PACKET_TYPES.EMAIL_INVITE:
                 // Extract the email from the payload
                 let email = getValueByKey(payload.toString('utf8'), 'email');
