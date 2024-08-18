@@ -359,7 +359,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
         room = lookupRoom(payload.slice(0, 4).toString('hex'));
     }
 
-    let isVisible = payload.slice(4,5)[0] !== 0 || payload.slice(4,5)[1] !== 0;
+    let isInvisible = payload.slice(4,6).includes(1);
 
     const roomIdHex = uidToHex(room.uid);
     const spacerHex = "00000000";
@@ -390,6 +390,12 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
         roomType = '00030000';   // 001 - private voice conf / 0002 group / 0003 - voice confernece
     }else if (!isAdmin && !room.voice){
         roomType = '00000000';
+    }
+
+    if (isInvisible && room.voice){
+        roomType = '0003';
+    }else if (isInvisible && !room.voice){
+        roomType = '0000';
     }
 
     //0000 = invisible text room
@@ -433,17 +439,17 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     let buffers = [];
 
     currentUser.user.admin = isAdmin?1:0;
-    if (isVisible){
-        room.addUser(currentUser.user);
-    }
+    room.addUser(currentUser.user, !isInvisible);
 
     room.users.forEach(user => {
         // Create a string from the user object, format can be adjusted as needed
-        user.group_id = room.uid;
-        let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
-        let userBuffer = Buffer.from(userString);
-        buffers.push(userBuffer);
-        buffers.push(delim);
+        if (user.visible){
+            user.group_id = room.uid;
+            let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
+            let userBuffer = Buffer.from(userString);
+            buffers.push(userBuffer);
+            buffers.push(delim);
+        }
     });
 
     // add eof to the end of the user list

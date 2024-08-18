@@ -25,15 +25,22 @@ class Group {
     }
 
     getUserCount() {
-        return Object.keys(this.users).length;
+        let count = 0;
+        for (let userId in this.users) {
+            if (this.users.hasOwnProperty(userId) && this.users[userId].visible) {
+                count++;
+            }
+        }
+        return count;
     }
+    
 
     removeUser(user) {
         delete this.users[user.uid];
     }
 
     // adds a user to the room
-    addUser(user) {
+    addUser(user, isVisible = true) {
 
         if (!this.users[user.uid]) {
 
@@ -41,6 +48,7 @@ class Group {
             user.mic = 1;
             user.pub = 0;
             user.away = 0;
+            user.visible = isVisible;
             
             this.users[user.uid] = user;
             return true;
