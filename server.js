@@ -120,8 +120,8 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, PACKET_TYPES.HELLO, Buffer.from('Hello-From:PaLTALK'));
             break;
         case PACKET_TYPES.GET_UIN:
-            user = await findUser(payload.slice(4).toString('utf8'));
-            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\n`));
+            let usr = await findUser(payload.slice(4).toString('utf8'));
+            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${usr.uid}\nnickname=${usr.nickname}\n`));
             break;
         case PACKET_TYPES.ROOM_BOUNCE:
             bounceUser(socket, payload);
@@ -207,7 +207,8 @@ async function processPacket(socket, packetType, payload) {
             checkAdminGroupPassword(socket, payload);
             break;
         case PACKET_TYPES.ROOM_JOIN:
-            joinRoom(socket, payload);
+            let user = currentSockets.get(socket.id);
+            joinRoom(socket, payload, false, user.user.admin);
             break;
         case PACKET_TYPES.ROOM_LEAVE:
             leaveGroup(socket, payload);
@@ -358,6 +359,8 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
         room = lookupRoom(payload.slice(0, 4).toString('hex'));
     }
 
+    let isVisible = payload.slice(4,5)[0] !== 0 || payload.slice(4,5)[1] !== 0;
+
     const roomIdHex = uidToHex(room.uid);
     const spacerHex = "00000000";
     currentUser = currentSockets.get(socket.id);
@@ -430,7 +433,9 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     let buffers = [];
 
     currentUser.user.admin = isAdmin?1:0;
-    room.addUser(currentUser.user);
+    if (isVisible){
+        room.addUser(currentUser.user);
+    }
 
     room.users.forEach(user => {
         // Create a string from the user object, format can be adjusted as needed
