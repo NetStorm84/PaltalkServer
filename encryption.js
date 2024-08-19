@@ -6,7 +6,7 @@ const lymrick = "Ginger was a big fat horse, a big fat horse was she. But don"
                     "e, Ive said it twice, Ill say it once again.Not a w"
                     "ord of this to you know who or it will be our end!"; 
 
-function decrypt(encryptedString, keyOffset) {
+function decrypt(encryptedString, serverKey, keyOffset, variant) {
     const decryptedChars = []; // Array to hold each character
     const destination = lymrick.slice(); // Copy source to destination
     let counter = 0;
@@ -24,7 +24,7 @@ function decrypt(encryptedString, keyOffset) {
     return decryptedChars.join(''); // Return a string of decrypted characters
 }
 
-function encrypt(plainText, keyOffset) {
+function encrypt(plainText, serverKey, keyOffset, variant) {
     let encryptedString = "";
     const keyLength = lymrick.length;
     let counter = 0;
@@ -45,29 +45,5 @@ function encrypt(plainText, keyOffset) {
 
     return encryptedString;
 }
-
-// // Test data
-// // Encrypted password
-// const encryptedPassword = '344027303060289029703030309028802790'; 
-
-// // Key password was encrypted with
-// const encryptionKey = '5C189F-1AAg3aAi0n5C189F-1AAg3aAi0n5C189F-1AAg3aAi0n'; 
-// // Starting position of we use from the key this is 25 with the smtp and may be different for other parts
-// const encryptionKeyStartPos = 16; 
-// // Original string before encryption so we can compare the results when encrypting
-// const originalPlainText = "passsword"; 
-
-// // SMTP string to be encrypted
-// const smtpPlainText = 'smtp.paltalk.fun:25:user:pass'; 
-
-// // Excryption of the smtp string
-// console.log(encrypt(smtpPlainText, 25, lymrickKey));
-
-// // Example of decryption (for verification purposes)
-// console.log(decrypt(encryptionKey, encryptionKeyStartPos, encryptedPassword));
-
-// //Encrypt & then Decrypt the string to test its still working
-// var encryptedUsingOurCode = encrypt(originalPlainText, encryptionKeyStartPos, lymrickKey);
-// console.log(decrypt(lymrickKey, encryptionKeyStartPos, encryptedUsingOurCode));
 
 module.exports = { encrypt, decrypt};

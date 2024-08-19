@@ -3,20 +3,22 @@ const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
 const { PACKET_TYPES } = require('./PacketHeaders');
-
-const TEXT_ROOM = 0x00000000;
-const VOICE_ROOM = 0x00030000;
-
-// Room permissions
-const ADMIN = 0x00000001;
-
 const Group = require('./Models/Group');
 const User = require('./Models/User');
 
-let encryptedString = encryption.encrypt('passsword', 25);
-let decryptedString = encryption.decrypt(encryptedString, 25);
-console.log(encryptedString);
-console.log(decryptedString);
+const SERVER_KEY = 'XyF¦164473312518';
+
+// let encryptedString = encryption.encrypt('smtp.paltalk.fun:25:user:pass', '', 25, 2);
+// let decryptedString = encryption.decrypt(encryptedString, '', 25, 1);
+
+let encryptedString = encryption.encrypt('11111', '', 25, 2);
+let decryptedString = encryption.decrypt(encryptedString, '', 25, 1);
+console.log('Encrypted:', encryptedString);
+console.log('Decrypted:', decryptedString);
+
+// for (let index = 0; index < 60; index++) {
+//     console.log(encryption.decrypt(encryptedString, index, 2), index);
+// }
 
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('database.db');
@@ -171,7 +173,7 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.LYMERICK:
             console.log('Received Lymerick');
             sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0));
-            sendPacket(socket, PACKET_TYPES.SERVER_KEY, Buffer.from('XyF¦164473312518'));
+            sendPacket(socket, PACKET_TYPES.SERVER_KEY, Buffer.from(SERVER_KEY));
             break;
         case PACKET_TYPES.AWAY_MODE:
             sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(socket.id) + '00000046', 'hex'));
