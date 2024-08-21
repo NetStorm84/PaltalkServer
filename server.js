@@ -121,6 +121,23 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.CLIENT_HELLO:
             sendPacket(socket, PACKET_TYPES.HELLO, Buffer.from('Hello-From:PaLTALK'));
             break;
+        case PACKET_TYPES.XFER_REQUEST:
+            let recv = payload.slice(0, 4);
+            let recSocket = currentSockets.get(parseInt(recv.toString('hex'), 16));
+
+            let ipAddress = recSocket.socket.remoteAddress;
+            
+            // Ensure only the IPv4 part is used (for IPv4-mapped IPv6 addresses)
+            let ipv4Address = ipAddress.includes('::ffff:') ? ipAddress.split(':').pop() : ipAddress;
+            console.log("Remote IP Address:", ipv4Address); // Log the IP Address in standard format
+
+            // Convert IP address to hexadecimal
+            let hexAddress = ipv4Address.split('.').map((octet) => {
+                return parseInt(octet).toString(16).padStart(2, '0');
+            }).join('');
+
+            sendPacket(recSocket.socket, PACKET_TYPES.XFER_ACCEPT, Buffer.from(hexAddress +'0001869f0000082a', 'hex'));
+            break;
         case PACKET_TYPES.GET_UIN:
             let usr = await findUser(payload.slice(4).toString('utf8'));
             sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, Buffer.from(`uid=${usr.uid}\nnickname=${usr.nickname}\n`));
@@ -145,7 +162,7 @@ async function processPacket(socket, packetType, payload) {
             });
             break;
         case PACKET_TYPES.REQ_MIC:
-            //sendPacket(socket, 0x018d, Buffer.from(payload.slice(0, 4), 'hex'));
+            sendPacket(socket, 0x018d, Buffer.from(payload.slice(0, 4), 'hex'));
             break;
         case PACKET_TYPES.ROOM_BANNER_MESSAGE:
             setGroupBanner(socket, payload);
@@ -474,6 +491,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
         const spacer = '0000';
         const portHex = '31ae'; // 12718
         sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
+        sendPacket(socket, 0x00a2, Buffer.from('48f0f128', 'hex'));
     }
 
 }

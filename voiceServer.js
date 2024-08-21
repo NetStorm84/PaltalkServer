@@ -8,21 +8,35 @@ let sockets = new Set();
 const server = net.createServer(socket => {
     console.log('New connection established');
     sockets.add(socket); // Add the new connection to the set
+    console.log(`Total active connections: ${sockets.size}`);
 
     socket.on('data', data => {
         console.log(`Data received: ${data.toString('hex')}`);
-        handleData(socket, data);
-        broadcastData(socket, data); // Broadcast the data to all other sockets
+
+        if (data.toString('hex') == '0000c353000f4242' || data.toString('hex') == '0000c353000f4244') {
+            socket.write(Buffer.alloc(0));
+        }else{
+            handleData(socket, data);
+            broadcastData(socket, data); // Broadcast the data to all other sockets
+        }
     });
 
-    socket.on('end', () => {
-        sockets.delete(socket); // Remove the socket from the set on disconnect
-        console.log('Connection ended');
+    socket.on('connect', () => {
+        console.log(`Socket connected from ${socket.remoteAddress}:${socket.remotePort}`);
+    });
+    
+    socket.on('close', hadError => {
+        console.log(`Socket closed from ${socket.remoteAddress}:${socket.remotePort}, hadError: ${hadError}`);
     });
 
     socket.on('error', err => {
-        console.error('An error occurred:', err);
-        sockets.delete(socket); // Ensure to remove on error as well
+        console.error(`An error occurred on socket from ${socket.remoteAddress}:${socket.remotePort}:`, err);
+        sockets.delete(socket);
+    });
+    
+    socket.on('end', () => {
+        console.log(`Connection ended by client ${socket.remoteAddress}:${socket.remotePort}`);
+        sockets.delete(socket);
     });
 });
 
@@ -47,7 +61,7 @@ function handleData(socket, data) {
 function broadcastData(sender, data) {
     for (let socket of sockets) {
         if (socket !== sender) { // Send to all except the sender
-            socket.write(data);
+            socket.write(data.slice(4)); // Send the first 4 bytes (length)
         }
     }
 }

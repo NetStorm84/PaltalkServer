@@ -51,7 +51,9 @@ const PACKET_TYPES = {
     EMAIL_INVITE: -200,
     BLOCK_BUDDY: -500,
     INVITE_OUT: -360,
-    INVITE_IN: 0x0168
+    INVITE_IN: 0x0168,
+    XFER_REQUEST: -445, ///0x1389,
+    XFER_ACCEPT: 0x013b,
 };
 
 module.exports = { PACKET_TYPES };
