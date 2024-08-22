@@ -293,6 +293,7 @@ async function processPacket(socket, packetType, payload) {
                     roomBuffers.push(Buffer.from([0xC8]));
                 });
 
+                sendPacket(socket, PACKET_TYPES.ROOM_CATEGORIES, Buffer.from('disp=2300\nname=Family and Community\ncatg=1200'));
                 sendPacket(socket, 0x014e, Buffer.concat(roomBuffers));
                 //sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=\n#=12\nv=1\nl=0\nr=1\u00c8id=54321\nnm=*** The White Horse ***\n#=24\nv=1\nl=0\nr=1\u00c8', 'utf8'));
                 //sendPacket(socket, 0x014e,  Buffer.from('id=2300\nnm=Test ROom\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8', 'utf8'));
