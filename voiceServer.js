@@ -17,7 +17,6 @@ const server = net.createServer(socket => {
             socket.write(Buffer.alloc(0));
         }else{
             handleData(socket, data);
-            broadcastData(socket, data); // Broadcast the data to all other sockets
         }
     });
 
@@ -44,24 +43,11 @@ server.listen(12718, () => {
     console.log('Server listening on port 12718');
 });
 
-function handleData(socket, data) {
-    const buffer = Buffer.from(data);
-    const length = buffer.readUInt32BE(0);
-    console.log(`Packet Length: ${length} bytes`);
-
-    if (buffer.length >= length + 4) {
-        const rtpPacket = buffer.slice(4, 4 + length);
-        const rtpHeader = parseRTPHeader(rtpPacket);
-        logRTPHeaderDetails(rtpHeader);
-    } else {
-        console.error('Incomplete RTP packet received');
-    }
-}
 
 function broadcastData(sender, data) {
     for (let socket of sockets) {
-        if (socket !== sender) { // Send to all except the sender
-            socket.write(data.slice(4)); // Send the first 4 bytes (length)
+        if (socket !== sender) {
+            socket.write(data); 
         }
     }
 }
@@ -77,6 +63,9 @@ function handleData(socket, data) {
         const rtpPacket = buffer.slice(4, 4 + length);
         const rtpHeader = parseRTPHeader(rtpPacket);
         logRTPHeaderDetails(rtpHeader);
+
+        // broadcast the RTP payload to all connected clients, except sender
+        broadcastData(socket, rtpPacket);
         
         // You can add more detailed logging or processing of the RTP payload here
     } else {
