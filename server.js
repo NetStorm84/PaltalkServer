@@ -213,6 +213,10 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.ROOM_JOIN_AS_ADMIN:
             checkAdminGroupPassword(socket, payload);
             break;
+        case PACKET_TYPES.PACKET_ROOM_ADMIN_INFO:
+            let grpid = payload.slice(0, 4);
+            sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, Buffer.from('group='+grpid.toString('hex')+'\nmike=1\ntext=1\n', 'utf8'));
+            break;
         case PACKET_TYPES.ROOM_JOIN:
             let user = currentSockets.get(socket.id);
             joinRoom(socket, payload, false, user.user.admin);
