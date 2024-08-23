@@ -8,18 +8,6 @@ const User = require('./Models/User');
 
 const SERVER_KEY = 'XyF¦164473312518';
 
-// let encryptedString = encryption.encrypt('smtp.paltalk.fun:25:user:pass', '', 25, 2);
-// let decryptedString = encryption.decrypt(encryptedString, '', 25, 1);
-
-let encryptedString = encryption.encrypt('11111', '', 25, 2);
-let decryptedString = encryption.decrypt(encryptedString, '', 25, 1);
-console.log('Encrypted:', encryptedString);
-console.log('Decrypted:', decryptedString);
-
-// for (let index = 0; index < 60; index++) {
-//     console.log(encryption.decrypt(encryptedString, index, 2), index);
-// }
-
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('database.db');
 let currentUser;
@@ -585,7 +573,7 @@ async function handleLogin(socket, payload) {
     sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
 
     // the below is required to show the groups list window
-    sendPacket(socket, 0x019c, Buffer.alloc(0));
+    sendPacket(socket, 0x019c, Buffer.from('code=30224\nvalue=All Rooms\nlist=2', 'utf8'));
 
    //send any offline messages
    sendOfflineMessages(user, socket);
