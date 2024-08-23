@@ -1,6 +1,6 @@
 // The key used for other parts of the system, not the password
 const lymrick = "Ginger was a big fat horse, a big fat horse was she. But don"
-                    "t tell that to MaryLou because in love with her is she.I tell you"
+                    "t tell that to MaryLou becuase in love with her is she.I tell you"
                     " this in private, because I thought that you should know.But neve"
                     "r say to MaryLou or both our heads will go.Ive said it onc"
                     "e, Ive said it twice, Ill say it once again.Not a w"
