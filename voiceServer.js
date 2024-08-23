@@ -66,8 +66,7 @@ function handleData(socket, data) {
 
         // broadcast the RTP payload to all connected clients, except sender
         broadcastData(socket, rtpPacket);
-        
-        // You can add more detailed logging or processing of the RTP payload here
+
     } else {
         console.error('Incomplete RTP packet received. Expected length does not match the received length.');
     }
