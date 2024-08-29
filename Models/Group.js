@@ -1,27 +1,23 @@
 class Group {
 
-    uid;
-    name;
-    voice = 0;
-    locked = 0;
-    rating = 'A';
-    welcome_message = '';
-    status_message = 'Please support our sponsors.';
     users = [];
 
-    constructor(uid, name, voice, locked, rating, status_message, welcome_message) {
+    constructor(row) {
+        Object.assign(this, row);
+    }
 
-        this.uid = uid;
-        this.name = name;
-        this.voice = voice;
-        this.locked = locked;
-        this.rating = rating;
-        this.status_message = status_message;
-        this.welcome_message = welcome_message;
+    getWelcomeMessage() {
+
+        let welcome_message = {
+            'G': 'This is a G rated room intended for a General Audience including minors.  Offensive language is not permitted.',
+            'A': 'This is a A rated room intended for a General Audience including minors.  Offensive language is not permitted.',
+        };
+
+        return welcome_message[this.r];
     }
 
     getRoomUid() {
-        return this.uid;
+        return this.id;
     }
 
     getUserCount() {
@@ -33,7 +29,6 @@ class Group {
         }
         return count;
     }
-    
 
     removeUser(user) {
         delete this.users[user.uid];

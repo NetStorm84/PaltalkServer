@@ -5,9 +5,8 @@ This is a recreation of the Patalk server from around 2002 using version 5.0 of 
 To get the server up and running, clone the repo to a local folder, enter the folder and run the following commands
 
  - `npm install` to install the dependencies.
- - `node setupDatabase.js` to create the database.
- - Followed by `npm start`. This will initialise the server on port 5001.
- - Followed by `node voiceServer.js` to start the Voice Server
+ - `node database.js` to create the database.
+ - Followed by `npm start`. This will initialise the chat server on port 5001 and the voice server on 12718.
 
 ### Preparing the client
 

@@ -141,7 +141,7 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.ROOM_MESSAGE_OUT:
             let grp_id = payload.slice(0, 4);
-            let grp = groups.find(group => group.uid === parseInt(grp_id.toString('hex'), 16));
+            let grp = groups.find(group => group.id === parseInt(grp_id.toString('hex'), 16));
             grp.users.forEach(userInGroup => {
                 connectedUser = currentSockets.get(userInGroup.uid);
                 if (connectedUser.uid !== socket.id){
@@ -297,12 +297,12 @@ async function processPacket(socket, packetType, payload) {
                 let roomBuffers = [];
 
                 groups.forEach(room => {
-                    let roomBuffer = Buffer.from(`id=${room.uid}\nnm=${room.name}\n#=${room.getUserCount()}\nv=${room.voice}\nl=${room.locked}\nr=${room.rating}`);
+                    let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.nm}\n#=${room.getUserCount()}\nv=${room.v}\nl=${room.l}\nr=${room.r}`);
                     roomBuffers.push(roomBuffer);
                     roomBuffers.push(Buffer.from([0xC8]));
                 });
 
-                sendPacket(socket, PACKET_TYPES.ROOM_CATEGORIES, Buffer.from('disp=2300\nname=Family and Community\ncatg=1200'));
+                //sendPacket(socket, PACKET_TYPES.ROOM_CATEGORIES, Buffer.from('disp=2300\nname=Family and Community\ncatg=1200'));
                 sendPacket(socket, 0x014e, Buffer.concat(roomBuffers));
                 //sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=\n#=12\nv=1\nl=0\nr=1\u00c8id=54321\nnm=*** The White Horse ***\n#=24\nv=1\nl=0\nr=1\u00c8', 'utf8'));
                 //sendPacket(socket, 0x014e,  Buffer.from('id=2300\nnm=Test ROom\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8', 'utf8'));
@@ -428,22 +428,22 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     // }
 
     // join room
-    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType + '000000000' +'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.name)+'' + convertToJsonString(room_details), 'hex'));
+    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType + '000000000' +'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.nm)+'' + convertToJsonString(room_details), 'hex'));
 
     // Add the room message
-    let messageHex = Buffer.from(room.welcome_message).toString('hex');
+    let messageHex = Buffer.from(room.getWelcomeMessage()).toString('hex');
     let combinedHex = roomIdHex + spacerHex + messageHex;
     let finalBuffer = Buffer.from(combinedHex, 'hex');
     sendPacket(socket, 0x015e, finalBuffer);
 
     // add a welcome message
-    messageHex = Buffer.from(`${currentUser.user.nickname}, welcome to the room ${room.name}.`).toString('hex');
+    messageHex = Buffer.from(`${currentUser.user.nickname}, welcome to the room ${room.nm}.`).toString('hex');
     combinedHex = roomIdHex + spacerHex + messageHex;
     finalBuffer = Buffer.from(combinedHex, 'hex');
     sendPacket(socket, 0x015e, finalBuffer);
 
     // set the welcome message banner
-    messageHex = Buffer.from(room.status_message).toString('hex');
+    messageHex = Buffer.from(room.topic).toString('hex');
     combinedHex = roomIdHex + spacerHex + messageHex;
     finalBuffer = Buffer.from(combinedHex, 'hex');
     sendPacket(socket, 0x015f, finalBuffer);
@@ -456,7 +456,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     room.users.forEach(user => {
         // Create a string from the user object, format can be adjusted as needed
         if (user.visible){
-            user.group_id = room.uid;
+            user.group_id = room.id;
             let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
             let userBuffer = Buffer.from(userString);
             buffers.push(userBuffer);
@@ -478,7 +478,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     });
     // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
-    if (room.voice){    
+    if (room.v){    
         const ipHex =  'c0a80023';
         const notsure = '0001869f';
         const spacer = '0000';
@@ -528,7 +528,7 @@ function processSearchResults(searchResults, socket) {
 }
 
 function lookupRoom(roomId) {
-    return groups.find(room => room.uid === parseInt(roomId, 16));
+    return groups.find(room => room.id === parseInt(roomId, 16));
 }
 
 async function handleLogin(socket, payload) {
@@ -782,12 +782,12 @@ function createGroups(){
     // load all the groups
     db.all(`SELECT * FROM groups`, (err, rows) => {
         rows.forEach(group => {
-            let grp = new Group(group.uid, group.name, group.voice, group.locked, group.rating, group.status_message, group.welcome_message);
+            let grp = new Group(group);
             groups.push(grp);
         });
     });
 }
 
 server.listen(5001, () => {
-    console.log('Server listening on port 5001');
+    console.log('Chat Server listening on port 5001');
 });
