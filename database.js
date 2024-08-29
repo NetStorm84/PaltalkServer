@@ -10,36 +10,43 @@ const db = new sqlite3.Database("database.db", (err) => {
   const sqlStatements = [
     `
     CREATE TABLE IF NOT EXISTS users (
-      uid INTEGER PRIMARY KEY,
-      nickname TEXT,
-      firstname TEXT,
-      lastname TEXT,
-      email TEXT,
-      paid INTEGER,
-      plus INTEGER,
-      admin INTEGER,
-      password TEXT,
-      lastLogin TEXT,
-      color TEXT,
-      buddies TEXT,
-      blocked TEXT,
-      listed INTEGER
+      uid                           INTEGER PRIMARY KEY AUTOINCREMENT,
+      nickname                      TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      email                         TEXT NOT NULL COLLATE NOCASE,
+      first                         TEXT NOT NULL DEFAULT '',
+      last                          TEXT NOT NULL DEFAULT '',
+      privacy                       TEXT NOT NULL DEFAULT 'A', -- A,T,P
+      verified                      INTEGER NOT NULL DEFAULT 0,
+      random                        TEXT NOT NULL DEFAULT 0,
+      paid1                         TEXT NOT NULL DEFAULT 'N', -- Y,6,E
+      get_offers_from_us            TEXT NOT NULL DEFAULT 1,
+      get_offers_from_affiliates    TEXT NOT NULL DEFAULT 1,
+      banners                       TEXT NOT NULL DEFAULT 0,
+      admin                         INTEGER NOT NULL DEFAULT 0,
+      sup                           INTEGER NOT NULL DEFAULT 0,
+      created                       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_login                    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      listed                        INTEGER NOT NULL DEFAULT 1,
+      buddies                       TEXT NOT NULL DEFAULT '',
+      blocked                       TEXT NOT NULL DEFAULT '',
+      color                         TEXT NOT NULL DEFAULT '000000000',
+      password                      TEXT NOT NULL
     )
     `,
     `
     CREATE TABLE IF NOT EXISTS offline_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender INTEGER,
-      receiver INTEGER,
-      sent TEXT,
-      status TEXT,
-      content TEXT
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender                INTEGER NOT NULL,
+      receiver              INTEGER NOT NULL,
+      sent                  TEXT DEFAULT CURRENT_TIMESTAMP,
+      status                TEXT NOT NULL DEFAULT 'pending',
+      content               TEXT NOT NULL DEFAULT ''
     )
     `,
     `
     CREATE TABLE IF NOT EXISTS categories (
-      code INTEGER PRIMARY KEY AUTOINCREMENT,
-      value TEXT NOT NULL
+      code                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      value                 TEXT NOT NULL
     )
     `,
     `
@@ -66,14 +73,14 @@ const db = new sqlite3.Database("database.db", (err) => {
   const insertStatements = [
     {
       sql: `
-        INSERT INTO users (uid, nickname, firstname, lastname, email, paid, plus, admin, password, lastLogin, color, buddies, blocked, listed) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (uid, nickname, email, paid1, admin, password, color, buddies, blocked, listed) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       data: [
-        [1000001, "Paltalk", "Default", "User", "default@example.com", 1, 1, 1, "default_password_hash", new Date().toISOString(), "000000128", "", "", 0],
-        [1000002, "NetStorm", "Default", "User", "default@example.com", 1, 1, 0, "default_password_hash", new Date().toISOString(), "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
-        [1000003, "Medianoche (co-admin)", "Median", "Oche", "medianoche@example.com", 1, 1, 1, "another_password_hash", new Date().toISOString(), "128000000", "[]", "", 1],
-        [1000004, "Dan", "Dan", "", "dan@example.com", 1, 1, 0, "another_password_hash", new Date().toISOString(), "000128000", "[]", "", 1],
+        [1000001, "Paltalk", "default@example.com", 'Y', 1, "default_password_hash", "000000128", "", "", 0],
+        [1000002, "NetStorm", "default@example.com", 'Y', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
+        [1000003, "Medianoche (co-admin)", "medianoche@example.com", 'Y', 1, "another_password_hash", "128000000", "[]", "", 1],
+        [1000004, "Dan", "dan@example.com", 'Y', 0, "another_password_hash", "000128000", "[]", "", 1],
       ],
     },
     {

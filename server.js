@@ -512,21 +512,19 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
 }
 
 function storeOfflineMessage(sender, receiver, content) {
-    const sentTime = new Date().toISOString(); // Convert to ISO string format
 
     // Prepare the offline message object
     const offlineMessage = {
         sender: sender,
         receiver: receiver,
-        sent: sentTime,
         status: 'pending',
         content: content.toString('utf8')
     };
 
     // Insert the offline message into the SQLite database
     db.run(
-        `INSERT INTO offline_messages (sender, receiver, sent, status, content) VALUES (?, ?, ?, ?, ?)`,
-        [offlineMessage.sender, offlineMessage.receiver, offlineMessage.sent, offlineMessage.status, offlineMessage.content],
+        `INSERT INTO offline_messages (sender, receiver, status, content) VALUES (?, ?, ?, ?, ?)`,
+        [offlineMessage.sender, offlineMessage.receiver, offlineMessage.status, offlineMessage.content],
         function (err) {
             if (err) {
                 console.error('Error adding offline message:', err.message);
