@@ -316,19 +316,19 @@ async function processPacket(socket, packetType, payload) {
                 break;
             case PACKET_TYPES.REFRESH_CATEGORIES:
 
-                let roomBuffers = [];
+                // let roomBuffers = [];
 
-                groups.forEach(room => {
-                    let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.nm}\n#=${room.getUserCount()}\nv=${room.v}\nl=${room.l}\nr=${room.r}`);
-                    roomBuffers.push(roomBuffer);
-                    roomBuffers.push(Buffer.from([0xC8]));
-                });
+                // groups.forEach(room => {
+                //     let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.nm}\n#=${room.getUserCount()}\nv=${room.v}\nl=${room.l}\nr=${room.r}`);
+                //     roomBuffers.push(roomBuffer);
+                //     roomBuffers.push(Buffer.from([0xC8]));
+                // });
 
                 //sendPacket(socket, PACKET_TYPES.ROOM_CATEGORIES, Buffer.from('disp=2300\nname=Family and Community\ncatg=1200'));
-                sendPacket(socket, 0x014e, Buffer.concat(roomBuffers));
+                //sendPacket(socket, 0x014e, Buffer.concat(roomBuffers));
                 //sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=\n#=12\nv=1\nl=0\nr=1\u00c8id=54321\nnm=*** The White Horse ***\n#=24\nv=1\nl=0\nr=1\u00c8', 'utf8'));
                 //sendPacket(socket, 0x014e,  Buffer.from('id=2300\nnm=Test ROom\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8', 'utf8'));
-                //sendPacket(socket, 0x014b,  Buffer.concat([Buffer.from('id=2300\nnm=Family and Community\ncatg=1200'), Buffer.from([0xC8]), Buffer.from('id=2400\nnm=Another Category'), Buffer.from([0xC8])]));
+                sendPacket(socket, 0x014b, Buffer.from('id=30003\n#=12'));
                 //sendPacket(socket, 0x014d, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
                 //sendPacket(socket, 0x014e, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
                 break;
@@ -597,19 +597,18 @@ async function handleLogin(socket, payload) {
     sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
 
     // Prepare the category strings
-    const categoryStrings = categories.map(category => `code=${category.code}\nvalue=${category.value}\nlist=${category.list}`);
+    const categoryBuffer = [];
 
-    // Join the strings with the 0xC8 delimiter
-    const packetString = categoryStrings.join(String.fromCharCode(0xC8));
-
-    // Convert the string to a Buffer
-    const categoryBuffer = Buffer.from(packetString, 'utf8');
+    categories.forEach(category => {
+        let cat = Buffer.from(`code=${category.code}\nvalue=${category.value}\nlist=2`);
+        categoryBuffer.push(Buffer.from([0xC8]));
+    });
 
     // the below is required to show the groups list window
-    sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, categoryBuffer);
+    sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, Buffer.concat(categoryBuffer));
 
-   //send any offline messages
-   sendOfflineMessages(user, socket);
+    //send any offline messages
+    sendOfflineMessages(user, socket);
 }
 
 function sendOfflineMessages(user, socket) {
