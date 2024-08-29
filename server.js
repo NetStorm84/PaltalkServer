@@ -12,6 +12,7 @@ const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('database.db');
 let currentUser;
 let groups = [];
+let categories = [];
 
 // initialize the server, create the groups etc
 initServer();
@@ -57,6 +58,7 @@ function handleData(socket, data) {
 
     while (recvBuffer.length >= 6) {
         const packetType = recvBuffer.readInt16BE(0);
+        const version = recvBuffer.readInt16BE(2);
         const length = recvBuffer.readUInt16BE(4);
 
         if (recvBuffer.length < length + 6) {
@@ -64,8 +66,28 @@ function handleData(socket, data) {
         }
 
         const payload = recvBuffer.slice(6, length + 6);
+
+        console.log(`\n--- Packet Details ---`);
+        console.log(`Type: ${packetType}`);
+        console.log(`Version: ${version}`);
+        console.log(`Length: ${length}`);
+        console.log(`Payload (Hex): ${payload.toString('hex')}`);
+        console.log(`Payload (ASCII): ${payload.toString('ascii').replace(/[^\x20-\x7E]/g, '.')}`);
+
+        hexDump(payload);
+
         processPacket(socket, packetType, payload);
         recvBuffer = recvBuffer.slice(length + 6);
+    }
+}
+
+function hexDump(buffer) {
+    const length = buffer.length;
+    for (let i = 0; i < length; i += 16) {
+        const slice = buffer.slice(i, i + 16);
+        const hex = slice.toString('hex').match(/.{1,2}/g).join(' ');
+        const ascii = slice.toString('ascii').replace(/[^\x20-\x7E]/g, '.');
+        console.log(`${(i).toString(16).padStart(8, '0')}  ${hex.padEnd(48, ' ')}  ${ascii}`);
     }
 }
 
@@ -576,8 +598,17 @@ async function handleLogin(socket, payload) {
     // this is required to show the buddy list window, not sure why
     sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0));
 
+    // Prepare the category strings
+    const categoryStrings = categories.map(category => `code=${category.code}\nvalue=${category.value}\nlist=${category.list}`);
+
+    // Join the strings with the 0xC8 delimiter
+    const packetString = categoryStrings.join(String.fromCharCode(0xC8));
+
+    // Convert the string to a Buffer
+    const categoryBuffer = Buffer.from(packetString, 'utf8');
+
     // the below is required to show the groups list window
-    sendPacket(socket, 0x019c, Buffer.from('code=30224\nvalue=All Rooms\nlist=2', 'utf8'));
+    sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, categoryBuffer);
 
    //send any offline messages
    sendOfflineMessages(user, socket);
@@ -776,6 +807,17 @@ function initServer(){
 }
 
 /**
+ * load the categories
+ */
+function loadCategories(){
+    db.all(`SELECT * FROM categories JOIN (SELECT 2 AS list)`, (err, rows) => {
+        rows.forEach(category => {
+            categories.push(category);
+        });
+    });
+}
+
+/**
  * Create the groups from the database
  */
 function createGroups(){
@@ -790,4 +832,5 @@ function createGroups(){
 
 server.listen(5001, () => {
     console.log('Chat Server listening on port 5001');
+    loadCategories();
 });
