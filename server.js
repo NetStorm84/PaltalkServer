@@ -315,27 +315,34 @@ async function processPacket(socket, packetType, payload) {
                 );
                 break;
             case PACKET_TYPES.REFRESH_CATEGORIES:
-
-                // let roomBuffers = [];
-
-                // groups.forEach(room => {
-                //     let roomBuffer = Buffer.from(`id=${room.id}\nnm=${room.nm}\n#=${room.getUserCount()}\nv=${room.v}\nl=${room.l}\nr=${room.r}`);
-                //     roomBuffers.push(roomBuffer);
-                //     roomBuffers.push(Buffer.from([0xC8]));
-                // });
-
-                //sendPacket(socket, PACKET_TYPES.ROOM_CATEGORIES, Buffer.from('disp=2300\nname=Family and Community\ncatg=1200'));
-                //sendPacket(socket, 0x014e, Buffer.concat(roomBuffers));
-                //sendPacket(socket, 0x014c,  Buffer.from('id=12345\nnm=\n#=12\nv=1\nl=0\nr=1\u00c8id=54321\nnm=*** The White Horse ***\n#=24\nv=1\nl=0\nr=1\u00c8', 'utf8'));
-                //sendPacket(socket, 0x014e,  Buffer.from('id=2300\nnm=Test ROom\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8', 'utf8'));
-                sendPacket(socket, 0x014b, Buffer.from('id=30003\n#=12'));
-                //sendPacket(socket, 0x014d, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
-                //sendPacket(socket, 0x014e, Buffer.from('id=1\nnm=*** The Royal Oak ***\nc=2300\nr=A\n#=12\np=0\nv=1\nl=0\u00c8'));
+                
+                let catId = payload.slice(8, 12);
+                if (catId.toString('hex') === '00000000'){
+                    sendPacket(socket, 0x014b, Buffer.from('id=30018\n#=3'));
+                }else{
+                    sendPacket(socket, 0x014c, Buffer.concat(loadGroups(uidToDec(catId))));
+                }
                 break;
             default:
                 console.log('No handler for received packet type.');
                 break;
     }
+}
+
+function loadGroups(catId) { 
+
+    let roomBuffers = [];
+    roomBuffers.push(Buffer.from('catg='+catId+'\n'));
+    roomBuffers.push(Buffer.from([0xC8]));
+    
+    groups.forEach(room => {
+        if (room.catg == catId){
+            roomBuffers.push(Buffer.from(`id=${room.id}\nnm=${room.nm}\n#=${room.getUserCount()}\nv=${room.v}\nl=${room.l}\nr=${room.r}\np=${room.p}\nc=000000000`));
+            roomBuffers.push(Buffer.from([0xC8]));
+        }
+    });
+
+    return roomBuffers;
 }
 
 function uidToDec(uid) {
@@ -395,7 +402,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
 
     let isInvisible = payload.slice(4,6).includes(1);
 
-    const roomIdHex = uidToHex(room.uid);
+    const roomIdHex = uidToHex(room.id);
     const spacerHex = "00000000";
     currentUser = currentSockets.get(socket.id);
     let delim = Buffer.from([0xC8]);
@@ -416,19 +423,19 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
         srh: 0
     };
 
-    if (isAdmin && room.voice){
+    if (isAdmin && room.v){
         roomType = '00030001';
-    }else if (isAdmin && !room.voice){
+    }else if (isAdmin && !room.v){
         roomType = '00000001';
-    }else if (!isAdmin && room.voice){
+    }else if (!isAdmin && room.v){
         roomType = '00030000';   // 001 - private voice conf / 0002 group / 0003 - voice confernece
-    }else if (!isAdmin && !room.voice){
+    }else if (!isAdmin && !room.v){
         roomType = '00000000';
     }
 
-    if (isInvisible && room.voice){
+    if (isInvisible && room.v){
         roomType = '0003';
-    }else if (isInvisible && !room.voice){
+    }else if (isInvisible && !room.v){
         roomType = '0000';
     }
 
@@ -478,8 +485,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     room.users.forEach(user => {
         // Create a string from the user object, format can be adjusted as needed
         if (user.visible){
-            user.group_id = room.id;
-            let userString = convertToJsonString(user); //`group_id=${user.group_id}\nuid=${user.uid}\nY=1diap\n1=nimda\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}\neof=${user.eof}`;
+            let userString = `group_id=${room.id}\nuid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}`;
             let userBuffer = Buffer.from(userString);
             buffers.push(userBuffer);
             buffers.push(delim);
@@ -565,7 +571,7 @@ async function handleLogin(socket, payload) {
         socket: socket
     });
     
-    sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.plus?6:0}\nbanners=${!user.paid?'yes':'no'}\nrandom=1\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nfirst=${user.firstname}\nlast=${user.lastname}\nemail=${user.email}\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
+    sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(`uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid1}\nbanners=${user.banners}\nrandom=${user.random}\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nfirst=${user.first}\nlast=${user.last}\nemail=${user.email}\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\$Revision: 1.97\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`));
     sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'));
 
     //get the users buddy list
@@ -600,11 +606,11 @@ async function handleLogin(socket, payload) {
     const categoryBuffer = [];
 
     categories.forEach(category => {
-        let cat = Buffer.from(`code=${category.code}\nvalue=${category.value}\nlist=2`);
+        categoryBuffer.push(Buffer.from(`code=${category.code}\nvalue=${category.value}\nlist=2`));
         categoryBuffer.push(Buffer.from([0xC8]));
     });
 
-    // the below is required to show the groups list window
+    // send the categories
     sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, Buffer.concat(categoryBuffer));
 
     //send any offline messages

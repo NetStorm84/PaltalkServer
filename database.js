@@ -21,7 +21,7 @@ const db = new sqlite3.Database("database.db", (err) => {
       paid1                         TEXT NOT NULL DEFAULT 'N', -- Y,6,E
       get_offers_from_us            TEXT NOT NULL DEFAULT 1,
       get_offers_from_affiliates    TEXT NOT NULL DEFAULT 1,
-      banners                       TEXT NOT NULL DEFAULT 0,
+      banners                       TEXT NOT NULL DEFAULT 'yes',
       admin                         INTEGER NOT NULL DEFAULT 0,
       sup                           INTEGER NOT NULL DEFAULT 0,
       created                       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -57,14 +57,14 @@ const db = new sqlite3.Database("database.db", (err) => {
       v                     INTEGER NOT NULL DEFAULT 1,
       p                     INTEGER NOT NULL DEFAULT 0,
       l                     INTEGER NOT NULL DEFAULT 0,
-      c                     INTEGER NOT NULL DEFAULT '000000000', -- color rrrgggbbb
+      c                     TEXT NOT NULL DEFAULT '000000000', -- color rrrgggbbb
       nm                    TEXT,
       mike                  INTEGER NOT NULL DEFAULT 0,
       text                  INTEGER NOT NULL DEFAULT 0,
       video                 INTEGER NOT NULL DEFAULT 0,
       created               TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       owner                 INTEGER REFERENCES users(uid) DEFAULT 0,
-      topic                 TEXT DEFAULT 'Please Support Our Sponsors.'
+      topic                 TEXT DEFAULT 'Please support our sponsors.'
     )
     `,
   ];
@@ -73,14 +73,14 @@ const db = new sqlite3.Database("database.db", (err) => {
   const insertStatements = [
     {
       sql: `
-        INSERT INTO users (uid, nickname, email, paid1, admin, password, color, buddies, blocked, listed) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (uid, nickname, email, paid1, banners, admin, password, color, buddies, blocked, listed) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       data: [
-        [1000001, "Paltalk", "default@example.com", 'Y', 1, "default_password_hash", "000000128", "", "", 0],
-        [1000002, "NetStorm", "default@example.com", 'Y', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
-        [1000003, "Medianoche (co-admin)", "medianoche@example.com", 'Y', 1, "another_password_hash", "128000000", "[]", "", 1],
-        [1000004, "Dan", "dan@example.com", 'Y', 0, "another_password_hash", "000128000", "[]", "", 1],
+        [1000001, "Paltalk", "default@example.com", 'Y', 'no', 1, "default_password_hash", "000000128", "", "", 0],
+        [1000002, "NetStorm", "default@example.com", '6', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
+        [1000003, "Medianoche (co-admin)", "medianoche@example.com", 'Y' , 'no', 1, "another_password_hash", "128000000", "[]", "", 1],
+        [1000004, "Dan", "dan@example.com", 'N', 'yes', 0, "another_password_hash", "000128000", "[]", "", 1],
       ],
     },
     {
@@ -131,14 +131,14 @@ const db = new sqlite3.Database("database.db", (err) => {
       },      
     {
       sql: `
-        INSERT INTO groups (id, catg, nm, owner) 
-        VALUES (?, ?, ?, ?)
+        INSERT INTO groups (id, catg, nm, owner, v) 
+        VALUES (?, ?, ?, ?, ?)
       `,
       data: [
-        [50001, 30018, "*** The Royal Oak ***", 1000002],
-        [50002, 30018, "*** The White Horse ***", 0],
-        [50003, 30018, "*** The Tuck INN ***", 0],
-        [50004, 30027, "*** The Quiet Side ***", 0],
+        [50001, 30018, "*** The Royal Oak ***", 1000002, 1],
+        [50002, 30018, "*** The White Horse ***", 0, 1],
+        [50003, 30018, "*** The Tuck INN ***", 0, 1],
+        [50004, 30027, "*** The Quiet Side ***", 0, 0],
       ],
     },
   ];
