@@ -21,7 +21,7 @@ const db = new sqlite3.Database("database.db", (err) => {
       paid1                         TEXT NOT NULL DEFAULT 'N', -- Y,6,E
       get_offers_from_us            TEXT NOT NULL DEFAULT 1,
       get_offers_from_affiliates    TEXT NOT NULL DEFAULT 1,
-      banners                       TEXT NOT NULL DEFAULT 'yes',
+      banners                       TEXT NOT NULL DEFAULT 'yes', -- yes,no
       admin                         INTEGER NOT NULL DEFAULT 0,
       sup                           INTEGER NOT NULL DEFAULT 0,
       created                       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

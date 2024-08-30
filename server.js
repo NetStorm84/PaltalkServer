@@ -1,34 +1,35 @@
 const net = require('net');
 const Buffer = require('buffer').Buffer;
 const encryption = require('./encryption');
+const helper = require('./helper');
 const { sendPacket } = require('./packetSender'); 
-const { PACKET_TYPES } = require('./PacketHeaders');
+const { PACKET_TYPES } = require('./packetHeaders');
+const { output } = require('./output');
 const Group = require('./Models/Group');
-
-const SERVER_KEY = 'XyF¦164473312518';
-
+const { log } = require('console');
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('database.db');
+const winston = require('winston');
+
+const SERVER_KEY = 'XyF¦164473312518';
+let logger;
 let currentUser;
 let groups = [];
 let categories = [];
+let recvBuffer = Buffer.alloc(0);
+const currentSockets = new Map()
 
 // initialize the server, create the groups etc
 initServer();
 
-const currentSockets = new Map()
-
-// Buffer handling
-let recvBuffer = Buffer.alloc(0);
-
 const server = net.createServer(socket => {
-    let currentUid = null;
 
     socket.on('data', data => handleData(socket, data));
     socket.on('end', () =>  {
 
         // get the user from the current sockets
         let userSocket = currentSockets.get(socket.id)
+
         if (userSocket){
 
             // delete this user from the active sockets
@@ -39,21 +40,28 @@ const server = net.createServer(socket => {
                 let userBuddies = JSON.parse(socket.user.buddies);
                 userBuddies.forEach(buddy => {
                     if (buddy.uid === userSocket.user.uid){
-                        sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(userSocket.user.uid) + '00000000', 'hex'));
+                        sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(helper.conversions.decToHex(userSocket.user.uid) + helper.modes.OFFLINE_MODE, 'hex'));
                     }
                 });
             });
         }
 
-        console.log(`UID ${currentUid} removed from active sockets`);
+        // log that a user was removed
+        console.log(`${userSocket.user.nickname} removed from active sockets`);
     });
-        
-    socket.on('error', err => console.error('An error occurred:', err));
+    
+    // a socket error occurred
+    socket.on('error', err => logger.error(err.message));
 });
 
 function handleData(socket, data) {
+    // Ensure recvBuffer is scoped properly and initialized if not already
+    if (typeof recvBuffer === 'undefined') {
+        recvBuffer = Buffer.alloc(0);
+    }
+
+    // Create the receive buffer
     recvBuffer = Buffer.concat([recvBuffer, data]);
-    console.log(`Received data: ${data.toString('hex')}`);
 
     while (recvBuffer.length >= 6) {
         const packetType = recvBuffer.readInt16BE(0);
@@ -65,35 +73,18 @@ function handleData(socket, data) {
         }
 
         const payload = recvBuffer.slice(6, length + 6);
+        output.outputToTerminal(packetType, version, length, payload);
 
-        console.log(`\n--- Packet Details ---`);
-        console.log(`Type: ${packetType}`);
-        console.log(`Version: ${version}`);
-        console.log(`Length: ${length}`);
-        console.log(`Payload (Hex): ${payload.toString('hex')}`);
-        console.log(`Payload (ASCII): ${payload.toString('ascii').replace(/[^\x20-\x7E]/g, '.')}`);
-
-        hexDump(payload);
-
-        processPacket(socket, packetType, payload);
-        recvBuffer = recvBuffer.slice(length + 6);
-    }
-}
-
-function hexDump(buffer) {
-    const length = buffer.length;
-    for (let i = 0; i < length; i += 16) {
-        const slice = buffer.slice(i, i + 16);
-        const hex = slice.toString('hex').match(/.{1,2}/g).join(' ');
-        const ascii = slice.toString('ascii').replace(/[^\x20-\x7E]/g, '.');
-        console.log(`${(i).toString(16).padStart(8, '0')}  ${hex.padEnd(48, ' ')}  ${ascii}`);
+        try {
+            processPacket(socket, packetType, payload);
+            recvBuffer = recvBuffer.slice(length + 6);
+        } catch (err) {
+            logger.error(err.message);
+        }
     }
 }
 
 async function processPacket(socket, packetType, payload) {
-    console.log(`Received Packet Type: ${packetType}`);
-    console.log(`Payload: ${payload.toString('hex')}`);
-    let user;
 
     switch (packetType) {
         case PACKET_TYPES.ADD_PAL:
@@ -117,7 +108,7 @@ async function processPacket(socket, packetType, payload) {
                 });
 
                 sendPacket(socket, PACKET_TYPES.BUDDY_LIST, retrieveBuddyList(thisUser));
-                userIdHex = uidToHex(userToAdd.uid);
+                userIdHex = helper.conversions.decToHex(userToAdd.uid);
                 if (currentSockets.get(userToAdd.uid)){
                     // user is currently online
                     sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from((userIdHex + '0000001E'), 'hex'));
@@ -166,7 +157,7 @@ async function processPacket(socket, packetType, payload) {
             grp.users.forEach(userInGroup => {
                 connectedUser = currentSockets.get(userInGroup.uid);
                 if (connectedUser.uid !== socket.id){
-                    sendPacket(connectedUser.socket, PACKET_TYPES.ROOM_MESSAGE_IN, Buffer.from(payload.slice(0, 4).toString('hex')+uidToHex(socket.id) + payload.slice(4).toString('hex'), 'hex'));
+                    sendPacket(connectedUser.socket, PACKET_TYPES.ROOM_MESSAGE_IN, Buffer.from(payload.slice(0, 4).toString('hex')+helper.conversions.decToHex(socket.id) + payload.slice(4).toString('hex'), 'hex'));
                 }
             });
             break;
@@ -195,7 +186,7 @@ async function processPacket(socket, packetType, payload) {
 
             let newGrp = {
                 id: groups.length + 1,
-                catg: uidToDec(catg.toString('hex')),
+                catg: helper.conversions.hexToDec(catg.toString('hex')),
                 r: rating.toString(),
                 v: roomType.toString('hex').includes('03')?1:0,
                 p: 0,
@@ -217,30 +208,30 @@ async function processPacket(socket, packetType, payload) {
             sendPacket(socket, PACKET_TYPES.SERVER_KEY, Buffer.from(SERVER_KEY));
             break;
         case PACKET_TYPES.AWAY_MODE:
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(socket.id) + '00000046', 'hex'));
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(helper.conversions.decToHex(socket.id) + helper.AWAY_MODE, 'hex'));
             break;
         case PACKET_TYPES.ONLINE_MODE:
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(socket.id) + '0000001e', 'hex'));
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(helper.conversions.decToHex(socket.id) + helper.ONLINE_MODE, 'hex'));
             break;
         case PACKET_TYPES.IM_OUT:
             let receiver = payload.slice(0, 4);
             let content = payload.slice(4);
             let currentUid = currentSockets.get(socket.id).uid;
 
-            if (receiver.toString('hex') === uidToHex('1000001')){
+            if (receiver.toString('hex') === helper.conversions.decToHex('1000001')){
                 parseCommand(currentUid, content, socket);
                 return; 
             }
             // how to get the senders uid??
-            let senderBuf = Buffer.from(uidToHex(socket.id), 'hex');
+            let senderBuf = Buffer.from(helper.conversions.decToHex(socket.id), 'hex');
 
             let out = Buffer.concat([senderBuf, content]);
-            let receiverClient = currentSockets.get(uidToDec(receiver));
+            let receiverClient = currentSockets.get(helper.conversions.hexToDec(receiver));
             if (receiverClient){
                 sendPacket(receiverClient.socket, PACKET_TYPES.IM_IN, out);
             }else{
                 // receiver is offline store the message
-                storeOfflineMessage(currentUid, uidToDec(receiver), content);
+                storeOfflineMessage(currentUid, helper.conversions.hexToDec(receiver), content);
             }
             break;
         case PACKET_TYPES.ROOM_CLOSE:
@@ -341,7 +332,7 @@ async function processPacket(socket, packetType, payload) {
                 }else{
 
                     // returns the rooms in the category
-                    sendPacket(socket, PACKET_TYPES.ROOM_LIST, Buffer.concat(loadGroups(uidToDec(catId))));
+                    sendPacket(socket, PACKET_TYPES.ROOM_LIST, Buffer.concat(loadGroups(helper.conversions.hexToDec(catId))));
                 }
                 break;
             default:
@@ -366,24 +357,8 @@ function loadGroups(catId) {
     return roomBuffers;
 }
 
-function uidToDec(uid) {
-    return parseInt(uid.toString('hex'), 16);
-}
-
-function uidToHex(uid) {
-    return parseInt(uid).toString(16).padStart(8, '0');
-}
-
 function convertToJsonString(obj) {
     return Object.entries(obj).map(([key, value]) => `${key}=${value}`).join('\n');
-}
-
-function asciiToHex(str) {
-    let hex = '';
-    for (let i = 0; i < str.length; i++) {
-        hex += str.charCodeAt(i).toString(16);
-    }
-    return hex;
 }
 
 function checkAdminGroupPassword(socket, payload) {
@@ -423,7 +398,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
 
     let isInvisible = payload.slice(4,6).includes(1);
 
-    const roomIdHex = uidToHex(room.id);
+    const roomIdHex = helper.conversions.decToHex(room.id);
     const spacerHex = "00000000";
     currentUser = currentSockets.get(socket.id);
     let delim = Buffer.from([0xC8]);
@@ -478,7 +453,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     // }
 
     // join room
-    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType + '000000000' +'0b54042a'+'0010006'+'0003'+'47'+asciiToHex(room.nm)+'' + convertToJsonString(room_details), 'hex'));
+    sendPacket(socket, 0x0136, Buffer.from(roomIdHex + roomType + '000000000' +'0b54042a'+'0010006'+'0003'+'47'+helper.conversions.asciiToHex(room.nm)+'' + convertToJsonString(room_details), 'hex'));
 
     // Add the room message
     let messageHex = Buffer.from(room.getWelcomeMessage()).toString('hex');
@@ -635,7 +610,7 @@ async function handleLogin(socket, payload) {
         let userBuddies = JSON.parse(socket.user.buddies);
         userBuddies.forEach(buddy => {
             if (buddy.uid === user.uid){
-                sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(user.uid) + '0000001E', 'hex'));
+                sendPacket(socket.socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(helper.conversions.decToHex(user.uid) + '0000001E', 'hex'));
             }
         });
     });
@@ -648,7 +623,7 @@ async function handleLogin(socket, payload) {
     buddies.forEach(buddy => {
         let buddySocket = currentSockets.get(buddy.uid);
         if (buddySocket || (buddy.nickname == 'Paltalk')){
-            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(uidToHex(buddy.uid) + '0000001E', 'hex'));
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, Buffer.from(helper.conversions.decToHex(buddy.uid) + '0000001E', 'hex'));
         }
     });
 
@@ -684,7 +659,7 @@ function sendOfflineMessages(user, socket) {
 
         rows.forEach(message => {
             // Ensure that sender and content are converted to buffers if they are strings
-            let senderBuffer = Buffer.from(uidToHex(message.sender), 'hex');
+            let senderBuffer = Buffer.from(helper.conversions.decToHex(message.sender), 'hex');
             let contentBuffer = Buffer.from(message.content, 'utf8');
             
             // Concatenate both buffers
@@ -725,7 +700,7 @@ function leaveGroup(socket, payload) {
     group.removeUser(currentSockets.get(socket.id));
 
     // announce the user has left the room
-    broadcastGroupPacket(PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(groupId + uidToHex(socket.id), 'hex'), group);
+    broadcastGroupPacket(PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(groupId + helper.conversions.decToHex(socket.id), 'hex'), group);
 }
 
 function parseCommand(currentUid, content, socket){
@@ -858,7 +833,26 @@ async function findUser(identifier) {
     });
 }
 
+/**
+ * Function to initialize the server
+ */
 function initServer(){
+
+    // initiate the error logger
+    logger = winston.createLogger({
+        level: 'error',
+        format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json()
+        ),
+        defaultMeta: { service: 'server' },
+        transports: [
+          new winston.transports.File({ filename: 'error.log', level: 'error' })
+        ]
+    });
+
+    // create the permanent groups
+    loadCategories();
     createGroups();
 }
 
@@ -888,5 +882,4 @@ function createGroups(){
 
 server.listen(5001, () => {
     console.log('Chat Server listening on port 5001');
-    loadCategories();
 });
