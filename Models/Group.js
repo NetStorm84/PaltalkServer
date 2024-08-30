@@ -1,16 +1,20 @@
 class Group {
 
     users = [];
+    permanant = false;
 
-    constructor(row) {
+    constructor(row, permanant = false) {
         Object.assign(this, row);
+
+        // if loaded from the DB, we consider permanant
+        this.permanant = permanant;
     }
 
     getWelcomeMessage() {
 
         let welcome_message = {
             'G': 'This is a G rated room intended for a General Audience including minors.  Offensive language is not permitted.',
-            'A': 'This is a A rated room intended for a General Audience including minors.  Offensive language is not permitted.',
+            'A': 'This is a A rated room not intended for minors.  Offensive language is permitted.',
         };
 
         return welcome_message[this.r];

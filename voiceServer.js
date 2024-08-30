@@ -39,8 +39,8 @@ const server = net.createServer(socket => {
     });
 });
 
-server.listen(12718, () => {
-    console.log('Voice Server listening on port 12718');
+server.listen(2090, () => {
+    console.log('Voice Server listening on port 2090');
 });
 
 

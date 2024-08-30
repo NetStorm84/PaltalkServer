@@ -4,7 +4,6 @@ const encryption = require('./encryption');
 const { sendPacket } = require('./packetSender'); 
 const { PACKET_TYPES } = require('./PacketHeaders');
 const Group = require('./Models/Group');
-const User = require('./Models/User');
 
 const SERVER_KEY = 'XyF¦164473312518';
 
@@ -190,10 +189,25 @@ async function processPacket(socket, packetType, payload) {
         case PACKET_TYPES.ROOM_CREATE:
             //0003000000000000 082a 47 6464646464646464646464
             let roomType = payload.slice(0, 4);
+            let catg = payload.slice(4, 8);
             let rating = payload.slice(10, 11);
             let roomName = payload.slice(11);
 
-            let room = new Group(groups.length + 1, roomName.toString(), roomType.toString('hex'), false, rating.toString(), 'Please support our sponsors.', 'Welcome to the room');
+            let newGrp = {
+                id: groups.length + 1,
+                catg: uidToDec(catg.toString('hex')),
+                r: rating.toString(),
+                v: roomType.toString('hex').includes('03')?1:0,
+                p: 0,
+                l: 0,
+                c: '000000000',
+                nm: roomName.toString('utf8'),
+                mike: 0,
+                text: 0
+            }
+
+            // create a new temporary group
+            let room = new Group(newGrp, false);
             groups.push(room);
             joinRoom(socket, Buffer.alloc(0), room, true);
             break;
@@ -316,11 +330,18 @@ async function processPacket(socket, packetType, payload) {
                 break;
             case PACKET_TYPES.REFRESH_CATEGORIES:
                 
+                // get the requested category id
                 let catId = payload.slice(8, 12);
-                if (catId.toString('hex') === '00000000'){
-                    sendPacket(socket, 0x014b, Buffer.from('id=30018\n#=3'));
+
+                // if the catId is empty
+                if (catId.equals(Buffer.from([0x00, 0x00, 0x00, 0x00]))){
+
+                    //return the main categories count
+                    sendPacket(socket, PACKET_TYPES.CATEGORY_COUNT, getCategoryCounts());
                 }else{
-                    sendPacket(socket, 0x014c, Buffer.concat(loadGroups(uidToDec(catId))));
+
+                    // returns the rooms in the category
+                    sendPacket(socket, PACKET_TYPES.ROOM_LIST, Buffer.concat(loadGroups(uidToDec(catId))));
                 }
                 break;
             default:
@@ -507,14 +528,46 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
 
     if (room.v){    
+
+        // 0000e9c6 3ff052e6 0001869f 000031ae 
+
         const ipHex =  'c0a80023';
         const notsure = '0001869f';
         const spacer = '0000';
-        const portHex = '31ae'; // 12718
+        const portHex = '082a'; // 12718 (31ae) 082a (2090)
         sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, Buffer.from(roomIdHex + ipHex + notsure + spacer + portHex, 'hex'));
-        sendPacket(socket, 0x00a2, Buffer.from('48f0f128', 'hex'));
+        
+        // // Some sort of ping? 0xff5e is sent from client, response is 0x00a2 with same payload??
+        // sendPacket(socket, 0x00a2, Buffer.from('48f0f128', 'hex')); //72.240.241.40
     }
 
+}
+
+function getCategoryCounts(){
+
+    let catBuffers = [];
+
+    // count permanant rooms
+    // db.all(`SELECT catg as id, COUNT(*) AS count FROM groups GROUP BY catg`, (err, rows) => {        
+    //     rows.forEach(row => {
+    //         if (row.count > 0){
+    //             catBuffers.push(Buffer.from(`id=${row.id}\n#=${row.count}`));
+    //             catBuffers.push(Buffer.from([0xC8]));
+    //         }
+    //     });
+    // });
+
+    // loop through the groups and count the number of rooms in each category
+    categories.forEach(category => {
+        let count = groups.filter(group => group.catg === category.code).length;
+        if (count > 0){
+            catBuffers.push(Buffer.from(`id=${category.code}\n#=${count}`));
+            catBuffers.push(Buffer.from([0xC8]));
+        }
+    });
+    
+
+    return Buffer.concat([catBuffers]);
 }
 
 function storeOfflineMessage(sender, receiver, content) {
@@ -824,10 +877,10 @@ function loadCategories(){
  * Create the groups from the database
  */
 function createGroups(){
-    // load all the groups
+    // load all the groups from the database
     db.all(`SELECT * FROM groups`, (err, rows) => {
         rows.forEach(group => {
-            let grp = new Group(group);
+            let grp = new Group(group, true);
             groups.push(grp);
         });
     });
