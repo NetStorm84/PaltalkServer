@@ -21,4 +21,4 @@ function hexDump(buffer) {
     }
 }
 
-module.exports = outputToTerminal;
+module.exports = { outputToTerminal };

@@ -54,11 +54,12 @@ const db = new sqlite3.Database("database.db", (err) => {
       id                    INTEGER PRIMARY KEY,
       catg                  INTEGER REFERENCES categories(code),
       r                     TEXT NOT NULL DEFAULT 'G',
-      v                     INTEGER NOT NULL DEFAULT 1,
-      p                     INTEGER NOT NULL DEFAULT 0,
-      l                     INTEGER NOT NULL DEFAULT 0,
+      v                     INTEGER NOT NULL DEFAULT 1, -- voice
+      p                     INTEGER NOT NULL DEFAULT 0, -- private
+      password              TEXT NOT NULL DEFAULT '',
+      l                     INTEGER NOT NULL DEFAULT 0, -- locked
       c                     TEXT NOT NULL DEFAULT '000000000', -- color rrrgggbbb
-      nm                    TEXT,
+      nm                    TEXT, -- name
       mike                  INTEGER NOT NULL DEFAULT 0,
       text                  INTEGER NOT NULL DEFAULT 0,
       video                 INTEGER NOT NULL DEFAULT 0,
@@ -131,14 +132,18 @@ const db = new sqlite3.Database("database.db", (err) => {
       },      
     {
       sql: `
-        INSERT INTO groups (id, catg, nm, owner, v) 
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO groups (id, catg, nm, owner, v, r, l, password) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       data: [
-        [50001, 30018, "*** The Royal Oak ***", 1000002, 1],
-        [50002, 30018, "*** The White Horse ***", 0, 1],
-        [50003, 30018, "*** The Tuck INN ***", 0, 1],
-        [50004, 30027, "*** The Quiet Side ***", 0, 0],
+        [50001, 30018, "*** The Royal Oak ***", 1000002, 1, 'G', 0, ''],
+        [50002, 30018, "*** The White Horse ***", 0, 1, 'G', 0, ''],
+        [50003, 30018, "*** The Tuck INN ***", 0, 1, 'A', 0, ''],
+        [50004, 30027, "*** The Quiet Side ***", 0, 0, 'A', 0, ''],
+        [50005, 30003, "Paltalk Help Lobby 1", 0, 1, 'G', 0, ''],
+        [50006, 30003, "Paltalk Tech Support 1", 0, 1, 'G', 0, ''],
+        [50007, 30003, "Paltalk Tech Support 2", 0, 1, 'G', 0, ''],
+        [50008, 30003, "--- Paltalk Support Online ---", 0, 0, 'G', 1, 'support'],
       ],
     },
   ];

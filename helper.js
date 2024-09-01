@@ -11,6 +11,10 @@ function decToHex(decimal) {
     return parseInt(decimal).toString(16).padStart(8, '0');
 }
 
+function hexToAscii(hex){
+    return hex.toString('ascii').replace(/[^\x20-\x7E]/g, '.');
+}
+
 function asciiToHex(str) {
     let hex = '';
     for (let i = 0; i < str.length; i++) {

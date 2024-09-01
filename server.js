@@ -44,10 +44,10 @@ const server = net.createServer(socket => {
                     }
                 });
             });
-        }
 
-        // log that a user was removed
-        console.log(`${userSocket.user.nickname} removed from active sockets`);
+            // log that a user was removed
+            console.log(`${userSocket.user.nickname} removed from active sockets`);
+        }
     });
     
     // a socket error occurred
@@ -73,7 +73,7 @@ function handleData(socket, data) {
         }
 
         const payload = recvBuffer.slice(6, length + 6);
-        output.outputToTerminal(packetType, version, length, payload);
+        //output.outputToTerminal(packetType, version, length, payload);
 
         try {
             processPacket(socket, packetType, payload);
@@ -179,8 +179,9 @@ async function processPacket(socket, packetType, payload) {
             break;
         case PACKET_TYPES.ROOM_CREATE:
             //0003000000000000 082a 47 6464646464646464646464
+            //00030000 7542 0000 082a 47 64616e64616e64616e
             let roomType = payload.slice(0, 4);
-            let catg = payload.slice(4, 8);
+            let catg = payload.slice(4, 6);
             let rating = payload.slice(10, 11);
             let roomName = payload.slice(11);
 
@@ -193,6 +194,7 @@ async function processPacket(socket, packetType, payload) {
                 l: 0,
                 c: '000000000',
                 nm: roomName.toString('utf8'),
+                topic: 'Please support our sponsors.',
                 mike: 0,
                 text: 0
             }
@@ -367,10 +369,9 @@ function checkAdminGroupPassword(socket, payload) {
     let port = payload.slice(8, 12); // voice port?? (2090)
 
     if (true){
-        room = groups.find(room => room.uid === 50002, 16);
+        room = groups.find(room => room.id === 50002, 16);
         joinRoom(socket, payload, room, true);
     }
-
 }
 
 function setGroupBanner(socket, payload) {
@@ -394,6 +395,15 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
 
     if (!room){
         room = lookupRoom(payload.slice(0, 4).toString('hex'));
+    }
+
+    if (payload.length > 10){
+        // get the room password
+        let password = payload.slice(10, payload.length);
+        if (password.toString('utf8') !== room.password){
+            // send a packet to the user that the password is incorrect, if there is one
+            return;
+        }
     }
 
     let isInvisible = payload.slice(4,6).includes(1);
@@ -522,16 +532,6 @@ function getCategoryCounts(){
 
     let catBuffers = [];
 
-    // count permanant rooms
-    // db.all(`SELECT catg as id, COUNT(*) AS count FROM groups GROUP BY catg`, (err, rows) => {        
-    //     rows.forEach(row => {
-    //         if (row.count > 0){
-    //             catBuffers.push(Buffer.from(`id=${row.id}\n#=${row.count}`));
-    //             catBuffers.push(Buffer.from([0xC8]));
-    //         }
-    //     });
-    // });
-
     // loop through the groups and count the number of rooms in each category
     categories.forEach(category => {
         let count = groups.filter(group => group.catg === category.code).length;
@@ -540,9 +540,8 @@ function getCategoryCounts(){
             catBuffers.push(Buffer.from([0xC8]));
         }
     });
-    
 
-    return Buffer.concat([catBuffers]);
+    return Buffer.concat(catBuffers);
 }
 
 function storeOfflineMessage(sender, receiver, content) {
@@ -698,6 +697,11 @@ function leaveGroup(socket, payload) {
 
     // remove user from the room
     group.removeUser(currentSockets.get(socket.id));
+
+    if (group.getUserCount() === 0 && !group.permanant){
+        // remove the group from the groups list
+        delete groups[groups.indexOf(group)];
+    }
 
     // announce the user has left the room
     broadcastGroupPacket(PACKET_TYPES.ROOM_USER_LEFT, Buffer.from(groupId + helper.conversions.decToHex(socket.id), 'hex'), group);
