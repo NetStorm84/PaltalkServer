@@ -123,6 +123,92 @@ class Utils {
     }
 
     /**
+     * Enhanced input sanitization for chat messages
+     * @param {string} input 
+     * @param {number} maxLength 
+     * @returns {string|null}
+     */
+    static sanitizeChatMessage(input, maxLength = 1000) {
+        if (!input || typeof input !== 'string') return null;
+        
+        // Trim whitespace
+        input = input.trim();
+        
+        // Check length
+        if (input.length === 0 || input.length > maxLength) return null;
+        
+        // Remove control characters except newline and tab
+        input = input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+        
+        // Basic HTML/script injection prevention
+        input = input.replace(/<[^>]*>/g, '');
+        
+        return input;
+    }
+
+    /**
+     * Validate nickname format
+     * @param {string} nickname 
+     * @returns {boolean}
+     */
+    static isValidNickname(nickname) {
+        if (!nickname || typeof nickname !== 'string') return false;
+        if (nickname.length < 2 || nickname.length > 32) return false;
+        
+        // Allow alphanumeric, spaces, basic punctuation
+        return /^[a-zA-Z0-9\s\-_\.]+$/.test(nickname);
+    }
+
+    /**
+     * Validate room name format
+     * @param {string} roomName 
+     * @returns {boolean}
+     */
+    static isValidRoomName(roomName) {
+        if (!roomName || typeof roomName !== 'string') return false;
+        if (roomName.length < 1 || roomName.length > 64) return false;
+        
+        // More restrictive than nicknames
+        return /^[a-zA-Z0-9\s\-_\.\(\)\[\]]+$/.test(roomName);
+    }
+
+    /**
+     * Rate limiting helper
+     * @param {string} identifier 
+     * @param {number} maxRequests 
+     * @param {number} windowMs 
+     * @returns {boolean}
+     */
+    static checkRateLimit(identifier, maxRequests = 10, windowMs = 60000) {
+        if (!this.rateLimitMap) {
+            this.rateLimitMap = new Map();
+        }
+
+        const now = Date.now();
+        const windowStart = now - windowMs;
+        
+        if (!this.rateLimitMap.has(identifier)) {
+            this.rateLimitMap.set(identifier, []);
+        }
+        
+        const requests = this.rateLimitMap.get(identifier);
+        
+        // Remove old requests
+        while (requests.length > 0 && requests[0] < windowStart) {
+            requests.shift();
+        }
+        
+        // Check if under limit
+        if (requests.length >= maxRequests) {
+            return false;
+        }
+        
+        // Add current request
+        requests.push(now);
+        return true;
+    }
+
+    /**
      * Generate a unique session ID
      * @returns {string}
      */

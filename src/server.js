@@ -24,13 +24,21 @@ class PaltalkServer {
         this.databaseManager = new DatabaseManager();
         this.packetProcessor = null;
         this.isRunning = false;
-        this.connectionBuffers = new Map(); // socketId -> Buffer for packet assembly
+        
+        // Connection tracking and management
+        this.connectionBuffers = new Map(); // connectionId -> Buffer
+        this.connectionMetrics = new Map(); // connectionId -> metrics
+        this.maxConnectionsPerIP = 10;
+        this.ipConnections = new Map(); // IP -> count
         
         // Graceful shutdown handling
         this.setupShutdownHandlers();
         
         // Periodic cleanup
         this.cleanupInterval = null;
+
+        // Enhanced graceful shutdown
+        this.shutdownInProgress = false;
     }
 
     /**
@@ -140,41 +148,7 @@ class PaltalkServer {
      * @param {Socket} socket 
      */
     handleNewChatConnection(socket) {
-        const connectionId = `chat_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-        socket.connectionId = connectionId;
-        
-        // Initialize buffer for this connection
-        this.connectionBuffers.set(connectionId, Buffer.alloc(0));
-
-        logger.info('New chat connection', {
-            connectionId,
-            remoteAddress: socket.remoteAddress,
-            remotePort: socket.remotePort
-        });
-
-        serverState.updateStats('totalConnections');
-
-        socket.on('data', data => {
-            this.handleChatData(socket, data);
-        });
-
-        socket.on('end', () => {
-            this.handleChatConnectionEnd(socket);
-        });
-
-        socket.on('error', error => {
-            this.handleChatConnectionError(socket, error);
-        });
-
-        socket.on('close', hadError => {
-            this.handleChatConnectionClose(socket, hadError);
-        });
-
-        // Set socket timeout
-        socket.setTimeout(600000, () => { // 10 minutes
-            logger.warn('Chat connection timeout', { connectionId });
-            socket.destroy();
-        });
+        this.handleChatConnection(socket);
     }
 
     /**
@@ -461,6 +435,136 @@ class PaltalkServer {
             database: this.databaseManager.isConnectionActive(),
             stats: serverState.getStats()
         };
+    }
+
+    /**
+     * Handle new chat server connections with enhanced security
+     * @param {Socket} socket 
+     */
+    handleChatConnection(socket) {
+        try {
+            const remoteIP = socket.remoteAddress;
+            const connectionId = `chat_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+            
+            // Check IP connection limits
+            const ipConnCount = this.ipConnections.get(remoteIP) || 0;
+            if (ipConnCount >= this.maxConnectionsPerIP) {
+                logger.warn('Connection limit exceeded for IP', { 
+                    remoteIP, 
+                    currentConnections: ipConnCount 
+                });
+                socket.destroy();
+                return;
+            }
+            
+            // Track IP connections
+            this.ipConnections.set(remoteIP, ipConnCount + 1);
+            
+            // Set connection properties
+            socket.connectionId = connectionId;
+            socket.remoteIP = remoteIP;
+            socket.connectedAt = new Date();
+            
+            // Track connection metrics
+            this.connectionMetrics.set(connectionId, {
+                connectedAt: new Date(),
+                packetsReceived: 0,
+                bytesSent: 0,
+                bytesReceived: 0,
+                lastActivity: new Date()
+            });
+
+            logger.info('New chat connection', {
+                connectionId,
+                remoteAddress: socket.remoteAddress,
+                remotePort: socket.remotePort
+            });
+
+            // Set up event handlers
+            socket.on('data', (data) => {
+                this.updateConnectionMetrics(connectionId, 'received', data.length);
+                this.handleChatData(socket, data);
+            });
+
+            socket.on('error', (error) => {
+                logger.error('Chat socket error', error, { connectionId });
+                this.cleanupConnection(socket);
+            });
+
+            socket.on('close', () => {
+                logger.debug('Chat connection closed', { connectionId });
+                this.cleanupConnection(socket);
+            });
+
+            socket.on('end', () => {
+                logger.debug('Chat connection ended', { connectionId });
+                this.cleanupConnection(socket);
+            });
+
+            // Set connection timeout
+            socket.setTimeout(5 * 60 * 1000, () => { // 5 minutes
+                logger.warn('Connection timeout', { connectionId });
+                socket.destroy();
+            });
+
+        } catch (error) {
+            logger.error('Error handling chat connection', error);
+            socket.destroy();
+        }
+    }
+
+    /**
+     * Update connection metrics
+     * @param {string} connectionId 
+     * @param {string} type - 'sent' or 'received'
+     * @param {number} bytes 
+     */
+    updateConnectionMetrics(connectionId, type, bytes) {
+        const metrics = this.connectionMetrics.get(connectionId);
+        if (metrics) {
+            if (type === 'sent') {
+                metrics.bytesSent += bytes;
+            } else if (type === 'received') {
+                metrics.bytesReceived += bytes;
+                metrics.packetsReceived++;
+            }
+            metrics.lastActivity = new Date();
+        }
+    }
+
+    /**
+     * Clean up connection resources
+     * @param {Socket} socket 
+     */
+    cleanupConnection(socket) {
+        try {
+            const connectionId = socket.connectionId;
+            const remoteIP = socket.remoteIP;
+            
+            if (connectionId) {
+                // Remove connection buffers
+                this.connectionBuffers.delete(connectionId);
+                this.connectionMetrics.delete(connectionId);
+            }
+            
+            if (remoteIP) {
+                // Decrease IP connection count
+                const currentCount = this.ipConnections.get(remoteIP) || 0;
+                if (currentCount <= 1) {
+                    this.ipConnections.delete(remoteIP);
+                } else {
+                    this.ipConnections.set(remoteIP, currentCount - 1);
+                }
+            }
+            
+            // Remove user connection from server state
+            if (socket.id) {
+                serverState.removeUserConnection(socket, 'Connection closed');
+            }
+            
+        } catch (error) {
+            logger.error('Error cleaning up connection', error);
+        }
     }
 }
 

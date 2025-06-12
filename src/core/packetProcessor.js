@@ -9,11 +9,25 @@ const Room = require('../models/Room');
 const Utils = require('../utils/utils');
 const logger = require('../utils/logger');
 const { USER_MODES, ROOM_TYPES } = require('../config/constants');
+const AdminCommandSystem = require('./adminCommandSystem');
 
 class PacketProcessor {
     constructor(databaseManager) {
         this.db = databaseManager;
         this.setupEventListeners();
+        
+        // Initialize admin command system
+        this.adminCommands = new AdminCommandSystem(serverState, this);
+        
+        // Message history for spam detection (in memory)
+        this.recentMessages = new Map(); // userId -> [{message, timestamp}, ...]
+        this.messageHistoryLimit = 10;
+        this.spamCheckWindow = 60000; // 1 minute
+        
+        // Clean up old message history periodically
+        setInterval(() => {
+            this.cleanupMessageHistory();
+        }, 5 * 60 * 1000); // Every 5 minutes
     }
 
     setupEventListeners() {
@@ -35,9 +49,22 @@ class PacketProcessor {
      */
     async processPacket(socket, packetType, payload) {
         try {
+            // Rate limiting per socket
+            const socketId = socket.id || 'unknown';
+            if (!Utils.checkRateLimit(`socket_${socketId}`, 30, 1000)) { // 30 requests per second
+                logger.warn('Rate limit exceeded', { socketId, packetType });
+                return;
+            }
+            
             serverState.updateStats('totalPacketsReceived');
             
-            logger.logPacketReceived(packetType, payload, socket.id);
+            logger.logPacketReceived(packetType, payload, socketId);
+
+            // Update user activity if user is authenticated
+            const user = serverState.getUserBySocketId(socketId);
+            if (user) {
+                user.updateActivity();
+            }
 
             switch (packetType) {
                 case PACKET_TYPES.CLIENT_HELLO:
@@ -272,22 +299,42 @@ class PacketProcessor {
 
         const roomId = Utils.hexToDec(payload.slice(0, 4));
         const room = serverState.getRoom(roomId);
-        const message = payload.slice(4);
+        const rawMessage = payload.slice(4).toString('utf8');
 
         if (!room || !room.hasUser(user.uid)) return;
 
-        if (!Utils.isValidInput(message.toString('utf8'), 1000)) {
-            logger.warn('Invalid room message', { userId: user.uid, roomId });
+        // Enhanced message validation and sanitization
+        const sanitizedMessage = Utils.sanitizeChatMessage(rawMessage, 1000);
+        if (!sanitizedMessage) {
+            logger.warn('Invalid or empty room message', { userId: user.uid, roomId });
             return;
         }
 
+        // Check for spam (simple duplicate message check)
+        if (this.isSpamMessage(user.uid, sanitizedMessage)) {
+            logger.warn('Spam message detected', { userId: user.uid, roomId, message: sanitizedMessage.substring(0, 50) });
+            return;
+        }
+
+        // Store recent message for spam detection
+        this.storeRecentMessage(user.uid, sanitizedMessage);
+
         // Broadcast message to all users in room except sender
         const messageBuffer = Buffer.from(
-            Utils.decToHex(roomId) + Utils.decToHex(user.uid) + message.toString('hex'),
+            Utils.decToHex(roomId) + Utils.decToHex(user.uid) + Buffer.from(sanitizedMessage, 'utf8').toString('hex'),
             'hex'
         );
 
         this.broadcastToRoom(room, PACKET_TYPES.ROOM_MESSAGE_IN, messageBuffer, user.socket);
+
+        // Log the message for moderation
+        logger.info('Room message', {
+            userId: user.uid,
+            nickname: user.nickname,
+            roomId: room.id,
+            roomName: room.name,
+            message: sanitizedMessage.substring(0, 100) // Truncate for logs
+        });
 
         serverState.updateStats('totalMessagesProcessed');
     }
@@ -306,7 +353,8 @@ class PacketProcessor {
 
         // Check for admin commands
         if (receiverUid === 1000001) {
-            this.handleAdminCommand(socket, content, user);
+            const response = this.adminCommands.processCommand(user, content.toString('utf8'));
+            this.sendSystemMessage(socket, response);
             return;
         }
 
@@ -407,7 +455,7 @@ class PacketProcessor {
         sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
         
         // Broadcast to buddies
-        this.broadcastStatusChange(user, newMode);
+        this.broadcastStatusChange(socket, newMode);
     }
 
     async handleMicRequest(socket, payload) {
@@ -470,6 +518,20 @@ class PacketProcessor {
         const responseBuffer = Buffer.concat([
             Buffer.from('000f4241', 'hex'),
             Buffer.from(response, 'utf8')
+        ]);
+
+        sendPacket(socket, PACKET_TYPES.IM_IN, responseBuffer, socket.id);
+    }
+
+    /**
+     * Send system message to user
+     * @param {Socket} socket 
+     * @param {string} message 
+     */
+    sendSystemMessage(socket, message) {
+        const responseBuffer = Buffer.concat([
+            Buffer.from('000f4241', 'hex'), // System identifier
+            Buffer.from(message, 'utf8')
         ]);
 
         sendPacket(socket, PACKET_TYPES.IM_IN, responseBuffer, socket.id);
@@ -683,6 +745,72 @@ class PacketProcessor {
                 userId: user.uid,
                 messageCount: messages.length
             });
+        }
+    }
+
+    // Spam detection helpers
+    
+    /**
+     * Check if a message is spam based on recent history
+     * @param {number} userId 
+     * @param {string} message 
+     * @returns {boolean}
+     */
+    isSpamMessage(userId, message) {
+        const userMessages = this.recentMessages.get(userId) || [];
+        const now = Date.now();
+        const recentWindow = now - this.spamCheckWindow;
+        
+        // Filter messages within the window
+        const recentCount = userMessages.filter(msg => msg.timestamp > recentWindow).length;
+        
+        // Check for too many messages
+        if (recentCount >= 5) return true;
+        
+        // Check for duplicate messages
+        const duplicateCount = userMessages.filter(msg => 
+            msg.message === message && msg.timestamp > recentWindow
+        ).length;
+        
+        return duplicateCount >= 2;
+    }
+
+    /**
+     * Store recent message for spam detection
+     * @param {number} userId 
+     * @param {string} message 
+     */
+    storeRecentMessage(userId, message) {
+        if (!this.recentMessages.has(userId)) {
+            this.recentMessages.set(userId, []);
+        }
+        
+        const userMessages = this.recentMessages.get(userId);
+        userMessages.push({
+            message,
+            timestamp: Date.now()
+        });
+        
+        // Keep only recent messages
+        if (userMessages.length > this.messageHistoryLimit) {
+            userMessages.shift();
+        }
+    }
+
+    /**
+     * Clean up old message history
+     */
+    cleanupMessageHistory() {
+        const cutoff = Date.now() - this.spamCheckWindow;
+        
+        for (const [userId, messages] of this.recentMessages) {
+            const filtered = messages.filter(msg => msg.timestamp > cutoff);
+            
+            if (filtered.length === 0) {
+                this.recentMessages.delete(userId);
+            } else {
+                this.recentMessages.set(userId, filtered);
+            }
         }
     }
 }

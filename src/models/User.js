@@ -39,6 +39,9 @@ class User {
         this.pub = 0;
         this.away = 0;
         this.visible = true;
+
+        // Activity tracking
+        this.lastActivity = null;
     }
 
     /**
@@ -72,6 +75,50 @@ class User {
                 nickname: this.nickname
             });
         }
+    }
+
+    /**
+     * Update user's last activity timestamp
+     */
+    updateActivity() {
+        this.lastActivity = new Date();
+    }
+
+    /**
+     * Check if user is idle (no activity for specified time)
+     * @param {number} idleTimeMs - Time in milliseconds to consider idle
+     * @returns {boolean}
+     */
+    isIdle(idleTimeMs = 15 * 60 * 1000) { // 15 minutes default
+        if (!this.lastActivity) return false;
+        return Date.now() - this.lastActivity.getTime() > idleTimeMs;
+    }
+
+    /**
+     * Get user's online duration in milliseconds
+     * @returns {number}
+     */
+    getOnlineDuration() {
+        if (!this.loginTime) return 0;
+        return Date.now() - this.loginTime.getTime();
+    }
+
+    /**
+     * Check if user has permission to perform action
+     * @param {string} action - The action to check permission for
+     * @returns {boolean}
+     */
+    hasPermission(action) {
+        const permissions = {
+            'kick_user': this.admin >= USER_PERMISSIONS.MODERATOR,
+            'ban_user': this.admin >= USER_PERMISSIONS.ADMIN,
+            'create_room': this.admin >= USER_PERMISSIONS.REGULAR,
+            'broadcast_message': this.admin >= USER_PERMISSIONS.ADMIN,
+            'delete_room': this.admin >= USER_PERMISSIONS.ADMIN,
+            'manage_server': this.admin >= USER_PERMISSIONS.SUPER_ADMIN
+        };
+
+        return permissions[action] || false;
     }
 
     /**

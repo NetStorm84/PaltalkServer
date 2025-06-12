@@ -6,9 +6,32 @@ const logger = require('../utils/logger');
 const { SERVER_CONFIG } = require('../config/constants');
 
 class DatabaseManager {
-    constructor() {
+    constructor(dbPath = 'database.db') {
+        this.dbPath = dbPath;
         this.db = null;
         this.isConnected = false;
+        
+        // Performance tracking
+        this.performanceMetrics = {
+            totalQueries: 0,
+            successfulQueries: 0,
+            failedQueries: 0,
+            averageQueryTime: 0,
+            lastQueryTime: 0,
+            connectionPool: {
+                active: 0,
+                idle: 0,
+                pending: 0
+            }
+        };
+        
+        // Query performance history (last 100 queries)
+        this.queryHistory = [];
+        this.maxHistorySize = 100;
+        
+        // Connection health monitoring
+        this.lastHealthCheck = Date.now();
+        this.healthCheckInterval = 5 * 60 * 1000; // 5 minutes
     }
 
     /**
@@ -321,36 +344,241 @@ class DatabaseManager {
     }
 
     /**
-     * Execute a custom query (for admin/debugging purposes)
-     * @param {string} query 
+     * Execute query with performance monitoring
+     * @param {string} sql 
      * @param {Array} params 
-     * @returns {Promise<Array>}
+     * @param {string} method - 'get', 'all', or 'run'
+     * @returns {Promise}
      */
-    async executeQuery(query, params = []) {
+    async executeQuery(sql, params = [], method = 'run') {
+        const startTime = Date.now();
+        this.performanceMetrics.totalQueries++;
+        
         return new Promise((resolve, reject) => {
-            if (query.trim().toUpperCase().startsWith('SELECT')) {
-                this.db.all(query, params, (err, rows) => {
-                    if (err) {
-                        logger.error('Failed to execute query', err, { query });
-                        reject(err);
-                    } else {
-                        resolve(rows || []);
-                    }
-                });
-            } else {
-                this.db.run(query, params, function(err) {
-                    if (err) {
-                        logger.error('Failed to execute query', err, { query });
-                        reject(err);
-                    } else {
-                        resolve({ 
-                            changes: this.changes, 
-                            lastID: this.lastID 
+            const callback = (err, result) => {
+                const queryTime = Date.now() - startTime;
+                this.updateQueryMetrics(queryTime, err);
+                
+                if (err) {
+                    this.performanceMetrics.failedQueries++;
+                    logger.error('Database query failed', err, { sql, params });
+                    reject(err);
+                } else {
+                    resolve(result);
+                }
+            };
+
+            try {
+                switch (method) {
+                    case 'get':
+                        this.db.get(sql, params, callback);
+                        break;
+                    case 'all':
+                        this.db.all(sql, params, callback);
+                        break;
+                    case 'run':
+                    default:
+                        this.db.run(sql, params, function(err) {
+                            callback(err, { lastID: this.lastID, changes: this.changes });
                         });
-                    }
-                });
+                        break;
+                }
+            } catch (error) {
+                this.performanceMetrics.failedQueries++;
+                reject(error);
             }
         });
+    }
+
+    /**
+     * Enhanced query method with performance tracking
+     * @param {string} sql 
+     * @param {Array} params 
+     * @returns {Promise}
+     */
+    async query(sql, params = []) {
+        const startTime = Date.now();
+        
+        try {
+            this.performanceMetrics.totalQueries++;
+            
+            const result = await new Promise((resolve, reject) => {
+                this.db.all(sql, params, (err, rows) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(rows);
+                    }
+                });
+            });
+            
+            const queryTime = Date.now() - startTime;
+            this.updatePerformanceMetrics(queryTime, true);
+            
+            logger.debug('Database query executed', {
+                sql: sql.substring(0, 100),
+                params: params.length,
+                queryTime,
+                rowCount: result.length
+            });
+            
+            return result;
+            
+        } catch (error) {
+            const queryTime = Date.now() - startTime;
+            this.updatePerformanceMetrics(queryTime, false);
+            
+            logger.error('Database query failed', error, {
+                sql: sql.substring(0, 100),
+                params: params.length,
+                queryTime
+            });
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Update query performance metrics
+     * @param {number} queryTime 
+     * @param {Error} error 
+     */
+    updateQueryMetrics(queryTime, error) {
+        // Update average query time
+        const total = this.performanceMetrics.totalQueries;
+        this.performanceMetrics.averageQueryTime = 
+            (this.performanceMetrics.averageQueryTime * (total - 1) + queryTime) / total;
+        
+        // Track slow queries (>100ms)
+        if (queryTime > 100) {
+            this.queryHistory.push({
+                time: queryTime,
+                timestamp: new Date(),
+                error: error ? error.message : null
+            });
+            
+            // Keep only last 100 slow queries
+            if (this.queryHistory.length > this.maxHistorySize) {
+                this.queryHistory.shift();
+            }
+        }
+    }
+
+    /**
+     * Update performance metrics
+     * @param {number} queryTime 
+     * @param {boolean} success 
+     */
+    updatePerformanceMetrics(queryTime, success) {
+        this.performanceMetrics.lastQueryTime = queryTime;
+        
+        if (success) {
+            this.performanceMetrics.successfulQueries++;
+        } else {
+            this.performanceMetrics.failedQueries++;
+        }
+        
+        // Update average query time
+        const totalSuccessful = this.performanceMetrics.successfulQueries;
+        if (totalSuccessful > 0) {
+            this.performanceMetrics.averageQueryTime = 
+                (this.performanceMetrics.averageQueryTime * (totalSuccessful - 1) + queryTime) / totalSuccessful;
+        }
+        
+        // Add to query history
+        this.queryHistory.push({
+            timestamp: Date.now(),
+            queryTime,
+            success
+        });
+        
+        // Keep history size limited
+        if (this.queryHistory.length > this.maxHistorySize) {
+            this.queryHistory.shift();
+        }
+    }
+
+    /**
+     * Execute transaction with queue management
+     * @param {Function} transactionFn 
+     * @returns {Promise}
+     */
+    async executeTransaction(transactionFn) {
+        return new Promise((resolve, reject) => {
+            this.transactionQueue.push({ transactionFn, resolve, reject });
+            this.processTransactionQueue();
+        });
+    }
+
+    /**
+     * Process transaction queue
+     */
+    async processTransactionQueue() {
+        if (this.isProcessingTransaction || this.transactionQueue.length === 0) {
+            return;
+        }
+
+        this.isProcessingTransaction = true;
+        const { transactionFn, resolve, reject } = this.transactionQueue.shift();
+
+        try {
+            await this.executeQuery('BEGIN TRANSACTION');
+            const result = await transactionFn(this);
+            await this.executeQuery('COMMIT');
+            resolve(result);
+        } catch (error) {
+            await this.executeQuery('ROLLBACK');
+            reject(error);
+        } finally {
+            this.isProcessingTransaction = false;
+            // Process next transaction
+            setImmediate(() => this.processTransactionQueue());
+        }
+    }
+
+    /**
+     * Get database performance metrics
+     * @returns {Object}
+     */
+    getPerformanceMetrics() {
+        const recentQueries = this.queryHistory.filter(q => 
+            Date.now() - q.timestamp < 60000 // Last minute
+        );
+        
+        return {
+            ...this.performanceMetrics,
+            isConnected: this.isConnected,
+            recentQueriesPerMinute: recentQueries.length,
+            successRate: this.performanceMetrics.totalQueries > 0 
+                ? (this.performanceMetrics.successfulQueries / this.performanceMetrics.totalQueries * 100).toFixed(2)
+                : 0,
+            dbPath: this.dbPath
+        };
+    }
+
+    /**
+     * Optimize database performance
+     */
+    async optimize() {
+        try {
+            logger.info('Starting database optimization...');
+            
+            // Analyze tables
+            await this.query('ANALYZE');
+            
+            // Vacuum database
+            await this.query('VACUUM');
+            
+            // Update statistics
+            await this.query('PRAGMA optimize');
+            
+            logger.info('Database optimization completed');
+            return true;
+            
+        } catch (error) {
+            logger.error('Database optimization failed', error);
+            return false;
+        }
     }
 
     /**

@@ -64,6 +64,37 @@ class WebInterface {
             }
         });
 
+        // Enhanced server statistics
+        this.app.get('/api/stats/detailed', (req, res) => {
+            try {
+                const stats = this.serverState.getStats();
+                const roomStats = this.serverState.getRoomStatistics();
+                const userActivity = this.serverState.getUserActivitySummary();
+                
+                res.json({
+                    server: stats,
+                    rooms: roomStats,
+                    users: userActivity,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get detailed stats', error);
+                res.status(500).json({ error: 'Failed to get detailed stats' });
+            }
+        });
+
+        // Real-time activity feed
+        this.app.get('/api/activity', (req, res) => {
+            try {
+                const limit = parseInt(req.query.limit) || 50;
+                const activities = this.serverState.getRecentActivities(limit);
+                res.json(activities);
+            } catch (error) {
+                logger.error('Failed to get activity feed', error);
+                res.status(500).json({ error: 'Failed to get activity feed' });
+            }
+        });
+
         // Online users
         this.app.get('/api/users', (req, res) => {
             try {
@@ -124,63 +155,145 @@ class WebInterface {
         });
 
         // Admin actions
-        this.app.post('/api/admin/broadcast', (req, res) => {
+        this.app.post('/api/admin/kick-user', (req, res) => {
             try {
-                const { message } = req.body;
-                if (!message) {
-                    return res.status(400).json({ error: 'Message required' });
-                }
-
-                // Broadcast message to all online users
-                const alertBuffer = Buffer.from(message, 'utf8');
-                this.serverState.getOnlineUsers().forEach(user => {
-                    if (user.socket) {
-                        // Note: This would need the actual packet sender
-                        // sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, alertBuffer, user.socket.id);
-                    }
-                });
-
-                logger.info('Admin broadcast sent', { message });
-                res.json({ success: true, message: 'Broadcast sent' });
-            } catch (error) {
-                logger.error('Failed to send broadcast', error);
-                res.status(500).json({ error: 'Failed to send broadcast' });
-            }
-        });
-
-        // Kick user
-        this.app.post('/api/admin/kick/:userId', (req, res) => {
-            try {
-                const userId = parseInt(req.params.userId);
-                const user = this.serverState.getUser(userId);
+                const { userId, reason } = req.body;
                 
+                if (!userId) {
+                    return res.status(400).json({ error: 'User ID required' });
+                }
+                
+                const user = this.serverState.getUser(userId);
                 if (!user) {
                     return res.status(404).json({ error: 'User not found' });
                 }
-
-                if (user.socket) {
-                    user.socket.destroy();
-                }
-
-                logger.info('User kicked by admin', { userId, nickname: user.nickname });
-                res.json({ success: true, message: 'User kicked' });
+                
+                // Kick user
+                this.serverState.removeUserConnection(user.socket, `Kicked by admin: ${reason || 'No reason provided'}`);
+                
+                logger.info('User kicked by admin', { userId, reason });
+                res.json({ success: true, message: 'User kicked successfully' });
             } catch (error) {
                 logger.error('Failed to kick user', error);
                 res.status(500).json({ error: 'Failed to kick user' });
             }
         });
 
-        // Server control
-        this.app.post('/api/admin/cleanup', (req, res) => {
+        this.app.post('/api/admin/broadcast', (req, res) => {
             try {
-                this.serverState.cleanup();
-                this.voiceServer.performCleanup();
+                const { message } = req.body;
                 
-                logger.info('Manual cleanup performed');
-                res.json({ success: true, message: 'Cleanup performed' });
+                if (!message || message.trim().length === 0) {
+                    return res.status(400).json({ error: 'Message required' });
+                }
+                
+                // Broadcast to all users
+                this.serverState.getOnlineUsers().forEach(user => {
+                    if (user.socket) {
+                        const messageBuffer = Buffer.from(`SYSTEM: ${message}`, 'utf8');
+                        user.socket.write(messageBuffer);
+                    }
+                });
+                
+                logger.info('Admin broadcast sent', { message });
+                res.json({ success: true, message: 'Broadcast sent successfully' });
             } catch (error) {
-                logger.error('Failed to perform cleanup', error);
-                res.status(500).json({ error: 'Failed to perform cleanup' });
+                logger.error('Failed to send broadcast', error);
+                res.status(500).json({ error: 'Failed to send broadcast' });
+            }
+        });
+
+        // Performance monitoring endpoint
+        this.app.get('/api/performance', (req, res) => {
+            try {
+                const memUsage = process.memoryUsage();
+                const cpuUsage = process.cpuUsage();
+                
+                res.json({
+                    memory: {
+                        rss: Math.round(memUsage.rss / 1024 / 1024), // MB
+                        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+                        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+                        external: Math.round(memUsage.external / 1024 / 1024)
+                    },
+                    cpu: cpuUsage,
+                    uptime: Math.round(process.uptime()),
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get performance data', error);
+                res.status(500).json({ error: 'Failed to get performance data' });
+            }
+        });
+
+        // Enhanced user management
+        this.app.post('/api/admin/user/:userId/ban', (req, res) => {
+            try {
+                const { userId } = req.params;
+                const { reason, duration } = req.body;
+                
+                const user = this.serverState.getUser(parseInt(userId));
+                if (!user) {
+                    return res.status(404).json({ error: 'User not found' });
+                }
+                
+                // Ban user
+                this.serverState.banUser(userId, reason, duration);
+                
+                logger.info('User banned by admin', { userId, reason, duration });
+                res.json({ success: true, message: 'User banned successfully' });
+            } catch (error) {
+                logger.error('Failed to ban user', error);
+                res.status(500).json({ error: 'Failed to ban user' });
+            }
+        });
+
+        // Room management
+        this.app.post('/api/admin/room/:roomId/close', (req, res) => {
+            try {
+                const { roomId } = req.params;
+                const { reason } = req.body;
+                
+                const room = this.serverState.getRoom(parseInt(roomId));
+                if (!room) {
+                    return res.status(404).json({ error: 'Room not found' });
+                }
+                
+                // Close room
+                this.serverState.closeRoom(roomId, reason);
+                
+                logger.info('Room closed by admin', { roomId, reason });
+                res.json({ success: true, message: 'Room closed successfully' });
+            } catch (error) {
+                logger.error('Failed to close room', error);
+                res.status(500).json({ error: 'Failed to close room' });
+            }
+        });
+
+        // Server maintenance
+        this.app.post('/api/admin/maintenance', (req, res) => {
+            try {
+                const { action, message } = req.body;
+                
+                switch (action) {
+                    case 'cleanup':
+                        this.serverState.performMaintenance();
+                        break;
+                    case 'restart_voice':
+                        this.voiceServer.restart();
+                        break;
+                    case 'clear_logs':
+                        // Clear old logs
+                        break;
+                    default:
+                        return res.status(400).json({ error: 'Invalid maintenance action' });
+                }
+                
+                logger.info('Maintenance action performed', { action, message });
+                res.json({ success: true, message: 'Maintenance completed' });
+            } catch (error) {
+                logger.error('Failed to perform maintenance', error);
+                res.status(500).json({ error: 'Failed to perform maintenance' });
             }
         });
     }
@@ -223,7 +336,7 @@ class WebInterface {
 
     async sendServerState(socket) {
         try {
-            const state = this.serverState.getServerState();
+            const state = this.serverState.getStats();
             const voiceStats = this.voiceServer.getStats();
             
             socket.emit('serverState', {

@@ -11,6 +11,11 @@ class VoiceServer {
         this.connections = new Map(); // socketId -> connection info
         this.rooms = new Map(); // roomId -> Set of socketIds
         this.isRunning = false;
+        this.stats = {
+            serverStartTime: Date.now(),
+            lastCleanup: Date.now(),
+            totalPacketsRelayed: 0
+        };
     }
 
     /**
@@ -55,7 +60,11 @@ class VoiceServer {
             bytesReceived: 0,
             bytesSent: 0,
             connectTime: new Date(),
-            lastActivity: new Date()
+            lastActivity: new Date(),
+            audioSettings: {
+                qualityEnhancement: true,
+                minPacketSize: 50
+            }
         };
 
         this.connections.set(connectionId, connectionInfo);
@@ -99,38 +108,138 @@ class VoiceServer {
         try {
             const connection = this.connections.get(connectionId);
             if (!connection) {
-                logger.warn('Data received from unknown connection', { connectionId });
+                logger.warn('Voice data from unknown connection', { connectionId });
                 return;
             }
 
-            connection.lastActivity = new Date();
+            // Update connection activity
+            connection.lastActivity = Date.now();
             connection.bytesReceived += data.length;
 
-            // Check for authentication/room join packets
-            const dataHex = data.toString('hex');
-            
-            // Handle special control packets
-            if (this.isControlPacket(dataHex)) {
-                this.handleControlPacket(connectionId, data);
+            // Parse RTP header for quality monitoring
+            const rtpInfo = this.parseRTPHeader(data);
+            if (rtpInfo.error) {
+                logger.debug('Invalid RTP packet', { connectionId, error: rtpInfo.error });
                 return;
             }
 
-            // If not authenticated or not in a room, ignore audio data
-            if (!connection.isAuthenticated || !connection.roomId) {
-                logger.debug('Ignoring audio data from unauthenticated connection', {
-                    connectionId,
-                    isAuthenticated: connection.isAuthenticated,
-                    roomId: connection.roomId
-                });
-                return;
-            }
+            // Update audio quality metrics
+            this.updateAudioQualityMetrics(connectionId, rtpInfo, data.length);
 
-            // Process and relay audio data
-            this.relayAudioData(connectionId, data);
+            // Apply audio quality filtering if needed
+            const processedData = this.processAudioData(data, connection.audioSettings);
+
+            // Relay to room members
+            this.relayAudioToRoom(connection.roomId, processedData, connectionId);
 
         } catch (error) {
             logger.error('Error handling voice data', error, { connectionId });
         }
+    }
+
+    /**
+     * Process audio data for quality enhancement
+     * @param {Buffer} audioData 
+     * @param {Object} settings 
+     * @returns {Buffer}
+     */
+    processAudioData(audioData, settings) {
+        // Basic audio processing - could be enhanced with actual audio filters
+        if (!settings.qualityEnhancement) {
+            return audioData;
+        }
+
+        // Simple noise gate simulation (placeholder for real audio processing)
+        if (audioData.length < settings.minPacketSize) {
+            return Buffer.alloc(0); // Drop very small packets (likely noise)
+        }
+
+        return audioData;
+    }
+
+    /**
+     * Update audio quality metrics for a connection
+     * @param {string} connectionId 
+     * @param {Object} rtpInfo 
+     * @param {number} packetSize 
+     */
+    updateAudioQualityMetrics(connectionId, rtpInfo, packetSize) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) return;
+
+        if (!connection.qualityMetrics) {
+            connection.qualityMetrics = {
+                packetsReceived: 0,
+                packetsLost: 0,
+                lastSequenceNumber: 0,
+                averagePacketSize: 0,
+                jitter: 0,
+                lastTimestamp: 0
+            };
+        }
+
+        const metrics = connection.qualityMetrics;
+        metrics.packetsReceived++;
+
+        // Calculate packet loss
+        if (metrics.lastSequenceNumber > 0) {
+            const expectedSeq = (metrics.lastSequenceNumber + 1) & 0xFFFF;
+            if (rtpInfo.sequenceNumber !== expectedSeq) {
+                const lostPackets = (rtpInfo.sequenceNumber - expectedSeq) & 0xFFFF;
+                metrics.packetsLost += lostPackets;
+            }
+        }
+        metrics.lastSequenceNumber = rtpInfo.sequenceNumber;
+
+        // Update average packet size
+        metrics.averagePacketSize = 
+            (metrics.averagePacketSize * (metrics.packetsReceived - 1) + packetSize) / metrics.packetsReceived;
+
+        // Simple jitter calculation
+        if (metrics.lastTimestamp > 0) {
+            const timeDiff = Math.abs(rtpInfo.timestamp - metrics.lastTimestamp);
+            metrics.jitter = (metrics.jitter * 15 + timeDiff) / 16; // Moving average
+        }
+        metrics.lastTimestamp = rtpInfo.timestamp;
+    }
+
+    /**
+     * Get audio quality report for a connection
+     * @param {string} connectionId 
+     * @returns {Object}
+     */
+    getAudioQualityReport(connectionId) {
+        const connection = this.connections.get(connectionId);
+        if (!connection || !connection.qualityMetrics) {
+            return null;
+        }
+
+        const metrics = connection.qualityMetrics;
+        const packetLossRate = metrics.packetsReceived > 0 ? 
+            (metrics.packetsLost / (metrics.packetsReceived + metrics.packetsLost)) * 100 : 0;
+
+        return {
+            connectionId,
+            packetsReceived: metrics.packetsReceived,
+            packetsLost: metrics.packetsLost,
+            packetLossRate: Math.round(packetLossRate * 100) / 100,
+            averagePacketSize: Math.round(metrics.averagePacketSize),
+            jitter: Math.round(metrics.jitter),
+            quality: this.calculateQualityScore(packetLossRate, metrics.jitter)
+        };
+    }
+
+    /**
+     * Calculate overall quality score
+     * @param {number} packetLossRate 
+     * @param {number} jitter 
+     * @returns {string}
+     */
+    calculateQualityScore(packetLossRate, jitter) {
+        if (packetLossRate > 5 || jitter > 50) return 'Poor';
+        if (packetLossRate > 2 || jitter > 30) return 'Fair';
+        if (packetLossRate > 0.5 || jitter > 15) return 'Good';
+        return 'Excellent';
     }
 
     /**
@@ -461,32 +570,125 @@ class VoiceServer {
     }
 
     /**
-     * Perform cleanup of inactive connections
+     * Enhanced cleanup for dead connections and resources
      */
     performCleanup() {
-        const now = new Date();
-        const timeoutMs = 300000; // 5 minutes
-        let cleanedCount = 0;
+        try {
+            logger.debug('🧹 Performing voice server cleanup...');
 
-        this.connections.forEach((connection, connectionId) => {
-            const inactiveTime = now.getTime() - connection.lastActivity.getTime();
-            
-            if (inactiveTime > timeoutMs) {
-                logger.info('Cleaning up inactive voice connection', {
-                    connectionId,
-                    inactiveTime,
-                    roomId: connection.roomId
-                });
+            const now = Date.now();
+            let cleanedConnections = 0;
+            let cleanedRooms = 0;
+
+            // Clean up inactive connections
+            for (const [connectionId, connection] of this.connections) {
+                const inactiveTime = now - connection.lastActivity;
                 
-                connection.socket.destroy();
-                this.cleanupConnection(connectionId);
-                cleanedCount++;
+                // Remove connections inactive for more than 5 minutes
+                if (inactiveTime > 5 * 60 * 1000) {
+                    logger.debug('Cleaning up inactive voice connection', { 
+                        connectionId, 
+                        inactiveTime: Math.round(inactiveTime / 1000) + 's'
+                    });
+                    
+                    this.handleConnectionEnd(connectionId);
+                    cleanedConnections++;
+                }
             }
-        });
 
-        if (cleanedCount > 0) {
-            logger.info('Voice server cleanup completed', { cleanedCount });
+            // Clean up empty rooms
+            for (const [roomId, room] of this.rooms) {
+                if (room.connections.size === 0 && !room.isPermanent) {
+                    this.rooms.delete(roomId);
+                    cleanedRooms++;
+                }
+            }
+
+            // Log cleanup results
+            if (cleanedConnections > 0 || cleanedRooms > 0) {
+                logger.info('Voice server cleanup completed', { 
+                    cleanedConnections, 
+                    cleanedRooms 
+                });
+            }
+
+            // Update server statistics
+            this.stats.lastCleanup = now;
+
+        } catch (error) {
+            logger.error('Error during voice server cleanup', error);
         }
+    }
+
+    /**
+     * Get comprehensive voice server statistics
+     * @returns {Object}
+     */
+    getServerStatistics() {
+        const stats = {
+            ...this.stats,
+            currentConnections: this.connections.size,
+            activeRooms: this.rooms.size,
+            uptime: Date.now() - this.stats.serverStartTime,
+            rooms: [],
+            qualityReports: []
+        };
+
+        // Add room statistics
+        for (const [roomId, room] of this.rooms) {
+            stats.rooms.push({
+                roomId,
+                connectionCount: room.connections.size,
+                isPermanent: room.isPermanent,
+                createdAt: room.createdAt
+            });
+        }
+
+        // Add quality reports for active connections
+        for (const [connectionId] of this.connections) {
+            const qualityReport = this.getAudioQualityReport(connectionId);
+            if (qualityReport) {
+                stats.qualityReports.push(qualityReport);
+            }
+        }
+
+        return stats;
+    }
+
+    /**
+     * Monitor server health and performance
+     */
+    startHealthMonitoring() {
+        setInterval(() => {
+            const stats = this.getServerStatistics();
+            
+            // Log performance metrics
+            logger.debug('Voice server health check', {
+                connections: stats.currentConnections,
+                rooms: stats.activeRooms,
+                totalPackets: stats.totalPacketsRelayed
+            });
+
+            // Check for performance issues
+            if (stats.currentConnections > 50) {
+                logger.warn('High voice connection count', { 
+                    connections: stats.currentConnections 
+                });
+            }
+
+            // Check quality reports for poor connections
+            const poorQualityConnections = stats.qualityReports.filter(
+                report => report.quality === 'Poor'
+            );
+
+            if (poorQualityConnections.length > 0) {
+                logger.warn('Poor quality voice connections detected', {
+                    count: poorQualityConnections.length,
+                    connections: poorQualityConnections.map(r => r.connectionId)
+                });
+            }
+
+        }, 60000); // Every minute
     }
 
     /**

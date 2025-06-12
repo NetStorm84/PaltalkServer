@@ -20,8 +20,31 @@ class ServerState extends EventEmitter {
             totalConnections: 0,
             totalPacketsReceived: 0,
             totalPacketsSent: 0,
-            totalMessagesProcessed: 0
+            totalMessagesProcessed: 0,
+            peakConcurrentUsers: 0,
+            totalRoomsCreated: 0,
+            totalLoginAttempts: 0,
+            totalFailedLogins: 0,
+            uptime: 0
         };
+        
+        // Performance monitoring
+        this.performanceMetrics = {
+            memoryUsage: process.memoryUsage(),
+            lastUpdate: Date.now()
+        };
+        
+        // Update performance metrics periodically
+        setInterval(() => {
+            this.updatePerformanceMetrics();
+        }, 30000); // Every 30 seconds
+        
+        // Activity tracking
+        this.recentActivities = [];
+        this.maxActivities = 200;
+        
+        // Banned users tracking
+        this.bannedUsers = new Map(); // userId -> {reason, bannedAt, duration}
     }
 
     /**
@@ -172,6 +195,8 @@ class ServerState extends EventEmitter {
             isPermanent: room.isPermanent
         });
 
+        this.stats.totalRoomsCreated++;
+
         this.emit('roomCreated', room);
     }
 
@@ -300,76 +325,289 @@ class ServerState extends EventEmitter {
     }
 
     /**
-     * Get server statistics
+     * Update performance metrics
+     */
+    updatePerformanceMetrics() {
+        this.performanceMetrics = {
+            memoryUsage: process.memoryUsage(),
+            lastUpdate: Date.now(),
+            cpuUsage: process.cpuUsage()
+        };
+        
+        // Update peak concurrent users
+        if (this.users.size > this.stats.peakConcurrentUsers) {
+            this.stats.peakConcurrentUsers = this.users.size;
+        }
+    }
+
+    /**
+     * Format uptime in human readable format
+     * @param {number} uptimeMs 
+     * @returns {string}
+     */
+    formatUptime(uptimeMs) {
+        const seconds = Math.floor(uptimeMs / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        
+        if (days > 0) {
+            return `${days}d ${hours % 24}h ${minutes % 60}m`;
+        } else if (hours > 0) {
+            return `${hours}h ${minutes % 60}m`;
+        } else {
+            return `${minutes}m ${seconds % 60}s`;
+        }
+    }
+
+    /**
+     * Get detailed room statistics
+     * @returns {Array}
+     */
+    getRoomStatistics() {
+        return Array.from(this.rooms.values()).map(room => ({
+            id: room.id,
+            name: room.name,
+            userCount: room.users.size,
+            maxUsers: room.maxUsers,
+            isVoice: room.isVoice,
+            isPermanent: room.isPermanent,
+            createdAt: room.createdAt,
+            category: room.category
+        }));
+    }
+
+    /**
+     * Get user activity summary
+     * @returns {Object}
+     */
+    getUserActivitySummary() {
+        const users = Array.from(this.users.values());
+        const now = Date.now();
+        
+        let activeUsers = 0;
+        let idleUsers = 0;
+        let awayUsers = 0;
+        
+        users.forEach(user => {
+            if (user.mode === USER_MODES.AWAY) {
+                awayUsers++;
+            } else if (user.isIdle()) {
+                idleUsers++;
+            } else {
+                activeUsers++;
+            }
+        });
+        
+        return {
+            total: users.length,
+            active: activeUsers,
+            idle: idleUsers,
+            away: awayUsers
+        };
+    }
+
+    /**
+     * Log activity for tracking
+     * @param {string} type 
+     * @param {Object} details 
+     */
+    logActivity(type, details) {
+        const activity = {
+            id: Date.now() + Math.random().toString(36).substring(2),
+            type,
+            timestamp: new Date(),
+            details
+        };
+        
+        this.recentActivities.unshift(activity);
+        
+        // Keep only recent activities
+        if (this.recentActivities.length > this.maxActivities) {
+            this.recentActivities = this.recentActivities.slice(0, this.maxActivities);
+        }
+        
+        // Emit activity event for real-time updates
+        this.emit('activity', activity);
+    }
+
+    /**
+     * Get recent activities
+     * @param {number} limit 
+     * @returns {Array}
+     */
+    getRecentActivities(limit = 50) {
+        return this.recentActivities.slice(0, limit);
+    }
+
+    /**
+     * Get comprehensive server statistics
      * @returns {Object}
      */
     getStats() {
+        const currentTime = Date.now();
+        const uptimeMs = currentTime - this.serverStartTime.getTime();
+        
         return {
-            ...this.stats,
-            uptime: Date.now() - this.serverStartTime.getTime(),
-            onlineUsers: this.getOnlineUsers().length,
-            totalUsers: this.users.size,
+            // Basic stats
+            totalConnections: this.stats.totalConnections,
+            totalPacketsReceived: this.stats.totalPacketsReceived,
+            totalPacketsSent: this.stats.totalPacketsSent,
+            totalMessagesProcessed: this.stats.totalMessagesProcessed,
+            peakConcurrentUsers: this.stats.peakConcurrentUsers,
+            totalRoomsCreated: this.stats.totalRoomsCreated,
+            totalLoginAttempts: this.stats.totalLoginAttempts,
+            totalFailedLogins: this.stats.totalFailedLogins,
+            
+            // Current state
+            onlineUsers: this.users.size,
             totalRooms: this.rooms.size,
-            totalCategories: this.categories.size,
-            serverStartTime: this.serverStartTime
+            currentUsers: this.users.size,
+            activeRooms: Array.from(this.rooms.values()).filter(room => room.users.size > 0).length,
+            
+            // Uptime information
+            uptime: uptimeMs,
+            uptimeFormatted: this.formatUptime(uptimeMs),
+            serverStartTime: this.serverStartTime,
+            
+            // Performance metrics
+            memoryUsage: this.performanceMetrics.memoryUsage,
+            cpuUsage: this.performanceMetrics.cpuUsage,
+            
+            // Activity stats
+            recentActivitiesCount: this.recentActivities.length,
+            bannedUsersCount: this.bannedUsers.size,
+            
+            // Additional computed stats
+            averageUsersPerRoom: this.rooms.size > 0 ? (this.users.size / this.rooms.size).toFixed(2) : 0,
+            timestamp: currentTime
         };
     }
 
     /**
-     * Get complete server state for web UI
-     * @returns {Object}
+     * Ban a user
+     * @param {number} userId 
+     * @param {string} reason 
+     * @param {number} duration - Duration in milliseconds, null for permanent
      */
-    getServerState() {
-        return {
-            stats: this.getStats(),
-            users: this.getOnlineUsers().map(user => user.getSummary()),
-            rooms: this.getAllRooms().map(room => room.getSummary()),
-            categories: this.getAllCategories()
+    banUser(userId, reason = 'No reason provided', duration = null) {
+        const banInfo = {
+            reason,
+            bannedAt: new Date(),
+            duration,
+            expiresAt: duration ? new Date(Date.now() + duration) : null
         };
+        
+        this.bannedUsers.set(userId, banInfo);
+        
+        // Disconnect user if online
+        const user = this.getUser(userId);
+        if (user && user.socket) {
+            this.removeUserConnection(user.socket, `Banned: ${reason}`);
+        }
+        
+        this.logActivity('user_banned', {
+            userId,
+            reason,
+            duration: duration ? `${Math.round(duration / 60000)} minutes` : 'permanent'
+        });
+        
+        logger.warn('User banned', { userId, reason, duration });
     }
 
     /**
-     * Broadcast status change to buddies
-     * @param {User} user 
-     * @param {number} newMode 
+     * Check if user is banned
+     * @param {number} userId 
+     * @returns {boolean}
      */
-    broadcastStatusChange(user, newMode) {
-        this.getOnlineUsers().forEach(onlineUser => {
-            if (onlineUser.hasBuddy(user.uid)) {
-                this.emit('statusChangeForBuddy', onlineUser, user, newMode);
+    isUserBanned(userId) {
+        const banInfo = this.bannedUsers.get(userId);
+        if (!banInfo) return false;
+        
+        // Check if ban has expired
+        if (banInfo.expiresAt && banInfo.expiresAt < new Date()) {
+            this.bannedUsers.delete(userId);
+            this.logActivity('ban_expired', { userId });
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Close a room
+     * @param {number} roomId 
+     * @param {string} reason 
+     */
+    closeRoom(roomId, reason = 'Administrative action') {
+        const room = this.getRoom(roomId);
+        if (!room) return false;
+        
+        // Notify all users in the room
+        room.getAllUsers().forEach(user => {
+            if (user.socket) {
+                // Send room closure notification
+                const notificationBuffer = Buffer.from(`Room "${room.name}" has been closed: ${reason}`, 'utf8');
+                // You would send appropriate packet here
             }
         });
+        
+        // Remove all users from room
+        room.getAllUsers().forEach(user => {
+            room.removeUser(user);
+        });
+        
+        // Remove room
+        this.removeRoom(roomId);
+        
+        this.logActivity('room_closed', {
+            roomId,
+            roomName: room.name,
+            reason,
+            userCount: room.getAllUsers().length
+        });
+        
+        return true;
     }
 
     /**
-     * Clean up inactive connections and temporary rooms
+     * Perform server maintenance and cleanup
      */
-    cleanup() {
-        let cleanedConnections = 0;
-        let cleanedRooms = 0;
-
-        // Clean up inactive sockets
-        for (const [socketId, connection] of this.sockets) {
-            if (!connection.socket || !connection.socket.readable) {
-                this.removeUserConnection(connection.socket);
-                cleanedConnections++;
+    performMaintenance() {
+        logger.info('Performing server maintenance...');
+        
+        // Clean up expired bans
+        let expiredBans = 0;
+        for (const [userId, banInfo] of this.bannedUsers) {
+            if (banInfo.expiresAt && banInfo.expiresAt < new Date()) {
+                this.bannedUsers.delete(userId);
+                expiredBans++;
             }
         }
-
-        // Clean up empty temporary rooms
-        for (const room of this.rooms.values()) {
-            if (room.shouldAutoDelete()) {
-                this.removeRoom(room.id);
-                cleanedRooms++;
+        
+        // Clean up old activities
+        const oldActivityCount = this.recentActivities.length;
+        this.recentActivities = this.recentActivities.slice(0, this.maxActivities);
+        
+        // Clean up idle connections
+        let idleDisconnects = 0;
+        this.users.forEach(user => {
+            if (user.isIdle(30 * 60 * 1000)) { // 30 minutes
+                this.removeUserConnection(user.socket, 'Idle timeout');
+                idleDisconnects++;
             }
-        }
-
-        if (cleanedConnections > 0 || cleanedRooms > 0) {
-            logger.info('Cleanup completed', {
-                cleanedConnections,
-                cleanedRooms
-            });
-        }
+        });
+        
+        this.logActivity('maintenance_completed', {
+            expiredBans,
+            activitiesCleaned: oldActivityCount - this.recentActivities.length,
+            idleDisconnects
+        });
+        
+        logger.info('Server maintenance completed', {
+            expiredBans,
+            idleDisconnects
+        });
     }
 }
 

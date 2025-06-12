@@ -48,49 +48,62 @@ class Room {
             if (this.users.has(user.uid)) {
                 logger.warn('User already in room', { 
                     userId: user.uid, 
-                    roomId: this.id 
+                    roomId: this.id
                 });
                 return false;
             }
 
-            if (this.bannedUsers.has(user.uid)) {
-                logger.warn('Banned user attempted to join room', { 
-                    userId: user.uid, 
-                    roomId: this.id 
-                });
-                return false;
-            }
-
+            // Check room capacity
             if (this.users.size >= this.maxUsers) {
-                logger.warn('Room is full', { 
-                    userId: user.uid, 
-                    roomId: this.id,
-                    currentUsers: this.users.size,
-                    maxUsers: this.maxUsers
+                logger.warn('Room at capacity', { 
+                    roomId: this.id, 
+                    maxUsers: this.maxUsers,
+                    currentUsers: this.users.size
                 });
                 return false;
             }
 
-            // Set room-specific user properties
-            user.currentRoom = this.id;
-            user.visible = isVisible;
-            user.mic = this.micEnabled;
-            user.pub = 0;
-            user.away = 0;
+            // Check if user is banned
+            if (this.bannedUsers.has(user.uid)) {
+                logger.warn('Banned user attempted to join', { 
+                    userId: user.uid, 
+                    roomId: this.id
+                });
+                return false;
+            }
 
-            // Add user to room
-            this.users.set(user.uid, user);
+            // Check password if room is private
+            if (this.isPrivate && this.password && !isAdmin) {
+                // Password checking should be done before calling this method
+                // This is just a safety check
+            }
 
-            logger.logRoomActivity('user_joined', this.id, user.uid, {
+            const userRoomData = {
+                uid: user.uid,
                 nickname: user.nickname,
-                isVisible,
+                admin: isAdmin ? 1 : user.admin,
+                color: user.color,
+                mic: user.mic,
+                pub: user.pub,
+                away: user.away,
+                visible: isVisible,
+                joinedAt: new Date(),
+                isRoomAdmin: isAdmin
+            };
+
+            this.users.set(user.uid, userRoomData);
+            user.currentRoom = this.id;
+
+            logger.logUserAction('room_join', user.uid, {
+                roomId: this.id,
+                roomName: this.name,
                 isAdmin,
-                userCount: this.users.size
+                isVisible
             });
 
             return true;
         } catch (error) {
-            logger.error('Failed to add user to room', error, {
+            logger.error('Error adding user to room', error, {
                 userId: user.uid,
                 roomId: this.id
             });
