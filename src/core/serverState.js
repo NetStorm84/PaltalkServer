@@ -86,7 +86,7 @@ class ServerState extends EventEmitter {
      * Remove a user connection
      * @param {number|Socket} socketOrUid 
      */
-    removeUserConnection(socketOrUid) {
+    removeUserConnection(socketOrUid, reason = 'Connection ended') {
         try {
             let user, socketId;
 
@@ -102,6 +102,21 @@ class ServerState extends EventEmitter {
             }
 
             if (!user) {
+                logger.debug('removeUserConnection called but no user found', { 
+                    socketId, 
+                    uid: typeof socketOrUid === 'number' ? socketOrUid : 'N/A',
+                    reason 
+                });
+                return false;
+            }
+
+            // Check if user is already offline to prevent double cleanup
+            if (user.mode === USER_MODES.OFFLINE) {
+                logger.debug('User already offline, skipping cleanup', { 
+                    uid: user.uid, 
+                    socketId,
+                    reason 
+                });
                 return false;
             }
 
@@ -131,7 +146,8 @@ class ServerState extends EventEmitter {
 
             logger.logUserAction('disconnected', user.uid, {
                 nickname: user.nickname,
-                sessionId: user.sessionId
+                sessionId: user.sessionId,
+                reason: reason
             });
 
             this.emit('userDisconnected', user);

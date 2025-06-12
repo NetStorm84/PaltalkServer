@@ -285,3 +285,413 @@
 {"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T09:24:38.869Z"}
 {"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T09:24:38.870Z"}
 {"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T09:24:38.871Z","userId":null}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.668Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.670Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.674Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.674Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.675Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.677Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.677Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.678Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.680Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.680Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.680Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.680Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T21:59:40.683Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.683Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.683Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.683Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.683Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.684Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.684Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T21:59:40.684Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"YR-H6wBzhwiT7ZRXAAAB","timestamp":"2025-06-12T21:59:44.868Z"}
+{"connectionId":"chat_1749765601223_go7es7gwd5","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":57916,"service":"paltalk-server","timestamp":"2025-06-12T22:00:01.224Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:00:01.228Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:00:01.240Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"9z1dz97ukdmbtx9eqg","timestamp":"2025-06-12T22:00:01.240Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"9z1dz97ukdmbtx9eqg","timestamp":"2025-06-12T22:00:01.242Z","userId":1000004}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:00:02.692Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"9z1dz97ukdmbtx9eqg","timestamp":"2025-06-12T22:00:02.692Z","userId":1000004}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:01:14.443Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:01:14.445Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:01:14.447Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:01:14.447Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:01:14.447Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:01:14.450Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:01:14.451Z","userId":null}
+{"connectionId":"chat_1749765683697_0g8cythj9vw","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":57936,"service":"paltalk-server","timestamp":"2025-06-12T22:01:23.697Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:01:23.701Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:01:23.710Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"mtuihyj77ymbtxb6da","timestamp":"2025-06-12T22:01:23.710Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"mtuihyj77ymbtxb6da","timestamp":"2025-06-12T22:01:23.711Z","userId":1000004}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:01:25.376Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"mtuihyj77ymbtxb6da","timestamp":"2025-06-12T22:01:25.377Z","userId":1000004}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:01:37.292Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:01:37.295Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:01:37.297Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:01:37.297Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:01:37.298Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:01:37.300Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:01:37.302Z","userId":null}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:01:47.716Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:01:47.719Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:01:47.723Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:01:47.723Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:01:47.724Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:01:47.730Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:01:47.731Z","userId":null}
+{"level":"info","message":"🛑 Received SIGTERM, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:01:55.816Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:01:55.816Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:01:58.578Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:01:58.580Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:01:58.582Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:01:58.582Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:01:58.583Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:01:58.585Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:01:58.586Z","userId":null}
+{"level":"info","message":"🛑 Received SIGTERM, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:03:29.568Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:03:29.569Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:03:32.369Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:03:32.371Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:03:32.373Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:03:32.374Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:03:32.374Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:03:32.375Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:03:32.376Z","userId":null}
+{"level":"info","message":"🛑 Received SIGINT, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:03:39.063Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:03:39.064Z"}
+{"level":"info","message":"🛑 Received SIGINT, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:03:39.064Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:03:39.065Z"}
+{"connectionId":"chat_1749765827421_4y7kea415qf","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":57957,"service":"paltalk-server","timestamp":"2025-06-12T22:03:47.421Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:03:47.424Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:03:47.435Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"m9ghxsko3ccmbtxe99n","timestamp":"2025-06-12T22:03:47.436Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"m9ghxsko3ccmbtxe99n","timestamp":"2025-06-12T22:03:47.437Z","userId":1000004}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:03:49.059Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"m9ghxsko3ccmbtxe99n","timestamp":"2025-06-12T22:03:49.059Z","userId":1000004}
+{"level":"info","message":"🛑 Received SIGINT, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:03:54.213Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:03:54.215Z"}
+{"level":"info","message":"🛑 Received SIGINT, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:03:54.216Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:03:54.216Z"}
+{"level":"info","message":"🛑 Received SIGTERM, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:04:28.620Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:04:28.622Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:05:12.555Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:05:12.556Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:05:12.559Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:05:12.559Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:05:12.560Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:05:12.561Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:05:12.562Z","userId":null}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:05:37.548Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:05:37.550Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:05:37.551Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:05:37.551Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:05:37.552Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:05:37.553Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:05:37.554Z","userId":null}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.000Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.002Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.006Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.006Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.007Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.009Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.009Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.010Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.012Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.012Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.012Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.012Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T22:06:04.015Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.015Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.015Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.015Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.016Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.016Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.016Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T22:06:04.016Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"TQmYQzxPoqubhYaiAAAB","timestamp":"2025-06-12T22:06:07.867Z"}
+{"connectionId":"chat_1749765975598_gzq7lbqjtrp","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58014,"service":"paltalk-server","timestamp":"2025-06-12T22:06:15.598Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:06:15.603Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:06:15.615Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"6j6k2o4x6xambtxhflr","timestamp":"2025-06-12T22:06:15.615Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"6j6k2o4x6xambtxhflr","timestamp":"2025-06-12T22:06:15.617Z","userId":1000004}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:06:17.314Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"6j6k2o4x6xambtxhflr","timestamp":"2025-06-12T22:06:17.314Z","userId":1000004}
+{"level":"info","message":"🛑 Received SIGINT, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:06:22.287Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:06:22.289Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.623Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.625Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.627Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.627Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.628Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.629Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.630Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.630Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.631Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.631Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.631Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.631Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.632Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.632Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.632Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.633Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.634Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.634Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.634Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T22:06:26.637Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.637Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.638Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.638Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.638Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.638Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.639Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T22:06:26.639Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"kd_oZt_z6DgB0ZiWAAAB","timestamp":"2025-06-12T22:06:26.834Z"}
+{"connectionId":"chat_1749765991008_b7eh10o1s8p","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58029,"service":"paltalk-server","timestamp":"2025-06-12T22:06:31.008Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:06:31.014Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:06:39.950Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"nfyptwn4t4ambtxhrht","timestamp":"2025-06-12T22:06:50.834Z","userId":1000004}
+{"level":"warn","message":"Attempted to send packet to invalid socket","packetType":100,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:07:24.341Z"}
+{"level":"warn","message":"Attempted to send packet to invalid socket","packetType":1190,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:07:24.342Z"}
+{"level":"warn","message":"Attempted to send packet to invalid socket","packetType":412,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:07:24.342Z"}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"nfyptwn4t4ambtxhrht","timestamp":"2025-06-12T22:07:24.342Z","userId":1000004}
+{"connectionId":"chat_1749765991008_b7eh10o1s8p","error":"write EPIPE","level":"error","message":"Chat socket error","service":"paltalk-server","stack":"Error: write EPIPE\n    at afterWriteDispatched (node:internal/stream_base_commons:159:15)\n    at writeGeneric (node:internal/stream_base_commons:150:3)\n    at Socket._writeGeneric (node:net:964:11)\n    at Socket._write (node:net:976:8)\n    at writeOrBuffer (node:internal/streams/writable:570:12)\n    at _write (node:internal/streams/writable:499:10)\n    at Writable.write (node:internal/streams/writable:508:10)\n    at PacketSender.sendPacket (/Users/dan/Documents/Sites/paltalk.fun/server/src/network/packetSender.js:44:20)\n    at PacketProcessor.handleLogin (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:208:13)\n    at async PacketProcessor.processPacket (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:106:21)","timestamp":"2025-06-12T22:07:24.343Z","userConnected":true}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:07:24.344Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"nfyptwn4t4ambtxhrht","timestamp":"2025-06-12T22:07:24.344Z","userId":1000004}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.704Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.706Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.710Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.711Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.711Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.713Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.713Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.714Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.716Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.717Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.717Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.717Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T22:08:52.720Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.720Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.720Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.720Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.720Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.721Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.721Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T22:08:52.721Z"}
+{"connectionId":"chat_1749766137351_qvfpw1t8jva","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58091,"service":"paltalk-server","timestamp":"2025-06-12T22:08:57.351Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:08:57.357Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:08:57.370Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"awei2wx5vpombtxkwey","timestamp":"2025-06-12T22:08:57.371Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"awei2wx5vpombtxkwey","timestamp":"2025-06-12T22:08:57.372Z","userId":1000004}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"_WT5Fdf3uILdl7YVAAAB","timestamp":"2025-06-12T22:08:57.842Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:08:59.025Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"awei2wx5vpombtxkwey","timestamp":"2025-06-12T22:08:59.027Z","userId":1000004}
+{"level":"info","message":"🛑 Received SIGTERM, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:09:05.774Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:09:05.775Z"}
+{"level":"warn","message":"Web interface stop failed or timed out Web interface stop timeout","service":"paltalk-server","stack":"Error: Web interface stop timeout\n    at Timeout._onTimeout (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:434:76)\n    at listOnTimeout (node:internal/timers:614:17)\n    at process.processTimers (node:internal/timers:549:7)","timestamp":"2025-06-12T22:09:08.779Z"}
+{"level":"info","message":"Voice server stopped","service":"paltalk-server","timestamp":"2025-06-12T22:09:08.780Z"}
+{"level":"info","message":"✅ Voice server stopped","service":"paltalk-server","timestamp":"2025-06-12T22:09:08.780Z"}
+{"level":"info","message":"✅ Chat server stopped","service":"paltalk-server","timestamp":"2025-06-12T22:09:08.781Z"}
+{"level":"info","message":"Database connection closed","service":"paltalk-server","timestamp":"2025-06-12T22:09:08.781Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.297Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.299Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.302Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.303Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.303Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.306Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.307Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.307Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.307Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.308Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.308Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.308Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.308Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.308Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.308Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.310Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.310Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.310Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.310Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T22:09:41.313Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"djoo7AQujIxUNySVAAAB","timestamp":"2025-06-12T22:09:41.829Z"}
+{"connectionId":"chat_1749766185740_3j1p0uumkpb","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58122,"service":"paltalk-server","timestamp":"2025-06-12T22:09:45.741Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:09:45.744Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:09:45.762Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"uilzncimxfgmbtxlxr6","timestamp":"2025-06-12T22:09:45.763Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"uilzncimxfgmbtxlxr6","timestamp":"2025-06-12T22:09:45.766Z","userId":1000004}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:09:47.905Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"uilzncimxfgmbtxlxr6","timestamp":"2025-06-12T22:09:47.907Z","userId":1000004}
+{"connectionId":"chat_1749766256360_pvsuc0y4p88","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58135,"service":"paltalk-server","timestamp":"2025-06-12T22:10:56.362Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:10:56.366Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:10:56.376Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"tzmn9jv1u1imbtxng8o","timestamp":"2025-06-12T22:10:56.376Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"tzmn9jv1u1imbtxng8o","timestamp":"2025-06-12T22:10:56.377Z","userId":1000004}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:10:58.025Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"tzmn9jv1u1imbtxng8o","timestamp":"2025-06-12T22:10:58.026Z","userId":1000004}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:11:42.521Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:11:42.523Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:11:42.524Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:11:42.524Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:11:42.525Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:11:42.526Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:11:42.526Z","userId":null}
+{"level":"info","message":"🛑 Received SIGINT, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:11:52.179Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:11:52.181Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.587Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.589Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.593Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.593Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.593Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.595Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.596Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.596Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.596Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.596Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.596Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.596Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.597Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.597Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.597Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.599Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.599Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.599Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.599Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T22:12:03.602Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.602Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.602Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.602Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.602Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.603Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.603Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T22:12:03.603Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"wjp1bikSllYKcjaLAAAB","timestamp":"2025-06-12T22:12:05.856Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"qjncpacO05mXd7DhAAAD","timestamp":"2025-06-12T22:12:14.639Z"}
+{"connectionId":"chat_1749766345469_01xs7qe7ha25","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58175,"service":"paltalk-server","timestamp":"2025-06-12T22:12:25.470Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:12:25.475Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:12:25.485Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"93n9y2qz0bimbtxpczw","timestamp":"2025-06-12T22:12:25.485Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"93n9y2qz0bimbtxpczw","timestamp":"2025-06-12T22:12:25.487Z","userId":1000004}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"0QZvZkBJRwk1iV8GAAAF","timestamp":"2025-06-12T22:13:57.083Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:14:29.527Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"93n9y2qz0bimbtxpczw","timestamp":"2025-06-12T22:14:29.528Z","userId":1000004}
+{"connectionId":"chat_1749766480384_kotfaat2ono","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58212,"service":"paltalk-server","timestamp":"2025-06-12T22:14:40.385Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:14:40.388Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:14:40.397Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"mhp6f4mul7hmbtxs93h","timestamp":"2025-06-12T22:14:40.397Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"mhp6f4mul7hmbtxs93h","timestamp":"2025-06-12T22:14:40.398Z","userId":1000004}
+{"level":"info","message":"🛑 Received SIGTERM, shutting down gracefully...","service":"paltalk-server","timestamp":"2025-06-12T22:15:05.180Z"}
+{"level":"info","message":"🛑 Stopping Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:15:05.181Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:15:06.613Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:15:06.615Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:15:06.616Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:15:06.617Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:15:06.617Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:15:06.618Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:15:06.619Z","userId":null}
+{"level":"warn","message":"Web interface stop failed or timed out Web interface stop timeout","service":"paltalk-server","stack":"Error: Web interface stop timeout\n    at Timeout._onTimeout (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:434:76)\n    at listOnTimeout (node:internal/timers:614:17)\n    at process.processTimers (node:internal/timers:549:7)","timestamp":"2025-06-12T22:15:08.184Z"}
+{"level":"info","message":"Voice server stopped","service":"paltalk-server","timestamp":"2025-06-12T22:15:08.185Z"}
+{"level":"info","message":"✅ Voice server stopped","service":"paltalk-server","timestamp":"2025-06-12T22:15:08.185Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:15:10.226Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"mhp6f4mul7hmbtxs93h","timestamp":"2025-06-12T22:15:10.226Z","userId":1000004}
+{"level":"info","message":"✅ Chat server stopped","service":"paltalk-server","timestamp":"2025-06-12T22:15:10.230Z"}
+{"level":"info","message":"🚀 Starting Paltalk Server...","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.329Z"}
+{"level":"info","message":"📊 Initializing database...","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.331Z"}
+{"level":"info","message":"Connected to SQLite database","path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.334Z"}
+{"level":"info","message":"✅ Database initialized","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.334Z"}
+{"level":"info","message":"📋 Loading initial data...","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.334Z"}
+{"level":"info","message":"✅ Loaded 29 categories","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.337Z"}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Help Lobby 1","roomId":50005,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 1","roomId":50006,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":1,"level":"info","message":"Room activity: room_created","name":"Paltalk Tech Support 2","roomId":50007,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"action":"room_created","category":30003,"isPermanent":true,"isVoice":0,"level":"info","message":"Room activity: room_created","name":"--- Paltalk Support Online ---","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.338Z","userId":null}
+{"level":"info","message":"✅ Loaded 8 permanent rooms","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.339Z"}
+{"level":"info","message":"Voice server started","port":2090,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.340Z"}
+{"level":"info","message":"💬 Starting chat server...","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.340Z"}
+{"level":"info","message":"✅ Chat server listening on port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.341Z"}
+{"level":"info","message":"🌐 Starting web interface...","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.341Z"}
+{"level":"info","message":"Web interface started","port":3000,"service":"paltalk-server","timestamp":"2025-06-12T22:15:22.343Z","url":"http://localhost:3000"}
+{"level":"info","message":"✅ Web interface started","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.343Z"}
+{"level":"info","message":"⏰ Starting periodic tasks...","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.343Z"}
+{"level":"info","message":"✅ Periodic tasks started","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.343Z"}
+{"level":"info","message":"✅ Paltalk Server started successfully","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.343Z"}
+{"level":"info","message":"📊 Web Dashboard: http://localhost:3000","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.343Z"}
+{"level":"info","message":"💬 Chat Server: Port 5001","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.344Z"}
+{"level":"info","message":"🎙️ Voice Server: Port 2090","service":"paltalk-server","timestamp":"2025-06-12T22:15:22.344Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"42fFIOCo3wIAlp4vAAAB","timestamp":"2025-06-12T22:15:25.841Z"}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"4LecEHwFrainLIyPAAAD","timestamp":"2025-06-12T22:15:26.824Z"}
+{"connectionId":"chat_1749766527105_h72qsluzfa9","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58249,"service":"paltalk-server","timestamp":"2025-06-12T22:15:27.105Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:15:27.109Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"Dan","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:15:27.123Z","userId":1000004}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"Dan","service":"paltalk-server","sessionId":"deatj9ru5ifmbtxt95e","timestamp":"2025-06-12T22:15:27.123Z","userId":1000004}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"Dan","service":"paltalk-server","sessionId":"deatj9ru5ifmbtxt95e","timestamp":"2025-06-12T22:15:27.126Z","userId":1000004}
+{"level":"warn","message":"Unhandled packet type","packetType":-2102,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:15:27.219Z"}
+{"level":"warn","message":"Unhandled packet type","packetType":-2100,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:15:27.219Z"}
+{"action":"room_join","isAdmin":false,"isVisible":true,"level":"info","message":"User action: room_join","roomId":50004,"roomName":"*** The Quiet Side ***","service":"paltalk-server","timestamp":"2025-06-12T22:16:19.411Z","userId":1000004}
+{"error":"user.isAdmin is not a function","level":"error","message":"Error processing packet","packetType":-310,"payloadLength":18,"service":"paltalk-server","socketId":1000004,"stack":"TypeError: user.isAdmin is not a function\n    at /Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:705:111\n    at Array.forEach (<anonymous>)\n    at PacketProcessor.sendUserList (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:704:32)\n    at PacketProcessor.sendRoomJoinData (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:678:14)\n    at PacketProcessor.handleRoomJoin (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:271:24)\n    at PacketProcessor.processPacket (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:110:32)\n    at PaltalkServer.handleChatData (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:188:42)\n    at Socket.<anonymous> (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:557:22)\n    at Socket.emit (node:events:513:28)\n    at addChunk (node:internal/streams/readable:559:12)","timestamp":"2025-06-12T22:16:19.416Z"}
+{"action":"user_left","level":"info","message":"Room activity: user_left","nickname":"Dan","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T22:16:21.651Z","userCount":0,"userId":1000004}
+{"level":"info","message":"Web client connected","service":"paltalk-server","socketId":"O7zzzsYIzuTW7dBHAAAF","timestamp":"2025-06-12T22:16:25.517Z"}
+{"action":"room_join","isAdmin":false,"isVisible":true,"level":"info","message":"User action: room_join","roomId":50002,"roomName":"*** The White Horse ***","service":"paltalk-server","timestamp":"2025-06-12T22:16:35.769Z","userId":1000004}
+{"error":"user.isAdmin is not a function","level":"error","message":"Error processing packet","packetType":-310,"payloadLength":14,"service":"paltalk-server","socketId":1000004,"stack":"TypeError: user.isAdmin is not a function\n    at /Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:705:111\n    at Array.forEach (<anonymous>)\n    at PacketProcessor.sendUserList (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:704:32)\n    at PacketProcessor.sendRoomJoinData (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:678:14)\n    at PacketProcessor.handleRoomJoin (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:271:24)\n    at PacketProcessor.processPacket (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:110:32)\n    at PaltalkServer.handleChatData (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:188:42)\n    at Socket.<anonymous> (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:557:22)\n    at Socket.emit (node:events:513:28)\n    at addChunk (node:internal/streams/readable:559:12)","timestamp":"2025-06-12T22:16:35.771Z"}
+{"level":"info","message":"Room message hi","nickname":"Dan","roomId":50002,"roomName":"*** The White Horse ***","service":"paltalk-server","timestamp":"2025-06-12T22:16:47.023Z","userId":1000004}
+{"action":"user_left","level":"info","message":"Room activity: user_left","nickname":"Dan","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:17:01.242Z","userCount":0,"userId":1000004}
+{"level":"warn","message":"Unhandled packet type","packetType":-3000,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:17:05.442Z"}
+{"level":"warn","message":"Unhandled packet type","packetType":-1100,"service":"paltalk-server","socketId":1000004,"timestamp":"2025-06-12T22:17:05.449Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"Dan","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:17:05.452Z","userId":1000004}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"Dan","reason":"Connection closed","service":"paltalk-server","sessionId":"deatj9ru5ifmbtxt95e","timestamp":"2025-06-12T22:17:05.453Z","userId":1000004}
+{"connectionId":"chat_1749766632539_ee0087qzgc6","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58293,"service":"paltalk-server","timestamp":"2025-06-12T22:17:12.540Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:17:12.547Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"NetStorm","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:17:12.563Z","userId":1000002}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"NetStorm","service":"paltalk-server","sessionId":"mz9krbko80imbtxviib","timestamp":"2025-06-12T22:17:12.564Z","userId":1000002}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"NetStorm","service":"paltalk-server","sessionId":"mz9krbko80imbtxviib","timestamp":"2025-06-12T22:17:12.566Z","userId":1000002}
+{"level":"warn","message":"Unhandled packet type","packetType":-2102,"service":"paltalk-server","socketId":1000002,"timestamp":"2025-06-12T22:17:12.761Z"}
+{"level":"warn","message":"Unhandled packet type","packetType":-2100,"service":"paltalk-server","socketId":1000002,"timestamp":"2025-06-12T22:17:12.762Z"}
+{"level":"warn","message":"Incorrect room password","roomId":50008,"service":"paltalk-server","timestamp":"2025-06-12T22:17:20.880Z","userId":1000002}
+{"action":"room_join","isAdmin":false,"isVisible":true,"level":"info","message":"User action: room_join","roomId":50002,"roomName":"*** The White Horse ***","service":"paltalk-server","timestamp":"2025-06-12T22:17:30.248Z","userId":1000002}
+{"error":"user.isAdmin is not a function","level":"error","message":"Error processing packet","packetType":-310,"payloadLength":15,"service":"paltalk-server","socketId":1000002,"stack":"TypeError: user.isAdmin is not a function\n    at /Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:705:111\n    at Array.forEach (<anonymous>)\n    at PacketProcessor.sendUserList (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:704:32)\n    at PacketProcessor.sendRoomJoinData (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:678:14)\n    at PacketProcessor.handleRoomJoin (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:271:24)\n    at PacketProcessor.processPacket (/Users/dan/Documents/Sites/paltalk.fun/server/src/core/packetProcessor.js:110:32)\n    at PaltalkServer.handleChatData (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:188:42)\n    at Socket.<anonymous> (/Users/dan/Documents/Sites/paltalk.fun/server/src/server.js:557:22)\n    at Socket.emit (node:events:513:28)\n    at addChunk (node:internal/streams/readable:559:12)","timestamp":"2025-06-12T22:17:30.250Z"}
+{"level":"info","message":"Room message hi","nickname":"NetStorm","roomId":50002,"roomName":"*** The White Horse ***","service":"paltalk-server","timestamp":"2025-06-12T22:17:36.213Z","userId":1000002}
+{"action":"user_left","level":"info","message":"Room activity: user_left","nickname":"NetStorm","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T22:17:37.764Z","userCount":0,"userId":1000002}
+{"action":"buddy_added","buddyNickname":"Dan","buddyUid":1000004,"level":"info","message":"User action: buddy_added","service":"paltalk-server","timestamp":"2025-06-12T22:17:50.284Z","userId":1000002}
+{"level":"warn","message":"Unhandled packet type","packetType":-3000,"service":"paltalk-server","socketId":1000002,"timestamp":"2025-06-12T22:17:56.093Z"}
+{"level":"warn","message":"Unhandled packet type","packetType":-1100,"service":"paltalk-server","socketId":1000002,"timestamp":"2025-06-12T22:17:56.094Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":0,"nickname":"NetStorm","oldMode":30,"service":"paltalk-server","timestamp":"2025-06-12T22:17:56.094Z","userId":1000002}
+{"action":"disconnected","level":"info","message":"User action: disconnected","nickname":"NetStorm","reason":"Connection closed","service":"paltalk-server","sessionId":"mz9krbko80imbtxviib","timestamp":"2025-06-12T22:17:56.095Z","userId":1000002}
+{"connectionId":"chat_1749766679260_u1kd624i3tl","level":"info","message":"New chat connection","remoteAddress":"::ffff:192.168.1.174","remotePort":58299,"service":"paltalk-server","timestamp":"2025-06-12T22:17:59.261Z"}
+{"level":"info","message":"Lymerick received","service":"paltalk-server","timestamp":"2025-06-12T22:17:59.264Z"}
+{"action":"mode_change","level":"info","message":"User action: mode_change","newMode":30,"nickname":"NetStorm","oldMode":0,"service":"paltalk-server","timestamp":"2025-06-12T22:17:59.275Z","userId":1000002}
+{"action":"connected","level":"info","message":"User action: connected","nickname":"NetStorm","service":"paltalk-server","sessionId":"1vke9dm6z8zmbtxwijv","timestamp":"2025-06-12T22:17:59.275Z","userId":1000002}
+{"action":"login_success","level":"info","message":"User action: login_success","nickname":"NetStorm","service":"paltalk-server","sessionId":"1vke9dm6z8zmbtxwijv","timestamp":"2025-06-12T22:17:59.277Z","userId":1000002}
+{"level":"warn","message":"Unhandled packet type","packetType":-2102,"service":"paltalk-server","socketId":1000002,"timestamp":"2025-06-12T22:17:59.412Z"}
+{"level":"warn","message":"Unhandled packet type","packetType":-2100,"service":"paltalk-server","socketId":1000002,"timestamp":"2025-06-12T22:17:59.413Z"}

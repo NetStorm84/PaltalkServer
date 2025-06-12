@@ -14,6 +14,7 @@ const AdminCommandSystem = require('./adminCommandSystem');
 class PacketProcessor {
     constructor(databaseManager) {
         this.db = databaseManager;
+        this.isShuttingDown = false;
         this.setupEventListeners();
         
         // Initialize admin command system
@@ -25,20 +26,46 @@ class PacketProcessor {
         this.spamCheckWindow = 60000; // 1 minute
         
         // Clean up old message history periodically
-        setInterval(() => {
+        this.cleanupInterval = setInterval(() => {
             this.cleanupMessageHistory();
         }, 5 * 60 * 1000); // Every 5 minutes
     }
 
     setupEventListeners() {
         // Listen for server state events to handle status broadcasts
-        serverState.on('userConnected', (user) => {
-            this.broadcastStatusChange(user, USER_MODES.ONLINE);
-        });
+        this.userConnectedHandler = (user) => {
+            if (!this.isShuttingDown) {
+                this.broadcastStatusChange(user, USER_MODES.ONLINE);
+            }
+        };
 
-        serverState.on('userDisconnected', (user) => {
-            this.broadcastStatusChange(user, USER_MODES.OFFLINE);
-        });
+        this.userDisconnectedHandler = (user) => {
+            if (!this.isShuttingDown) {
+                this.broadcastStatusChange(user, USER_MODES.OFFLINE);
+            }
+        };
+
+        serverState.on('userConnected', this.userConnectedHandler);
+        serverState.on('userDisconnected', this.userDisconnectedHandler);
+    }
+
+    /**
+     * Clean up resources and event listeners
+     */
+    shutdown() {
+        this.isShuttingDown = true;
+        
+        // Clear intervals
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+        }
+        
+        // Remove event listeners
+        serverState.removeListener('userConnected', this.userConnectedHandler);
+        serverState.removeListener('userDisconnected', this.userDisconnectedHandler);
+        
+        // Clear message history
+        this.recentMessages.clear();
     }
 
     /**
@@ -126,6 +153,10 @@ class PacketProcessor {
                 case PACKET_TYPES.ROOM_BANNER_MESSAGE:
                     await this.handleRoomBanner(socket, payload);
                     break;
+                
+                case PACKET_TYPES.VERSIONS:
+                    await this.handleVersions(socket, payload);
+                    break;
 
                 default:
                     logger.warn('Unhandled packet type', { packetType, socketId: socket.id });
@@ -171,33 +202,40 @@ class PacketProcessor {
                 return;
             }
 
-            // Send user data
-            const userDataString = user.getClientData();
-            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(userDataString), socket.id);
-            sendPacket(socket, 0x0064, Buffer.from('fb840000', 'hex'), socket.id);
+            // WORKING LOGIN SEQUENCE - Testing minimal USER_DATA packet
+            
+            // Step 1: Basic login response
+            const loginResponse = Buffer.alloc(8);
+            loginResponse.writeUInt32BE(user.uid, 0);
+            loginResponse.writeUInt32BE(1, 4); // Success flag
+            sendPacket(socket, PACKET_TYPES.LOGIN, loginResponse, socket.id);
 
-            // Send buddy list
+            // Step 2: Try minimal USER_DATA packet (testing if small version works)
+            const minimalUserData = `uid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.admin}`;
+            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(minimalUserData), socket.id);
+            
+            // Step 3: Send buddy list (essential for buddy list window)
             const buddyList = this.createBuddyListBuffer(user);
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList, socket.id);
-            sendPacket(socket, 0x0064, Buffer.from('fbbd0000', 'hex'), socket.id);
 
-            // Send buddy status updates
+            // Step 4: Send buddy status updates
             this.sendBuddyStatusUpdates(socket, user);
 
-            // Required for buddy list window
+            // Step 5: Login unknown packet (required for buddy list window)
             sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0), socket.id);
 
-            // Send categories
+            // Step 6: Send categories
             const categoryBuffer = await this.createCategoryBuffer();
             sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, categoryBuffer, socket.id);
 
-            // Send offline messages
+            // Step 7: Send offline messages
             await this.sendOfflineMessages(socket, user);
 
             logger.logUserAction('login_success', user.uid, {
                 nickname: user.nickname,
                 sessionId: user.sessionId
             });
+
         } catch (error) {
             logger.error('Login failed', error, { socketId: socket.id });
         }
@@ -481,6 +519,12 @@ class PacketProcessor {
         );
         
         this.broadcastToRoom(room, 0x015f, bannerBuffer);
+    }
+
+    async handleVersions(socket, payload) {
+        // Handle version check - respond with server version info
+        const versionResponse = Buffer.from('version=1.0.0\nprotocol=2024');
+        sendPacket(socket, PACKET_TYPES.VERSIONS, versionResponse, socket.id);
     }
 
     handleAdminCommand(socket, content, user) {

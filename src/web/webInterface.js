@@ -336,6 +336,12 @@ class WebInterface {
 
     async sendServerState(socket) {
         try {
+            // Check if serverState and its methods are available
+            if (!this.serverState || typeof this.serverState.getStats !== 'function') {
+                logger.error('ServerState not properly initialized or getStats method missing');
+                return;
+            }
+            
             const stats = this.serverState.getStats();
             const voiceStats = this.voiceServer.getStats();
             

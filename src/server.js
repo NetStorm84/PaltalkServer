@@ -183,8 +183,17 @@ class PaltalkServer {
                 // Extract payload
                 const payload = receiveBuffer.slice(6, totalPacketLength);
                 
-                // Process packet
-                this.packetProcessor.processPacket(socket, packetType, payload);
+                // Process packet with error handling
+                try {
+                    this.packetProcessor.processPacket(socket, packetType, payload);
+                } catch (packetError) {
+                    logger.error('Error processing individual packet', packetError, {
+                        socketId: socket.connectionId,
+                        packetType,
+                        payloadLength
+                    });
+                    // Don't close the connection for packet processing errors
+                }
                 
                 // Remove processed packet from buffer
                 receiveBuffer = receiveBuffer.slice(totalPacketLength);
@@ -295,7 +304,7 @@ class PaltalkServer {
             logger.debug('🧹 Performing server maintenance...');
 
             // Clean up server state
-            serverState.cleanup();
+            serverState.performMaintenance();
 
             // Clean up voice server
             this.voiceServer.performCleanup();
@@ -356,10 +365,24 @@ class PaltalkServer {
      * Setup graceful shutdown handlers
      */
     setupShutdownHandlers() {
+        let shutdownInProgress = false;
+        
         const shutdown = async (signal) => {
+            if (shutdownInProgress) {
+                logger.warn(`${signal} received while shutdown in progress, forcing exit...`);
+                process.exit(1);
+            }
+            
+            shutdownInProgress = true;
             logger.info(`🛑 Received ${signal}, shutting down gracefully...`);
-            await this.stop();
-            process.exit(0);
+            
+            try {
+                await this.stop();
+                process.exit(0);
+            } catch (error) {
+                logger.error('Shutdown failed', error);
+                process.exit(1);
+            }
         };
 
         process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -385,34 +408,82 @@ class PaltalkServer {
         logger.info('🛑 Stopping Paltalk Server...');
 
         try {
+            // Set a maximum shutdown time
+            const shutdownTimeout = setTimeout(() => {
+                logger.error('Shutdown timed out, forcing exit...');
+                process.exit(1);
+            }, 10000); // 10 seconds
+
             // Stop periodic tasks
             if (this.cleanupInterval) {
                 clearInterval(this.cleanupInterval);
+                logger.debug('✅ Periodic tasks stopped');
             }
 
-            // Stop web interface
+            // Shutdown packet processor
+            if (this.packetProcessor) {
+                this.packetProcessor.shutdown();
+                logger.debug('✅ Packet processor shutdown');
+            }
+
+            // Stop web interface with timeout
             if (this.webInterface) {
-                await this.webInterface.stop();
-                logger.info('✅ Web interface stopped');
+                try {
+                    await Promise.race([
+                        this.webInterface.stop(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Web interface stop timeout')), 3000))
+                    ]);
+                    logger.info('✅ Web interface stopped');
+                } catch (error) {
+                    logger.warn('Web interface stop failed or timed out', error);
+                }
             }
 
-            // Stop voice server
-            await this.voiceServer.stop();
-            logger.info('✅ Voice server stopped');
+            // Stop voice server with timeout
+            try {
+                await Promise.race([
+                    this.voiceServer.stop(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Voice server stop timeout')), 3000))
+                ]);
+                logger.info('✅ Voice server stopped');
+            } catch (error) {
+                logger.warn('Voice server stop failed or timed out', error);
+            }
 
-            // Stop chat server
+            // Stop chat server with timeout
             if (this.chatServer) {
-                await new Promise((resolve) => {
-                    this.chatServer.close(() => {
-                        logger.info('✅ Chat server stopped');
-                        resolve();
-                    });
-                });
+                try {
+                    await Promise.race([
+                        new Promise((resolve) => {
+                            this.chatServer.close(() => {
+                                logger.info('✅ Chat server stopped');
+                                resolve();
+                            });
+                        }),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Chat server stop timeout')), 3000))
+                    ]);
+                } catch (error) {
+                    logger.warn('Chat server stop failed or timed out', error);
+                    // Force close if needed
+                    if (this.chatServer.listening) {
+                        this.chatServer.close();
+                    }
+                }
             }
 
-            // Close database
-            await this.databaseManager.close();
-            logger.info('✅ Database connection closed');
+            // Close database with timeout
+            try {
+                await Promise.race([
+                    this.databaseManager.close(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Database close timeout')), 3000))
+                ]);
+                logger.info('✅ Database connection closed');
+            } catch (error) {
+                logger.warn('Database close failed or timed out', error);
+            }
+
+            // Clear the shutdown timeout
+            clearTimeout(shutdownTimeout);
 
             this.isRunning = false;
             logger.info('✅ Paltalk Server stopped gracefully');
@@ -487,17 +558,23 @@ class PaltalkServer {
             });
 
             socket.on('error', (error) => {
-                logger.error('Chat socket error', error, { connectionId });
+                logger.error('Chat socket error', error, { connectionId, 
+                    userConnected: socket.id && serverState.getUserBySocketId(socket.id) ? true : false 
+                });
                 this.cleanupConnection(socket);
             });
 
             socket.on('close', () => {
-                logger.debug('Chat connection closed', { connectionId });
+                logger.debug('Chat connection closed', { connectionId,
+                    userConnected: socket.id && serverState.getUserBySocketId(socket.id) ? true : false 
+                });
                 this.cleanupConnection(socket);
             });
 
             socket.on('end', () => {
-                logger.debug('Chat connection ended', { connectionId });
+                logger.debug('Chat connection ended', { connectionId,
+                    userConnected: socket.id && serverState.getUserBySocketId(socket.id) ? true : false 
+                });
                 this.cleanupConnection(socket);
             });
 
@@ -557,9 +634,12 @@ class PaltalkServer {
                 }
             }
             
-            // Remove user connection from server state
+            // Remove user connection from server state (only if user exists)
             if (socket.id) {
-                serverState.removeUserConnection(socket, 'Connection closed');
+                const user = serverState.getUserBySocketId(socket.id);
+                if (user) {
+                    serverState.removeUserConnection(socket, 'Connection closed');
+                }
             }
             
         } catch (error) {
