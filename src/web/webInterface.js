@@ -336,12 +336,38 @@ class WebInterface {
 
     async sendServerState(socket) {
         try {
-            const state = this.serverState.getStats();
+            const stats = this.serverState.getStats();
             const voiceStats = this.voiceServer.getStats();
             
+            // Get detailed user and room data for the dashboard
+            const users = this.serverState.getOnlineUsers().map(user => ({
+                uid: user.uid,
+                nickname: user.nickname,
+                mode: user.mode,
+                isAdmin: user.isAdmin(),
+                currentRoom: user.currentRoom?.name || null,
+                loginTime: user.loginTime,
+                lastActivity: user.lastActivity
+            }));
+            
+            const rooms = this.serverState.getAllRooms().map(room => ({
+                id: room.id,
+                name: room.name,
+                userCount: room.getUserCount(),
+                maxUsers: room.maxUsers,
+                isVoice: room.isVoice,
+                isPrivate: room.isPrivate,
+                isPermanent: room.isPermanent,
+                category: room.category,
+                rating: room.rating,
+                createdAt: room.createdAt
+            }));
+            
             socket.emit('serverState', {
-                ...state,
+                stats,
                 voice: voiceStats,
+                users,
+                rooms,
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
