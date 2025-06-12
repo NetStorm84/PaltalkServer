@@ -143,8 +143,6 @@ Below are a list of resources that were useful in getting the Paltak server recr
 
 ### External links
 
-[Paltalk.fun](https://paltalk.fun/) This projects main home. Visit here for the latest news and updates regarding this project.
-
 [Paltalk Wikidot](http://paltalk.wikidot.com/introduction) Extremely useful information regarding packets and other tools that were instrumental in getting this up and running
 
 [Olly Dbg](http://www.ollydbg.de/) Tool used to reverse engineer the Paltalk Client
