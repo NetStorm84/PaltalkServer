@@ -1,0 +1,36 @@
+
+> palserver@1.0.0 start
+> node src/server.js
+
+[32minfo[39m: 🚀 Starting Paltalk Server... {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.342Z"}
+[32minfo[39m: 📊 Initializing database... {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.344Z"}
+[32minfo[39m: Connected to SQLite database {"path":"database.db","service":"paltalk-server","timestamp":"2025-06-12T08:20:53.347Z"}
+[32minfo[39m: ✅ Database initialized {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.347Z"}
+[32minfo[39m: 📋 Loading initial data... {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.347Z"}
+[32minfo[39m: ✅ Loaded 29 categories {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.350Z"}
+[32minfo[39m: Room activity: room_created {"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"name":"*** The Royal Oak ***","roomId":50001,"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.351Z","userId":null}
+[32minfo[39m: Room activity: room_created {"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"name":"*** The White Horse ***","roomId":50002,"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.351Z","userId":null}
+[32minfo[39m: Room activity: room_created {"action":"room_created","category":30018,"isPermanent":true,"isVoice":1,"name":"*** The Tuck INN ***","roomId":50003,"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.351Z","userId":null}
+[32minfo[39m: Room activity: room_created {"action":"room_created","category":30027,"isPermanent":true,"isVoice":0,"name":"*** The Quiet Side ***","roomId":50004,"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.351Z","userId":null}
+[32minfo[39m: ✅ Loaded 4 permanent rooms {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.351Z"}
+[32minfo[39m: Voice server started {"port":2090,"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.353Z"}
+[32minfo[39m: 💬 Starting chat server... {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.353Z"}
+[32minfo[39m: ✅ Chat server listening on port 5001 {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.354Z"}
+[32minfo[39m: 🌐 Starting web interface... {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.354Z"}
+[32minfo[39m: Web interface started {"port":3000,"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z","url":"http://localhost:3000"}
+[32minfo[39m: ✅ Web interface started {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: ⏰ Starting periodic tasks... {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: ✅ Periodic tasks started {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: ✅ Paltalk Server started successfully {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: 📊 Web Dashboard: http://localhost:3000 {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: 💬 Chat Server: Port 5001 {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: 🎙️ Voice Server: Port 2090 {"service":"paltalk-server","timestamp":"2025-06-12T08:20:53.356Z"}
+[32minfo[39m: New chat connection {"connectionId":"chat_1749716463825_4eg2sckx5ft","remoteAddress":"::1","remotePort":51693,"service":"paltalk-server","timestamp":"2025-06-12T08:21:03.825Z"}
+[32minfo[39m: New chat connection {"connectionId":"chat_1749716476662_1rpjni6l407","remoteAddress":"::1","remotePort":51760,"service":"paltalk-server","timestamp":"2025-06-12T08:21:16.662Z"}
+[32minfo[39m: New chat connection {"connectionId":"chat_1749716493526_t2m51fm88z","remoteAddress":"::1","remotePort":51845,"service":"paltalk-server","timestamp":"2025-06-12T08:21:33.526Z"}
+[32minfo[39m: Voice connection established {"connectionId":"voice_1749716493527_yy91o10e2ll","remoteAddress":"::1","remotePort":51846,"service":"paltalk-server","timestamp":"2025-06-12T08:21:33.527Z","totalConnections":1}
+[32minfo[39m: Web client connected {"service":"paltalk-server","socketId":"pYDZItdPYJmn10PWAAAB","timestamp":"2025-06-12T08:21:37.693Z"}
+[32minfo[39m: 🛑 Received SIGTERM, shutting down gracefully... {"service":"paltalk-server","timestamp":"2025-06-12T08:23:01.081Z"}
+[32minfo[39m: 🛑 Stopping Paltalk Server... {"service":"paltalk-server","timestamp":"2025-06-12T08:23:01.082Z"}
+[32minfo[39m: 🛑 Received SIGTERM, shutting down gracefully... {"service":"paltalk-server","timestamp":"2025-06-12T08:25:44.111Z"}
+[32minfo[39m: 🛑 Stopping Paltalk Server... {"service":"paltalk-server","timestamp":"2025-06-12T08:25:44.112Z"}

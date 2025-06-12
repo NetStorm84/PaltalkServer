@@ -1,8 +1,125 @@
-# Introduction
-This is a recreation of the Patalk server from around 2002 using version 5.0 of the Paltalk client. Created in Node.js. This code is very messy and nowhere near complete but I wanted to get something out there so that what I have done so far isn't lost forever, hopefully other people will get involved and by the end we would have a fully working Paltalk server with all the features that existed back in the early noughties.
+# Paltalk Server - Overhauled Edition
 
-## Setup
-To get the server up and running, clone the repo to a local folder, enter the folder and run the following commands
+This is a recreation of the Paltalk server from around 2002 using version 5.0 of the Paltalk client. Created in Node.js with a complete overhaul for better maintainability, modularity, and functionality.
+
+## 🚀 Features
+
+- **Modular Architecture**: Clean separation of concerns with organized file structure
+- **Voice Server Integration**: Improved voice chat functionality with room-based audio relay
+- **Web Dashboard**: Real-time monitoring interface with user/room statistics
+- **Enhanced Logging**: Structured logging with different levels and file output
+- **Better Error Handling**: Comprehensive error handling and graceful degradation
+- **Database Management**: Improved database operations with better error handling
+- **WebSocket Support**: Real-time updates for the web interface
+
+## 📁 Project Structure
+
+```
+src/
+├── config/           # Configuration and constants
+├── core/            # Core server functionality
+├── database/        # Database management
+├── models/          # Data models (User, Room)
+├── network/         # Network utilities and packet handling
+├── utils/           # Utility functions and logging
+├── voice/           # Voice server functionality
+├── web/             # Web interface and dashboard
+└── server.js        # Main server entry point
+```
+
+## 🔧 Setup
+
+### Quick Start
+
+1. **Clone and install dependencies:**
+   ```bash
+   git clone <repository>
+   cd serv
+   npm install
+   ```
+
+2. **Run migration (if upgrading from old version):**
+   ```bash
+   node migrate.js
+   ```
+
+3. **Start the server:**
+   ```bash
+   npm start
+   ```
+
+4. **Access the web dashboard:**
+   Open your browser to `http://localhost:3000`
+
+### Manual Setup
+
+To get the server up and running manually:
+
+ - `npm install` to install the dependencies.
+ - `node database.js` to create the database (or it will be created automatically).
+ - `npm start` to start the integrated server.
+
+**Server Ports:**
+- Chat Server: `5001` (default)
+- Voice Server: `8075` (default) 
+- Web Dashboard: `3000` (default)
+
+## 🌐 Web Dashboard
+
+The new web dashboard provides real-time monitoring capabilities:
+
+- **Server Statistics**: Connected users, active rooms, uptime
+- **User Management**: View connected users, their status and rooms
+- **Room Monitoring**: Active chat rooms and voice channels
+- **Live Chat Logs**: Real-time chat message monitoring
+- **Admin Controls**: Server management and configuration
+
+Access the dashboard at `http://localhost:3000` when the server is running.
+
+## 🎯 Configuration
+
+Server configuration can be modified in `src/config/constants.js`:
+
+```javascript
+const CONFIG = {
+    CHAT_PORT: 5001,
+    VOICE_PORT: 8075,
+    WEB_PORT: 3000,
+    MAX_USERS: 100,
+    // ... other settings
+};
+```
+
+## 📊 Logging
+
+Logs are written to the `logs/` directory:
+- `combined.log`: All log messages
+- `error.log`: Error messages only
+- Console output: Real-time monitoring
+
+## 🔧 Development
+
+### Old vs New Structure
+
+The project has been completely overhauled from the original structure:
+
+**Old Structure (preserved in root):**
+- `server.js` - Monolithic chat server
+- `voiceServer.js` - Separate voice server
+- `helper.js` - Mixed utility functions
+
+**New Structure (in src/):**
+- Modular, organized components
+- Integrated voice and chat servers
+- Web interface with real-time monitoring
+- Enhanced error handling and logging
+
+### Migration
+
+If you're upgrading from the old server:
+1. Run `node migrate.js` to backup original files
+2. The old files remain in the root directory for reference
+3. New server runs from `src/server.js`
 
  - `npm install` to install the dependencies.
  - `node database.js` to create the database.

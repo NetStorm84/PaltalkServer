@@ -1,0 +1,476 @@
+/**
+ * Main Paltalk Server - Enhanced and modular version
+ */
+const net = require('net');
+const process = require('process');
+const logger = require('./utils/logger');
+const { SERVER_CONFIG } = require('./config/constants');
+
+// Core components
+const serverState = require('./core/serverState');
+const PacketProcessor = require('./core/packetProcessor');
+const DatabaseManager = require('./database/databaseManager');
+const VoiceServer = require('./voice/voiceServer');
+const WebInterface = require('./web/webInterface');
+
+// Network components
+const Room = require('./models/Room');
+
+class PaltalkServer {
+    constructor() {
+        this.chatServer = null;
+        this.voiceServer = new VoiceServer();
+        this.webInterface = null;
+        this.databaseManager = new DatabaseManager();
+        this.packetProcessor = null;
+        this.isRunning = false;
+        this.connectionBuffers = new Map(); // socketId -> Buffer for packet assembly
+        
+        // Graceful shutdown handling
+        this.setupShutdownHandlers();
+        
+        // Periodic cleanup
+        this.cleanupInterval = null;
+    }
+
+    /**
+     * Initialize and start all server components
+     */
+    async start() {
+        try {
+            logger.info('🚀 Starting Paltalk Server...');
+
+            // Initialize database
+            await this.initializeDatabase();
+
+            // Initialize packet processor
+            this.packetProcessor = new PacketProcessor(this.databaseManager);
+
+            // Load initial data
+            await this.loadInitialData();
+
+            // Start voice server
+            await this.voiceServer.start();
+
+            // Start chat server
+            await this.startChatServer();
+
+            // Start web interface
+            await this.startWebInterface();
+
+            // Start periodic cleanup
+            this.startPeriodicTasks();
+
+            this.isRunning = true;
+            logger.info('✅ Paltalk Server started successfully');
+            logger.info(`📊 Web Dashboard: http://localhost:${SERVER_CONFIG.WEB_UI_PORT}`);
+            logger.info(`💬 Chat Server: Port ${SERVER_CONFIG.CHAT_PORT}`);
+            logger.info(`🎙️ Voice Server: Port ${SERVER_CONFIG.VOICE_PORT}`);
+
+        } catch (error) {
+            logger.error('❌ Failed to start Paltalk Server', error);
+            process.exit(1);
+        }
+    }
+
+    /**
+     * Initialize database connection and load data
+     */
+    async initializeDatabase() {
+        logger.info('📊 Initializing database...');
+        await this.databaseManager.initialize();
+        logger.info('✅ Database initialized');
+    }
+
+    /**
+     * Load initial data (categories, permanent rooms)
+     */
+    async loadInitialData() {
+        logger.info('📋 Loading initial data...');
+
+        try {
+            // Load categories
+            const categories = await this.databaseManager.getCategories();
+            categories.forEach(category => {
+                serverState.addCategory(category);
+            });
+            logger.info(`✅ Loaded ${categories.length} categories`);
+
+            // Load permanent rooms
+            const permanentRooms = await this.databaseManager.getPermanentRooms();
+            permanentRooms.forEach(roomData => {
+                const room = new Room(roomData, true);
+                serverState.addRoom(room);
+            });
+            logger.info(`✅ Loaded ${permanentRooms.length} permanent rooms`);
+
+        } catch (error) {
+            logger.error('Failed to load initial data', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Start the chat server
+     */
+    async startChatServer() {
+        return new Promise((resolve, reject) => {
+            logger.info('💬 Starting chat server...');
+
+            this.chatServer = net.createServer(socket => {
+                this.handleNewChatConnection(socket);
+            });
+
+            this.chatServer.listen(SERVER_CONFIG.CHAT_PORT, () => {
+                logger.info(`✅ Chat server listening on port ${SERVER_CONFIG.CHAT_PORT}`);
+                resolve();
+            });
+
+            this.chatServer.on('error', (error) => {
+                logger.error('Chat server error', error);
+                if (!this.isRunning) {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    /**
+     * Handle new chat connection
+     * @param {Socket} socket 
+     */
+    handleNewChatConnection(socket) {
+        const connectionId = `chat_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+        socket.connectionId = connectionId;
+        
+        // Initialize buffer for this connection
+        this.connectionBuffers.set(connectionId, Buffer.alloc(0));
+
+        logger.info('New chat connection', {
+            connectionId,
+            remoteAddress: socket.remoteAddress,
+            remotePort: socket.remotePort
+        });
+
+        serverState.updateStats('totalConnections');
+
+        socket.on('data', data => {
+            this.handleChatData(socket, data);
+        });
+
+        socket.on('end', () => {
+            this.handleChatConnectionEnd(socket);
+        });
+
+        socket.on('error', error => {
+            this.handleChatConnectionError(socket, error);
+        });
+
+        socket.on('close', hadError => {
+            this.handleChatConnectionClose(socket, hadError);
+        });
+
+        // Set socket timeout
+        socket.setTimeout(600000, () => { // 10 minutes
+            logger.warn('Chat connection timeout', { connectionId });
+            socket.destroy();
+        });
+    }
+
+    /**
+     * Handle incoming chat data with proper packet assembly
+     * @param {Socket} socket 
+     * @param {Buffer} data 
+     */
+    handleChatData(socket, data) {
+        try {
+            const connectionId = socket.connectionId;
+            if (!connectionId) return;
+
+            // Get or create buffer for this connection
+            let receiveBuffer = this.connectionBuffers.get(connectionId) || Buffer.alloc(0);
+            
+            // Append new data to buffer
+            receiveBuffer = Buffer.concat([receiveBuffer, data]);
+            
+            // Process complete packets
+            while (receiveBuffer.length >= 6) {
+                // Read packet header
+                const packetType = receiveBuffer.readInt16BE(0);
+                const version = receiveBuffer.readInt16BE(2);
+                const payloadLength = receiveBuffer.readUInt16BE(4);
+                const totalPacketLength = 6 + payloadLength;
+
+                // Check if we have the complete packet
+                if (receiveBuffer.length < totalPacketLength) {
+                    break; // Wait for more data
+                }
+
+                // Extract payload
+                const payload = receiveBuffer.slice(6, totalPacketLength);
+                
+                // Process packet
+                this.packetProcessor.processPacket(socket, packetType, payload);
+                
+                // Remove processed packet from buffer
+                receiveBuffer = receiveBuffer.slice(totalPacketLength);
+                
+                serverState.updateStats('totalPacketsReceived');
+            }
+
+            // Update buffer
+            this.connectionBuffers.set(connectionId, receiveBuffer);
+
+        } catch (error) {
+            logger.error('Error handling chat data', error, {
+                socketId: socket.connectionId,
+                dataLength: data.length
+            });
+        }
+    }
+
+    /**
+     * Handle chat connection end
+     * @param {Socket} socket 
+     */
+    handleChatConnectionEnd(socket) {
+        logger.debug('Chat connection ended', { connectionId: socket.connectionId });
+        this.cleanupChatConnection(socket);
+    }
+
+    /**
+     * Handle chat connection error
+     * @param {Socket} socket 
+     * @param {Error} error 
+     */
+    handleChatConnectionError(socket, error) {
+        logger.error('Chat connection error', error, { connectionId: socket.connectionId });
+        this.cleanupChatConnection(socket);
+    }
+
+    /**
+     * Handle chat connection close
+     * @param {Socket} socket 
+     * @param {boolean} hadError 
+     */
+    handleChatConnectionClose(socket, hadError) {
+        logger.debug('Chat connection closed', { 
+            connectionId: socket.connectionId, 
+            hadError 
+        });
+        this.cleanupChatConnection(socket);
+    }
+
+    /**
+     * Clean up chat connection resources
+     * @param {Socket} socket 
+     */
+    cleanupChatConnection(socket) {
+        const connectionId = socket.connectionId;
+        if (!connectionId) return;
+
+        // Remove from server state if user was logged in
+        serverState.removeUserConnection(socket);
+
+        // Clean up connection buffer
+        this.connectionBuffers.delete(connectionId);
+
+        logger.debug('Chat connection cleaned up', { connectionId });
+    }
+
+    /**
+     * Start web interface
+     */
+    async startWebInterface() {
+        logger.info('🌐 Starting web interface...');
+        
+        this.webInterface = new WebInterface(
+            serverState,
+            this.voiceServer,
+            this.databaseManager
+        );
+        
+        await this.webInterface.start();
+        logger.info('✅ Web interface started');
+    }
+
+    /**
+     * Start periodic maintenance tasks
+     */
+    startPeriodicTasks() {
+        logger.info('⏰ Starting periodic tasks...');
+
+        // Cleanup task every 5 minutes
+        this.cleanupInterval = setInterval(() => {
+            this.performMaintenance();
+        }, 5 * 60 * 1000);
+
+        // Statistics logging every hour
+        setInterval(() => {
+            this.logStatistics();
+        }, 60 * 60 * 1000);
+
+        logger.info('✅ Periodic tasks started');
+    }
+
+    /**
+     * Perform server maintenance
+     */
+    performMaintenance() {
+        try {
+            logger.debug('🧹 Performing server maintenance...');
+
+            // Clean up server state
+            serverState.cleanup();
+
+            // Clean up voice server
+            this.voiceServer.performCleanup();
+
+            // Clean up connection buffers for dead connections
+            let cleanedBuffers = 0;
+            for (const [connectionId, buffer] of this.connectionBuffers) {
+                // If buffer hasn't been updated in 10 minutes, remove it
+                if (buffer.lastUpdate && Date.now() - buffer.lastUpdate > 10 * 60 * 1000) {
+                    this.connectionBuffers.delete(connectionId);
+                    cleanedBuffers++;
+                }
+            }
+
+            if (cleanedBuffers > 0) {
+                logger.debug('Cleaned up connection buffers', { cleanedBuffers });
+            }
+
+        } catch (error) {
+            logger.error('Error during maintenance', error);
+        }
+    }
+
+    /**
+     * Log server statistics
+     */
+    logStatistics() {
+        try {
+            const stats = serverState.getStats();
+            const voiceStats = this.voiceServer.getStats();
+            const webStats = this.webInterface?.getStats() || {};
+
+            logger.info('📊 Server Statistics', {
+                chatServer: {
+                    onlineUsers: stats.onlineUsers,
+                    totalRooms: stats.totalRooms,
+                    totalConnections: stats.totalConnections,
+                    uptime: stats.uptime
+                },
+                voiceServer: {
+                    connections: voiceStats.totalConnections,
+                    rooms: voiceStats.activeRooms
+                },
+                webInterface: {
+                    connectedClients: webStats.connectedClients
+                },
+                memory: {
+                    used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+                    total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
+                }
+            });
+        } catch (error) {
+            logger.error('Error logging statistics', error);
+        }
+    }
+
+    /**
+     * Setup graceful shutdown handlers
+     */
+    setupShutdownHandlers() {
+        const shutdown = async (signal) => {
+            logger.info(`🛑 Received ${signal}, shutting down gracefully...`);
+            await this.stop();
+            process.exit(0);
+        };
+
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT', () => shutdown('SIGINT'));
+        process.on('SIGUSR2', () => shutdown('SIGUSR2')); // For nodemon
+
+        process.on('uncaughtException', (error) => {
+            logger.error('Uncaught Exception', error);
+            process.exit(1);
+        });
+
+        process.on('unhandledRejection', (reason, promise) => {
+            logger.error('Unhandled Rejection', reason, { promise });
+        });
+    }
+
+    /**
+     * Stop all server components
+     */
+    async stop() {
+        if (!this.isRunning) return;
+
+        logger.info('🛑 Stopping Paltalk Server...');
+
+        try {
+            // Stop periodic tasks
+            if (this.cleanupInterval) {
+                clearInterval(this.cleanupInterval);
+            }
+
+            // Stop web interface
+            if (this.webInterface) {
+                await this.webInterface.stop();
+                logger.info('✅ Web interface stopped');
+            }
+
+            // Stop voice server
+            await this.voiceServer.stop();
+            logger.info('✅ Voice server stopped');
+
+            // Stop chat server
+            if (this.chatServer) {
+                await new Promise((resolve) => {
+                    this.chatServer.close(() => {
+                        logger.info('✅ Chat server stopped');
+                        resolve();
+                    });
+                });
+            }
+
+            // Close database
+            await this.databaseManager.close();
+            logger.info('✅ Database connection closed');
+
+            this.isRunning = false;
+            logger.info('✅ Paltalk Server stopped gracefully');
+
+        } catch (error) {
+            logger.error('Error during shutdown', error);
+        }
+    }
+
+    /**
+     * Get server status
+     * @returns {Object}
+     */
+    getStatus() {
+        return {
+            isRunning: this.isRunning,
+            chatServer: this.chatServer?.listening || false,
+            voiceServer: this.voiceServer.getStats(),
+            webInterface: this.webInterface?.getStats() || {},
+            database: this.databaseManager.isConnectionActive(),
+            stats: serverState.getStats()
+        };
+    }
+}
+
+// Create and start server if this file is run directly
+if (require.main === module) {
+    const server = new PaltalkServer();
+    server.start().catch(error => {
+        logger.error('Failed to start server', error);
+        process.exit(1);
+    });
+}
+
+module.exports = PaltalkServer;
