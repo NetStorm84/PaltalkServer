@@ -355,16 +355,9 @@ class WebInterface {
             timestamp: new Date().toISOString()
         });
         
-        // Send full state update
-        this.io.clients((error, clients) => {
-            if (!error) {
-                clients.forEach(clientId => {
-                    const socket = this.io.sockets.sockets[clientId];
-                    if (socket) {
-                        this.sendServerState(socket);
-                    }
-                });
-            }
+        // Send full state update to all connected clients
+        this.io.sockets.sockets.forEach((socket) => {
+            this.sendServerState(socket);
         });
     }
 
