@@ -28,7 +28,7 @@ class Room {
         this.bannedUsers = new Set();
         this.isPermanent = isPermanent;
         this.createdAt = new Date();
-        this.createdBy = roomData.createdBy || null;
+        this.createdBy = roomData.createdBy || roomData.owner || null;
         this.statusMessage = '';
         
         // Voice server info

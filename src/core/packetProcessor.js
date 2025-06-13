@@ -157,6 +157,14 @@ class PacketProcessor {
                 case PACKET_TYPES.VERSIONS:
                     await this.handleVersions(socket, payload);
                     break;
+                
+                case PACKET_TYPES.ROOM_JOIN_AS_ADMIN:
+                    await this.handleRoomJoinAsAdmin(socket, payload);
+                    break;
+                
+                case PACKET_TYPES.PACKET_ROOM_ADMIN_INFO:
+                    await this.handleRoomAdminInfo(socket, payload);
+                    break;
 
                 default:
                     logger.warn('Unhandled packet type', { packetType, socketId: socket.id });
@@ -286,7 +294,12 @@ class PacketProcessor {
         }
 
         const isInvisible = payload.slice(4, 6).includes(1);
-        const isAdmin = user.isAdmin();
+        
+        // Determine admin status for regular room join:
+        // - Global admins get admin privileges in ALL rooms automatically
+        // - Room owners get admin privileges in their own rooms
+        // - Regular users join as normal users (can still use "Join as Admin" separately)
+        const isAdmin = user.isAdmin() || (room.createdBy === user.uid);
 
         if (room.addUser(user, !isInvisible, isAdmin)) {
             await this.sendRoomJoinData(socket, room, user, isAdmin);
@@ -422,8 +435,20 @@ class PacketProcessor {
         if (receiver && receiver.isOnline()) {
             sendPacket(receiver.socket, PACKET_TYPES.IM_IN, messageBuffer, receiver.socket.id);
         } else {
-            // Store offline message
-            serverState.storeOfflineMessage(user.uid, receiverUid, content.toString('utf8'));
+            // Store offline message in database for persistence
+            try {
+                await this.db.storeOfflineMessage(user.uid, receiverUid, content.toString('utf8'));
+                logger.info('Offline message stored in database', {
+                    senderUid: user.uid,
+                    receiverUid,
+                    contentLength: content.toString('utf8').length
+                });
+            } catch (error) {
+                logger.error('Failed to store offline message', error, {
+                    senderUid: user.uid,
+                    receiverUid
+                });
+            }
         }
 
         serverState.updateStats('totalMessagesProcessed');
@@ -793,22 +818,60 @@ class PacketProcessor {
     }
 
     async sendOfflineMessages(socket, user) {
-        const messages = serverState.getOfflineMessages(user.uid);
-        
-        for (const message of messages) {
-            const messageBuffer = Buffer.concat([
-                Buffer.from(Utils.decToHex(message.sender), 'hex'),
-                Buffer.from(message.content, 'utf8')
-            ]);
+        try {
+            // Get offline messages from database
+            const messages = await this.db.getOfflineMessages(user.uid);
             
-            sendPacket(socket, PACKET_TYPES.IM_IN, messageBuffer, socket.id);
-        }
+            if (messages.length === 0) {
+                logger.debug('No offline messages for user', { userId: user.uid });
+                return;
+            }
 
-        if (messages.length > 0) {
-            serverState.clearOfflineMessages(user.uid);
-            logger.info('Offline messages delivered', {
-                userId: user.uid,
-                messageCount: messages.length
+            // Send each message
+            const messageIds = [];
+            for (const message of messages) {
+                try {
+                    const messageBuffer = Buffer.concat([
+                        Buffer.from(Utils.decToHex(message.sender), 'hex'),
+                        Buffer.from(message.content, 'utf8')
+                    ]);
+                    
+                    sendPacket(socket, PACKET_TYPES.IM_IN, messageBuffer, socket.id);
+                    messageIds.push(message.id);
+                    
+                    logger.debug('Offline message sent', {
+                        messageId: message.id,
+                        senderId: message.sender,
+                        receiverId: user.uid,
+                        contentLength: message.content.length
+                    });
+                } catch (sendError) {
+                    logger.error('Failed to send offline message', sendError, {
+                        messageId: message.id,
+                        userId: user.uid
+                    });
+                }
+            }
+
+            // Mark messages as sent in database
+            if (messageIds.length > 0) {
+                try {
+                    await this.db.markMessagesAsSent(messageIds);
+                    logger.info('Offline messages delivered and marked as sent', {
+                        userId: user.uid,
+                        messageCount: messageIds.length,
+                        messageIds
+                    });
+                } catch (markError) {
+                    logger.error('Failed to mark messages as sent', markError, {
+                        userId: user.uid,
+                        messageIds
+                    });
+                }
+            }
+        } catch (error) {
+            logger.error('Failed to retrieve offline messages', error, {
+                userId: user.uid
             });
         }
     }
@@ -860,6 +923,109 @@ class PacketProcessor {
         if (userMessages.length > this.messageHistoryLimit) {
             userMessages.shift();
         }
+    }
+
+    /**
+     * Handle admin room join packet
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleRoomJoinAsAdmin(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        // Any user can join as room admin - this gives them admin privileges in this room only
+        // This is different from global admin status which gives admin privileges in ALL rooms
+
+        // Extract room ID from payload
+        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        
+        // For admin join, we may need to handle password or special authentication
+        // The payload structure is: roomId(4) + password(4) + port(4) + ...
+        const password = payload.slice(4, 8);
+        const port = payload.slice(8, 12);
+
+        const room = serverState.getRoom(roomId);
+        if (!room) {
+            logger.warn('User attempted to join non-existent room as admin', { 
+                roomId, 
+                userId: user.uid 
+            });
+            return;
+        }
+
+        // Check password if room has one (admin join doesn't bypass password requirements)
+        if (room.password && payload.length > 12) {
+            const providedPassword = payload.slice(12).toString('utf8');
+            if (providedPassword !== room.password) {
+                logger.warn('Incorrect password for admin room join', { 
+                    roomId, 
+                    userId: user.uid 
+                });
+                return;
+            }
+        }
+
+        // Join as room admin (admin privileges only in this specific room)
+        if (room.addUser(user, true, true)) {
+            await this.sendRoomJoinData(socket, room, user, true);
+            this.broadcastUserListUpdate(room);
+            
+            logger.info('User joined room as admin', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName: room.name,
+                adminType: 'room_admin'
+            });
+        }
+    }
+
+    /**
+     * Handle room admin info request
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleRoomAdminInfo(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        const room = serverState.getRoom(roomId);
+
+        if (!room) {
+            logger.warn('Admin info requested for non-existent room', { 
+                roomId, 
+                userId: user.uid 
+            });
+            return;
+        }
+
+        // Check if user has admin privileges in this room (room admin OR global admin OR room owner)
+        const userInRoom = room.getUser(user.uid);
+        const isRoomAdmin = userInRoom && userInRoom.isRoomAdmin;
+        const isGlobalAdmin = user.isAdmin();
+        const isRoomOwner = room.createdBy === user.uid;
+        
+        if (!isRoomAdmin && !isGlobalAdmin && !isRoomOwner) {
+            logger.warn('User without admin privileges requested room admin info', {
+                userId: user.uid,
+                roomId: room.id
+            });
+            return;
+        }
+
+        // Send room admin info response
+        const adminInfo = `group=${payload.slice(0, 4).toString('hex')}\nmike=${room.micEnabled}\ntext=${room.textEnabled}\n`;
+        sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, Buffer.from(adminInfo, 'utf8'), socket.id);
+
+        logger.debug('Room admin info sent', {
+            userId: user.uid,
+            roomId: room.id,
+            micEnabled: room.micEnabled,
+            textEnabled: room.textEnabled,
+            adminType: isGlobalAdmin ? 'global_admin' : isRoomOwner ? 'room_owner' : 'room_admin'
+        });
     }
 
     /**
