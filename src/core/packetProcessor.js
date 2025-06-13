@@ -210,17 +210,26 @@ class PacketProcessor {
             loginResponse.writeUInt32BE(1, 4); // Success flag
             sendPacket(socket, PACKET_TYPES.LOGIN, loginResponse, socket.id);
 
-            // Step 2: Send USER_DATA packet with essential fields including paid1
-            const minimalUserData = `uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid1}\nbanners=${user.banners}\nrandom=${user.random}\nadmin=${user.admin}\nfirst=${user.firstName}\nlast=${user.lastName}\nemail=${user.email}\nprivacy=${user.privacy}\nverified=G`;
+            // Step 2: Send USER_DATA packet with complete field set including SMTP
+            // CRITICAL: This complete USER_DATA packet is essential for proper client functionality.
+            // All fields must be present in correct order for the client to recognize account status,
+            // enable premium features, and maintain stable connections. Key fields include:
+            // - paid1: Account type (6=paid, N=free) - determines premium features availability
+            // - smtp: Required authentication data for client protocol validation
+            // - admin: Admin privileges level for room management capabilities
+            // - All AOL/server fields: Required for legacy protocol compatibility
+            // - ei/target fields: Essential for user identification and search functionality
+            // Removing or modifying this structure may cause client disconnections or feature loss.
+            const fullUserData = `uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid1}\nbanners=${user.banners}\nrandom=${user.random}\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nfirst=${user.firstName}\nlast=${user.lastName}\nemail=${user.email}\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\\$Revision: 1.97\\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`;
             
             logger.debug('Sending USER_DATA packet', {
                 userId: user.uid,
                 nickname: user.nickname,
                 paid1: user.paid1,
-                dataLength: minimalUserData.length
+                dataLength: fullUserData.length
             });
             
-            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(minimalUserData), socket.id);
+            sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(fullUserData), socket.id);
             
             // Step 3: Send buddy list (essential for buddy list window)
             const buddyList = this.createBuddyListBuffer(user);
