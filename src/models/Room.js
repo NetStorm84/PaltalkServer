@@ -13,7 +13,7 @@ class Room {
         this.rating = roomData.r || roomData.rating || 'G';
         this.isVoice = roomData.v || roomData.isVoice || ROOM_TYPES.TEXT;
         this.isPrivate = roomData.p || roomData.isPrivate || 0;
-        this.isListed = roomData.l || roomData.isListed || 1;
+        this.isLocked = roomData.l || roomData.isLocked || 0; // 0=not locked, 1=locked (password required)
         this.topic = roomData.topic || 'Welcome to the room!';
         this.password = roomData.password || '';
         this.maxUsers = roomData.maxUsers || 100;
@@ -281,7 +281,7 @@ class Room {
             r: this.rating,
             v: this.isVoice,
             p: this.isPrivate,
-            l: this.isListed,
+            l: this.isLocked,
             topic: this.topic,
             password: this.password,
             maxUsers: this.maxUsers,
@@ -303,7 +303,7 @@ class Room {
             rating: this.rating,
             isVoice: this.isVoice,
             isPrivate: this.isPrivate,
-            isListed: this.isListed,
+            isLocked: this.isLocked,
             topic: this.topic,
             userCount: this.getUserCount(),
             maxUsers: this.maxUsers,

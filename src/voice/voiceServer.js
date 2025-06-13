@@ -130,7 +130,7 @@ class VoiceServer {
             const processedData = this.processAudioData(data, connection.audioSettings);
 
             // Relay to room members
-            this.relayAudioToRoom(connection.roomId, processedData, connectionId);
+            this.relayAudioData(connectionId, processedData);
 
         } catch (error) {
             logger.error('Error handling voice data', error, { connectionId });

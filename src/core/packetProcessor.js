@@ -210,8 +210,16 @@ class PacketProcessor {
             loginResponse.writeUInt32BE(1, 4); // Success flag
             sendPacket(socket, PACKET_TYPES.LOGIN, loginResponse, socket.id);
 
-            // Step 2: Try minimal USER_DATA packet (testing if small version works)
-            const minimalUserData = `uid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.admin}`;
+            // Step 2: Send USER_DATA packet with essential fields including paid1
+            const minimalUserData = `uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid1}\nbanners=${user.banners}\nrandom=${user.random}\nadmin=${user.admin}\nfirst=${user.firstName}\nlast=${user.lastName}\nemail=${user.email}\nprivacy=${user.privacy}\nverified=G`;
+            
+            logger.debug('Sending USER_DATA packet', {
+                userId: user.uid,
+                nickname: user.nickname,
+                paid1: user.paid1,
+                dataLength: minimalUserData.length
+            });
+            
             sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(minimalUserData), socket.id);
             
             // Step 3: Send buddy list (essential for buddy list window)
@@ -634,7 +642,9 @@ class PacketProcessor {
 
         const rooms = serverState.getRoomsByCategory(categoryId);
         rooms.forEach(room => {
-            const roomString = `id=${room.id}\nnm=${room.name}\n#=${room.getUserCount()}\nv=${room.isVoice}\nl=${room.isListed}\nr=${room.rating}\np=${room.isPrivate}\nc=000000000`;
+            // l=1 means locked (password required), l=0 means not locked
+            const isLocked = room.password ? 1 : 0;
+            const roomString = `id=${room.id}\nnm=${room.name}\n#=${room.getUserCount()}\nv=${room.isVoice}\nl=${isLocked}\nr=${room.rating}\np=${room.isPrivate}\nc=000000000`;
             buffers.push(Buffer.from(roomString));
             buffers.push(delimiter);
         });
@@ -712,7 +722,7 @@ class PacketProcessor {
         const delimiter = Buffer.from([0xC8]);
 
         room.getVisibleUsers().forEach(user => {
-            const userString = `group_id=${room.id}\nuid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.isAdmin() ? 1 : 0}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}`;
+            const userString = `group_id=${room.id}\nuid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}`;
             buffers.push(Buffer.from(userString));
             buffers.push(delimiter);
         });
@@ -724,16 +734,18 @@ class PacketProcessor {
     }
 
     broadcastUserListUpdate(room) {
-        room.getAllUsers().forEach(user => {
-            if (user.socket) {
+        room.getAllUsers().forEach(roomUserData => {
+            const user = serverState.getUser(roomUserData.uid);
+            if (user && user.socket) {
                 this.sendUserList(user.socket, room);
             }
         });
     }
 
     broadcastToRoom(room, packetType, payload, excludeSocket = null) {
-        room.getAllUsers().forEach(user => {
-            if (user.socket && user.socket !== excludeSocket) {
+        room.getAllUsers().forEach(roomUserData => {
+            const user = serverState.getUser(roomUserData.uid);
+            if (user && user.socket && user.socket !== excludeSocket) {
                 sendPacket(user.socket, packetType, payload, user.socket.id);
             }
         });

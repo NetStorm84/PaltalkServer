@@ -224,28 +224,43 @@
             max-height: 250px;
             overflow-y: auto;
             font-size: 0.85rem;
+            border: 1px solid #2d3748;
         }
 
         .log-entry {
             margin-bottom: 5px;
             padding: 3px 0;
+            line-height: 1.4;
         }
 
         .log-timestamp {
             color: #a0aec0;
             margin-right: 10px;
+            font-weight: bold;
         }
 
         .log-level-info {
             color: #63b3ed;
+            font-weight: bold;
+            margin-right: 8px;
         }
 
         .log-level-warn {
             color: #f6e05e;
+            font-weight: bold;
+            margin-right: 8px;
         }
 
         .log-level-error {
             color: #fc8181;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .log-level-debug {
+            color: #9f9f9f;
+            font-weight: bold;
+            margin-right: 8px;
         }
 
         .connection-indicator {
@@ -402,11 +417,14 @@
 
             <!-- Server Logs -->
             <div class="card">
-                <h2>📋 Server Logs</h2>
+                <h2>📋 Server Logs 
+                    <button class="btn btn-primary" onclick="refreshLogs()" style="float: right; font-size: 0.8rem; padding: 4px 8px;">🔄 Refresh</button>
+                </h2>
                 <div class="log-container" id="logContainer">
                     <div class="log-entry">
                         <span class="log-timestamp">[--:--:--]</span>
-                        <span class="log-level-info">Waiting for log data...</span>
+                        <span class="log-level-info">[INFO]</span>
+                        <span>Waiting for log data...</span>
                     </div>
                 </div>
             </div>
@@ -471,6 +489,8 @@
         }
 
         function updateDashboard(data) {
+            console.log('Dashboard update received:', data); // Debug
+            
             // Update server statistics
             document.getElementById('onlineUsers').textContent = data.stats.onlineUsers || 0;
             document.getElementById('activeRooms').textContent = data.stats.totalRooms || 0;
@@ -489,6 +509,10 @@
 
             // Update rooms list
             updateRoomsList(data.rooms || []);
+
+            // Update logs
+            console.log('Logs in dashboard data:', data.logs); // Debug
+            updateLogsList(data.logs || []);
 
             // Update last refresh time
             document.getElementById('lastUpdate').innerHTML = 
@@ -537,7 +561,15 @@
                 return;
             }
 
-            container.innerHTML = rooms.map(room => `
+            // Sort rooms by user count (highest first), then by name for ties
+            const sortedRooms = rooms.sort((a, b) => {
+                if (b.userCount !== a.userCount) {
+                    return b.userCount - a.userCount;
+                }
+                return a.name.localeCompare(b.name);
+            });
+
+            container.innerHTML = sortedRooms.map(room => `
                 <div class="room-item">
                     <div class="room-info">
                         <div class="room-name">
@@ -568,6 +600,62 @@
                     <div class="voice-room-users">${room.connectionCount} connected</div>
                 </div>
             `).join('');
+        }
+
+        function updateLogsList(logs) {
+            const container = document.getElementById('logContainer');
+            
+            console.log('Updating logs list with:', logs); // Debug
+            
+            if (!logs || logs.length === 0) {
+                container.innerHTML = `
+                    <div class="log-entry">
+                        <span class="log-timestamp">[--:--:--]</span>
+                        <span class="log-level-info">[INFO]</span>
+                        <span>No recent logs available</span>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = logs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleTimeString();
+                const levelClass = `log-level-${log.level}`;
+                
+                // Format message with meta info if available
+                let message = log.message;
+                if (log.meta && Object.keys(log.meta).length > 0) {
+                    const metaStr = Object.entries(log.meta)
+                        .filter(([key, value]) => key !== 'error' && key !== 'stack' && value !== undefined && key !== 'service' && key !== 'timestamp')
+                        .map(([key, value]) => `${key}=${value}`)
+                        .join(', ');
+                    if (metaStr) {
+                        message += ` (${metaStr})`;
+                    }
+                }
+                
+                return `
+                    <div class="log-entry">
+                        <span class="log-timestamp">[${timestamp}]</span>
+                        <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
+                        <span>${escapeHtml(message)}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            // Auto-scroll to bottom for new logs
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function refreshLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                updateLogsList(data.logs);
+                console.log('Manually refreshed logs:', data.logs.length, 'entries');
+            } catch (error) {
+                console.error('Failed to refresh logs:', error);
+            }
         }
 
         function getStatusClass(mode) {

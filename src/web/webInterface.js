@@ -120,18 +120,9 @@ class WebInterface {
         // Server logs (recent)
         this.app.get('/api/logs', (req, res) => {
             try {
-                // This would typically read from log files
-                // For now, return a simple response
-                res.json({
-                    logs: [
-                        {
-                            timestamp: new Date().toISOString(),
-                            level: 'info',
-                            message: 'Web interface accessed',
-                            service: 'web-interface'
-                        }
-                    ]
-                });
+                const limit = parseInt(req.query.limit) || 50;
+                const logs = logger.getRecentLogs(limit);
+                res.json({ logs });
             } catch (error) {
                 logger.error('Failed to get logs', error);
                 res.status(500).json({ error: 'Failed to get logs' });
@@ -374,6 +365,7 @@ class WebInterface {
                 voice: voiceStats,
                 users,
                 rooms,
+                logs: logger.getRecentLogs(25), // Include recent logs
                 timestamp: new Date().toISOString()
             });
         } catch (error) {

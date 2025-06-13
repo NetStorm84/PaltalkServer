@@ -6,6 +6,9 @@ const path = require('path');
 
 class Logger {
     constructor() {
+        this.recentLogs = [];
+        this.maxRecentLogs = 100;
+        
         this.logger = winston.createLogger({
             level: 'info',
             format: winston.format.combine(
@@ -32,20 +35,48 @@ class Logger {
         });
     }
 
+    addToRecentLogs(level, message, meta = {}) {
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            level,
+            message,
+            meta,
+            id: Date.now() + Math.random()
+        };
+        
+        this.recentLogs.unshift(logEntry);
+        
+        // Keep only the most recent logs
+        if (this.recentLogs.length > this.maxRecentLogs) {
+            this.recentLogs = this.recentLogs.slice(0, this.maxRecentLogs);
+        }
+        
+        return logEntry;
+    }
+
+    getRecentLogs(limit = 50) {
+        return this.recentLogs.slice(0, limit);
+    }
+
     info(message, meta = {}) {
         this.logger.info(message, meta);
+        this.addToRecentLogs('info', message, meta);
     }
 
     error(message, error = null, meta = {}) {
-        this.logger.error(message, { error: error?.message || error, stack: error?.stack, ...meta });
+        const errorMeta = { error: error?.message || error, stack: error?.stack, ...meta };
+        this.logger.error(message, errorMeta);
+        this.addToRecentLogs('error', message, errorMeta);
     }
 
     warn(message, meta = {}) {
         this.logger.warn(message, meta);
+        this.addToRecentLogs('warn', message, meta);
     }
 
     debug(message, meta = {}) {
         this.logger.debug(message, meta);
+        this.addToRecentLogs('debug', message, meta);
     }
 
     // Special methods for packet logging
