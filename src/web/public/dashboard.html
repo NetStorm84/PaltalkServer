@@ -772,6 +772,15 @@
             }
         }
 
+        function showBroadcastModal() {
+            // Focus on the broadcast input field
+            const input = document.getElementById('broadcastMessage');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }
+
         // Auto-refresh every 30 seconds
         setInterval(() => {
             if (isConnected) {

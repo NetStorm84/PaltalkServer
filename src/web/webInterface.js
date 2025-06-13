@@ -7,6 +7,8 @@ const socketIo = require('socket.io');
 const path = require('path');
 const logger = require('../utils/logger');
 const { SERVER_CONFIG } = require('../config/constants');
+const { sendPacket } = require('../network/packetSender');
+const { PACKET_TYPES } = require('../../packetHeaders');
 
 class WebInterface {
     constructor(serverState, voiceServer, databaseManager) {
@@ -150,23 +152,115 @@ class WebInterface {
             try {
                 const { userId, reason } = req.body;
                 
-                if (!userId) {
-                    return res.status(400).json({ error: 'User ID required' });
+                if (!userId || isNaN(parseInt(userId))) {
+                    return res.status(400).json({ error: 'Valid User ID required' });
+                }
+                
+                const user = this.serverState.getUser(parseInt(userId));
+                if (!user) {
+                    return res.status(404).json({ error: 'User not found or not online' });
+                }
+                
+                // Send kick notification to user before disconnecting
+                if (user.socket) {
+                    try {
+                        const kickMessage = `You have been kicked by an administrator. Reason: ${reason || 'No reason provided'}`;
+                        const kickBuffer = Buffer.from(kickMessage, 'utf8');
+                        sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, kickBuffer, user.socket.id);
+                        
+                        // Give a moment for the message to be sent before disconnecting
+                        setTimeout(() => {
+                            try {
+                                if (user.socket && user.socket.destroy) {
+                                    user.socket.destroy();
+                                }
+                            } catch (destroyError) {
+                                logger.warn('Error destroying socket during kick', { 
+                                    userId: parseInt(userId), 
+                                    error: destroyError.message 
+                                });
+                            }
+                        }, 100);
+                    } catch (packetError) {
+                        logger.warn('Failed to send kick notification', { 
+                            userId: parseInt(userId), 
+                            error: packetError.message 
+                        });
+                    }
+                }
+                
+                // Remove user connection using UID (more reliable than socket)
+                const removed = this.serverState.removeUserConnection(parseInt(userId), `Kicked by admin: ${reason || 'No reason provided'}`);
+                
+                if (removed) {
+                    logger.info('User kicked by admin', { userId: parseInt(userId), reason, nickname: user.nickname });
+                    res.json({ success: true, message: 'User kicked successfully' });
+                } else {
+                    logger.warn('Failed to remove user connection during kick', { userId: parseInt(userId) });
+                    res.status(500).json({ error: 'Failed to disconnect user' });
+                }
+            } catch (error) {
+                logger.error('Failed to kick user', error, { userId: req.body.userId });
+                res.status(500).json({ error: 'Failed to kick user: ' + error.message });
+            }
+        });
+
+        // Alternative kick endpoint to match dashboard expectations
+        this.app.post('/api/admin/kick/:userId', (req, res) => {
+            try {
+                const userId = parseInt(req.params.userId);
+                const { reason } = req.body;
+                
+                if (!userId || isNaN(userId)) {
+                    return res.status(400).json({ error: 'Valid User ID required' });
                 }
                 
                 const user = this.serverState.getUser(userId);
                 if (!user) {
-                    return res.status(404).json({ error: 'User not found' });
+                    return res.status(404).json({ error: 'User not found or not online' });
                 }
                 
-                // Kick user
-                this.serverState.removeUserConnection(user.socket, `Kicked by admin: ${reason || 'No reason provided'}`);
+                // Send kick notification to user before disconnecting
+                if (user.socket) {
+                    try {
+                        const kickMessage = `You have been kicked by an administrator. Reason: ${reason || 'No reason provided'}`;
+                        const kickBuffer = Buffer.from(kickMessage, 'utf8');
+                        sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, kickBuffer, user.socket.id);
+                        
+                        // Give a moment for the message to be sent before disconnecting
+                        setTimeout(() => {
+                            try {
+                                if (user.socket && user.socket.destroy) {
+                                    user.socket.destroy();
+                                }
+                            } catch (destroyError) {
+                                logger.warn('Error destroying socket during kick', { 
+                                    userId, 
+                                    error: destroyError.message 
+                                });
+                            }
+                        }, 100);
+                    } catch (packetError) {
+                        logger.warn('Failed to send kick notification', { 
+                            userId, 
+                            error: packetError.message 
+                        });
+                    }
+                }
                 
-                logger.info('User kicked by admin', { userId, reason });
-                res.json({ success: true, message: 'User kicked successfully' });
+                // Remove user connection using UID (more reliable than socket)
+                const removed = this.serverState.removeUserConnection(userId, `Kicked by admin: ${reason || 'No reason provided'}`);
+                
+                if (removed) {
+                    logger.info('User kicked by admin', { userId, reason, nickname: user.nickname });
+                    res.json({ success: true, message: 'User kicked successfully' });
+                } else {
+                    logger.warn('Failed to remove user connection during kick', { userId });
+                    res.status(500).json({ error: 'Failed to disconnect user' });
+                }
             } catch (error) {
-                logger.error('Failed to kick user', error);
-                res.status(500).json({ error: 'Failed to kick user' });
+                logger.error('Failed to kick user', error, { userId: req.params.userId });
+                res.status(500).json({ error: 'Failed to kick user: ' + error.message });
             }
         });
 
@@ -178,16 +272,22 @@ class WebInterface {
                     return res.status(400).json({ error: 'Message required' });
                 }
                 
-                // Broadcast to all users
+                // Broadcast to all users using proper packet protocol
+                let sentCount = 0;
                 this.serverState.getOnlineUsers().forEach(user => {
                     if (user.socket) {
-                        const messageBuffer = Buffer.from(`SYSTEM: ${message}`, 'utf8');
-                        user.socket.write(messageBuffer);
+                        try {
+                            const announcementBuffer = Buffer.from(`ADMIN BROADCAST: ${message}`, 'utf8');
+                            sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, announcementBuffer, user.socket.id);
+                            sentCount++;
+                        } catch (error) {
+                            logger.warn('Failed to send broadcast to user', { userId: user.uid, error: error.message });
+                        }
                     }
                 });
                 
-                logger.info('Admin broadcast sent', { message });
-                res.json({ success: true, message: 'Broadcast sent successfully' });
+                logger.info('Admin broadcast sent', { message, sentToUsers: sentCount });
+                res.json({ success: true, message: `Broadcast sent successfully to ${sentCount} users` });
             } catch (error) {
                 logger.error('Failed to send broadcast', error);
                 res.status(500).json({ error: 'Failed to send broadcast' });
