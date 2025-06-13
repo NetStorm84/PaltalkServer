@@ -57,7 +57,7 @@ class User {
      * @returns {boolean}
      */
     isAdmin() {
-        return this.admin >= USER_PERMISSIONS.ADMIN;
+        return this.admin === 1;
     }
 
     /**

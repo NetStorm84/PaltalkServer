@@ -78,9 +78,9 @@ const db = new sqlite3.Database("database.db", (err) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       data: [
-        [1000001, "Paltalk", "default@example.com", 'Y', 'no', 1, "default_password_hash", "000000128", "", "", 0],
+        [1000001, "Paltalk", "default@example.com", 'Y', 'no', 2, "default_password_hash", "000000128", "", "", 0],
         [1000002, "NetStorm", "default@example.com", '6', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
-        [1000003, "Medianoche (co-admin)", "medianoche@example.com", 'Y' , 'no', 1, "another_password_hash", "128000000", "[]", "", 1],
+        [1000003, "Medianoche (co-admin)", "medianoche@example.com", 'Y' , 'no', 2, "another_password_hash", "128000000", "[]", "", 1],
         [1000004, "Dan", "dan@example.com", 'N', 'yes', 0, "another_password_hash", "000128000", "[]", "", 1],
       ],
     },

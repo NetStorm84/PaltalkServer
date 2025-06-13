@@ -370,6 +370,7 @@ function checkAdminGroupPassword(socket, payload) {
 
     if (true){
         room = groups.find(room => room.id === 50002, 16);
+        // 4th argument is admin
         joinRoom(socket, payload, room, true);
     }
 }

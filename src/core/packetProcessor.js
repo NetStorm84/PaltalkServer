@@ -708,6 +708,16 @@ class PacketProcessor {
         else if (!isAdmin && room.isVoice) roomType = '00030000';
         else if (!isAdmin && !room.isVoice) roomType = '00000000';
 
+        logger.debug('Room join data preparation', {
+            roomId: room.id,
+            roomName: room.name,
+            isVoice: room.isVoice,
+            isAdmin,
+            roomType,
+            userId: user.uid,
+            nickname: user.nickname
+        });
+
         const roomDetails = Utils.objectToKeyValueString(room.getRoomDetails());
         const joinBuffer = Buffer.from(
             roomIdHex + roomType + '000000000' + '0b54042a' + '0010006' + '0003' + '47' + 
@@ -741,6 +751,15 @@ class PacketProcessor {
             );
             sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, voiceBuffer, socket.id);
         }
+
+        logger.info('Room join data sent successfully', {
+            roomId: room.id,
+            roomName: room.name,
+            userId: user.uid,
+            nickname: user.nickname,
+            isAdmin,
+            isVoice: room.isVoice
+        });
     }
 
     sendRoomMessage(socket, roomId, message) {
@@ -755,7 +774,14 @@ class PacketProcessor {
         const buffers = [];
         const delimiter = Buffer.from([0xC8]);
 
-        room.getVisibleUsers().forEach(user => {
+        const visibleUsers = room.getVisibleUsers();
+        logger.debug('Sending user list', {
+            roomId: room.id,
+            userCount: visibleUsers.length,
+            users: visibleUsers.map(u => ({ uid: u.uid, nickname: u.nickname, admin: u.admin, isRoomAdmin: u.isRoomAdmin }))
+        });
+
+        visibleUsers.forEach(user => {
             const userString = `group_id=${room.id}\nuid=${user.uid}\nnickname=${user.nickname}\nadmin=${user.admin}\ncolor=${user.color}\nmic=${user.mic}\npub=${user.pub}\naway=${user.away}`;
             buffers.push(Buffer.from(userString));
             buffers.push(delimiter);
@@ -934,49 +960,108 @@ class PacketProcessor {
         const user = serverState.getUserBySocketId(socket.id);
         if (!user) return;
 
-        // Any user can join as room admin - this gives them admin privileges in this room only
-        // This is different from global admin status which gives admin privileges in ALL rooms
+        // Extract the basic payload components
+        const userBytes = payload.slice(0, 4);  // Target user UID
+        const password = payload.slice(4, 8);   // Password (ignored for now)
+        const port = payload.slice(8, 12);      // Voice port (ignored)
 
-        // Extract room ID from payload
-        const roomId = Utils.hexToDec(payload.slice(0, 4));
-        
-        // For admin join, we may need to handle password or special authentication
-        // The payload structure is: roomId(4) + password(4) + port(4) + ...
-        const password = payload.slice(4, 8);
-        const port = payload.slice(8, 12);
+        // Extract target UID from the first 4 bytes
+        const targetUid = Utils.hexToDec(userBytes);
 
-        const room = serverState.getRoom(roomId);
-        if (!room) {
-            logger.warn('User attempted to join non-existent room as admin', { 
-                roomId, 
-                userId: user.uid 
+        logger.debug('Admin room join request', {
+            userId: user.uid,
+            nickname: user.nickname,
+            payloadHex: payload.toString('hex'),
+            payloadLength: payload.length,
+            adminLevel: user.admin,
+            userBytes: userBytes.toString('hex'),
+            targetUid: targetUid,
+            password: password.toString('hex'),
+            port: port.toString('hex')
+        });
+
+        // Only regular users (admin=0) should use this route
+        // Global admins (admin=1) should use the regular room join process instead
+        if (user.admin === 1) {
+            logger.warn('Global admin attempted to use admin room join route', {
+                userId: user.uid,
+                nickname: user.nickname,
+                adminLevel: user.admin
             });
             return;
         }
 
-        // Check password if room has one (admin join doesn't bypass password requirements)
-        if (room.password && payload.length > 12) {
-            const providedPassword = payload.slice(12).toString('utf8');
-            if (providedPassword !== room.password) {
-                logger.warn('Incorrect password for admin room join', { 
-                    roomId, 
-                    userId: user.uid 
-                });
-                return;
+        if (!targetUid) {
+            logger.warn('Invalid target UID for admin room join', {
+                userId: user.uid,
+                userBytes: userBytes.toString('hex')
+            });
+            return;
+        }
+
+        logger.debug('Looking for room owned by target UID', {
+            requestingUserId: user.uid,
+            requestingUserNickname: user.nickname,
+            targetUid: targetUid
+        });
+
+        // Find the user by UID
+        const targetUser = await this.db.getUserByUid(targetUid);
+        if (!targetUser) {
+            logger.warn('Target user not found for admin room join', {
+                requestingUserId: user.uid,
+                targetUid: targetUid
+            });
+            return;
+        }
+
+        // Find a room owned by this user
+        const targetRoom = serverState.getAllRooms().find(room => room.createdBy === targetUser.uid);
+        
+        if (!targetRoom) {
+            logger.warn('Target user does not own any rooms', {
+                requestingUserId: user.uid,
+                targetUid: targetUid,
+                targetUserId: targetUser.uid,
+                targetNickname: targetUser.nickname
+            });
+            return;
+        }
+
+        logger.info('Found target room for admin join', {
+            requestingUserId: user.uid,
+            requestingUserNickname: user.nickname,
+            targetUid: targetUid,
+            targetNickname: targetUser.nickname,
+            roomId: targetRoom.id,
+            roomName: targetRoom.name
+        });
+
+        // Remove user from current room if they're in one
+        if (user.currentRoom) {
+            const currentRoom = serverState.getRoom(user.currentRoom);
+            if (currentRoom) {
+                currentRoom.removeUser(user);
+                this.broadcastUserListUpdate(currentRoom);
             }
         }
 
-        // Join as room admin (admin privileges only in this specific room)
-        if (room.addUser(user, true, true)) {
-            await this.sendRoomJoinData(socket, room, user, true);
-            this.broadcastUserListUpdate(room);
+        // Join the target room as admin (4th parameter = true, like original joinRoom call)
+        if (targetRoom.addUser(user, true, true)) { // visible=true, isAdmin=true
+            await this.sendRoomJoinData(socket, targetRoom, user, true);
+            this.broadcastUserListUpdate(targetRoom);
             
-            logger.info('User joined room as admin', {
+            logger.info('User successfully joined room as admin', {
                 userId: user.uid,
                 nickname: user.nickname,
-                roomId: room.id,
-                roomName: room.name,
-                adminType: 'room_admin'
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                adminType: 'room_owner_admin'
+            });
+        } else {
+            logger.warn('Failed to add user to room as admin', {
+                userId: user.uid,
+                roomId: targetRoom.id
             });
         }
     }
@@ -989,6 +1074,13 @@ class PacketProcessor {
     async handleRoomAdminInfo(socket, payload) {
         const user = serverState.getUserBySocketId(socket.id);
         if (!user) return;
+
+        logger.debug('Room admin info request', {
+            userId: user.uid,
+            nickname: user.nickname,
+            payloadHex: payload.toString('hex'),
+            payloadLength: payload.length
+        });
 
         const roomId = Utils.hexToDec(payload.slice(0, 4));
         const room = serverState.getRoom(roomId);
@@ -1007,19 +1099,40 @@ class PacketProcessor {
         const isGlobalAdmin = user.isAdmin();
         const isRoomOwner = room.createdBy === user.uid;
         
+        logger.debug('Admin privileges check', {
+            userId: user.uid,
+            roomId: room.id,
+            isRoomAdmin,
+            isGlobalAdmin,
+            isRoomOwner,
+            userInRoom: !!userInRoom
+        });
+        
         if (!isRoomAdmin && !isGlobalAdmin && !isRoomOwner) {
             logger.warn('User without admin privileges requested room admin info', {
                 userId: user.uid,
-                roomId: room.id
+                roomId: room.id,
+                isRoomAdmin,
+                isGlobalAdmin,
+                isRoomOwner
             });
             return;
         }
 
-        // Send room admin info response
-        const adminInfo = `group=${payload.slice(0, 4).toString('hex')}\nmike=${room.micEnabled}\ntext=${room.textEnabled}\n`;
+        // Send room admin info response - this tells the client what admin controls are available
+        const roomIdHex = payload.slice(0, 4).toString('hex');
+        const adminInfo = `group=${roomIdHex}\nmike=${room.micEnabled}\ntext=${room.textEnabled}\n`;
+        
+        logger.debug('Sending room admin info', {
+            userId: user.uid,
+            roomId: room.id,
+            adminInfo,
+            packetType: PACKET_TYPES.PACKET_ROOM_ADMIN_INFO
+        });
+        
         sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, Buffer.from(adminInfo, 'utf8'), socket.id);
 
-        logger.debug('Room admin info sent', {
+        logger.info('Room admin info sent successfully', {
             userId: user.uid,
             roomId: room.id,
             micEnabled: room.micEnabled,
