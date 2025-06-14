@@ -487,7 +487,7 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
     let buffers = [];
 
     currentUser.user.admin = isAdmin?1:0;
-    room.addUser(currentUser.user, !isInvisible);
+    room.addUser(currentUser.user, !isInvisible, isAdmin);
 
     room.users.forEach(user => {
         // Create a string from the user object, format can be adjusted as needed
@@ -511,7 +511,26 @@ function joinRoom(socket, payload, room = false, isAdmin = false) {
             sendPacket(userSocket.socket, 0x0154, userList, 'hex');
         }
     });
-    // sendPacket(socket, -932, Buffer.from(roomIdHex, 'hex'));
+
+    // Grant automatic mic permissions if user has mic=1 after being added to room
+    if (currentUser.user.mic === 1 && room.v) {
+        console.log(`Granting automatic mic permission to ${currentUser.user.nickname} in room ${room.nm}`);
+        sendPacket(socket, PACKET_TYPES.PACKET_ROOM_NEW_USER_MIC, Buffer.from(roomIdHex, 'hex'));
+        
+        // Also notify all other users that this user has been granted mic permissions
+        room.users.forEach(user => {
+            let userSocket = currentSockets.get(user.uid);
+            if (userSocket && user.uid !== currentUser.user.uid) {
+                // Notify other users that this user now has mic permissions
+                let micNotificationData = Buffer.concat([
+                    Buffer.from(roomIdHex, 'hex'),
+                    Buffer.from(helper.conversions.decToHex(currentUser.user.uid), 'hex'),
+                    Buffer.from([0x01]) // 1 = mic granted, 0 = mic removed
+                ]);
+                sendPacket(userSocket.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData);
+            }
+        });
+    }
 
     if (room.v){    
 
