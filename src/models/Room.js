@@ -22,6 +22,7 @@ class Room {
         // Voice settings
         this.micEnabled = roomData.mike || roomData.micEnabled || 1;
         this.textEnabled = roomData.text || roomData.textEnabled || 1;
+        this.allowAllMics = roomData.allowAllMics !== undefined ? roomData.allowAllMics : true; // Allow all users to use mic by default
         
         // Runtime properties
         this.users = new Map(); // uid -> user object
@@ -34,6 +35,17 @@ class Room {
         // Voice server info
         this.voiceServerIP = roomData.voiceServerIP || '127.0.0.1';
         this.voiceServerPort = roomData.voiceServerPort || 2090;
+        
+        // Server state reference for user management
+        this.serverState = null; // Will be injected later
+    }
+
+    /**
+     * Inject server state reference
+     * @param {ServerState} serverState 
+     */
+    setServerState(serverState) {
+        this.serverState = serverState;
     }
 
     /**
@@ -92,7 +104,9 @@ class Room {
             };
 
             this.users.set(user.uid, userRoomData);
-            user.currentRoom = this.id;
+            
+            // Use the new multiple room tracking methods
+            user.addToRoom(this.id);
 
             logger.logUserAction('room_join', user.uid, {
                 roomId: this.id,
@@ -100,6 +114,16 @@ class Room {
                 isAdmin,
                 isVisible
             });
+
+            // Emit real-time event for dashboard updates
+            if (this.serverState) {
+                this.serverState.emit('userJoinedRoom', {
+                    user: user,
+                    room: this,
+                    isAdmin,
+                    isVisible
+                });
+            }
 
             return true;
         } catch (error) {
@@ -124,13 +148,27 @@ class Room {
             return false;
         }
 
-        user.currentRoom = null;
+        // Get the actual user object to call removeFromRoom
+        const actualUser = typeof userOrUid === 'object' ? userOrUid : (this.serverState?.getUser(uid));
+        if (actualUser) {
+            actualUser.removeFromRoom(this.id);
+        }
+
         this.users.delete(uid);
 
         logger.logRoomActivity('user_left', this.id, uid, {
             nickname: user.nickname,
             userCount: this.users.size
         });
+
+        // Emit real-time event for dashboard updates
+        if (this.serverState) {
+            this.serverState.emit('userLeftRoom', {
+                uid: uid,
+                room: this,
+                nickname: user.nickname
+            });
+        }
 
         return true;
     }

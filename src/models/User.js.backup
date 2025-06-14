@@ -7,7 +7,29 @@ const { USER_MODES, USER_PERMISSIONS } = require('../config/constants');
 
 class User {
     constructor(userData) {
-        this.uid = userData.uid;
+           /**
+     * Get summary information for this user
+     * @returns {Object}
+     */
+    getSummary() {
+        return {
+            uid: this.uid,
+            nickname: this.nickname,
+            email: this.email,
+            isOnline: this.isOnline(),
+            mode: this.mode,
+            isAdmin: this.isAdmin(),
+            currentRoom: this.currentRoom,
+            loginTime: this.loginTime,
+            sessionId: this.sessionId,
+            buddyCount: this.buddies.length,
+            blockedCount: this.blocked.length,
+            paid1: this.paid1, // Include paid status
+            admin: this.admin, // Include admin level
+            created: this.created,
+            lastLogin: this.lastLogin
+        };
+    }a.uid;
         this.nickname = userData.nickname;
         this.email = userData.email;
         this.firstName = userData.first || '';
@@ -15,7 +37,7 @@ class User {
         this.privacy = userData.privacy || 'A';
         this.verified = userData.verified || 0;
         this.random = userData.random || '0';
-        this.paid1 = userData.paid1 || '0';
+        this.paid1 = userData.paid1 || 'N';
         this.admin = userData.admin || USER_PERMISSIONS.REGULAR;
         this.banners = userData.banners || 'yes';
         this.created = userData.created;
@@ -29,8 +51,7 @@ class User {
         
         // Runtime properties
         this.mode = USER_MODES.OFFLINE;
-        this.currentRooms = new Set(); // Track multiple rooms user is in
-        this.currentRoom = null; // Keep for backwards compatibility (primary room)
+        this.currentRoom = null;
         this.socket = null;
         this.sessionId = Utils.generateSessionId();
         this.loginTime = new Date();
@@ -59,55 +80,6 @@ class User {
      */
     isAdmin() {
         return this.admin === 1;
-    }
-
-    /**
-     * Add user to a room
-     * @param {number} roomId 
-     */
-    addToRoom(roomId) {
-        this.currentRooms.add(roomId);
-        if (!this.currentRoom) {
-            this.currentRoom = roomId; // Set as primary room if none set
-        }
-    }
-
-    /**
-     * Remove user from a room
-     * @param {number} roomId 
-     */
-    removeFromRoom(roomId) {
-        this.currentRooms.delete(roomId);
-        if (this.currentRoom === roomId) {
-            // If removing primary room, set another room as primary or null
-            const remainingRooms = Array.from(this.currentRooms);
-            this.currentRoom = remainingRooms.length > 0 ? remainingRooms[0] : null;
-        }
-    }
-
-    /**
-     * Get all rooms user is currently in
-     * @returns {Array<number>}
-     */
-    getRoomIds() {
-        return Array.from(this.currentRooms);
-    }
-
-    /**
-     * Check if user is in a specific room
-     * @param {number} roomId 
-     * @returns {boolean}
-     */
-    isInRoom(roomId) {
-        return this.currentRooms.has(roomId);
-    }
-
-    /**
-     * Get count of rooms user is in
-     * @returns {number}
-     */
-    getRoomCount() {
-        return this.currentRooms.size;
     }
 
     /**
@@ -339,19 +311,10 @@ class User {
             mode: this.mode,
             isAdmin: this.isAdmin(),
             currentRoom: this.currentRoom,
-            currentRooms: this.getRoomIds(), // Include all rooms user is in
-            roomCount: this.getRoomCount(), // Number of rooms user is in
             loginTime: this.loginTime,
             sessionId: this.sessionId,
             buddyCount: this.buddies.length,
-            blockedCount: this.blocked.length,
-            paid1: this.paid1, // Include paid status (Y=Premium, 6=Extreme, 0=Basic)
-            admin: this.admin, // Include admin level
-            created: this.created,
-            lastLogin: this.lastLogin,
-            firstName: this.firstName,
-            lastName: this.lastName,
-            listed: this.listed
+            blockedCount: this.blocked.length
         };
     }
 }

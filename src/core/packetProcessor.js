@@ -8,7 +8,7 @@ const User = require('../models/User');
 const Room = require('../models/Room');
 const Utils = require('../utils/utils');
 const logger = require('../utils/logger');
-const { USER_MODES, ROOM_TYPES } = require('../config/constants');
+const { USER_MODES, ROOM_TYPES, SERVER_CONFIG } = require('../config/constants');
 const AdminCommandSystem = require('./adminCommandSystem');
 
 class PacketProcessor {
@@ -309,12 +309,13 @@ class PacketProcessor {
 
     async handleRoomLeave(socket, payload) {
         const user = serverState.getUserBySocketId(socket.id);
-        if (!user || !user.currentRoom) return;
+        if (!user) return;
 
         const roomId = Utils.hexToDec(payload.slice(0, 4));
         const room = serverState.getRoom(roomId);
         
-        if (room && room.removeUser(user)) {
+        // Check if user is actually in this room
+        if (room && user.isInRoom(roomId) && room.removeUser(user)) {
             // Broadcast user left
             this.broadcastToRoom(room, PACKET_TYPES.ROOM_USER_LEFT, 
                 Buffer.from(Utils.decToHex(roomId) + Utils.decToHex(user.uid), 'hex'),
@@ -353,6 +354,7 @@ class PacketProcessor {
         };
 
         const room = new Room(newRoomData, false);
+        room.setServerState(serverState);
         serverState.addRoom(room);
 
         // Join the creator as admin
@@ -539,8 +541,103 @@ class PacketProcessor {
     }
 
     async handleMicRequest(socket, payload) {
-        const roomId = payload.slice(0, 4);
-        sendPacket(socket, 0x018d, roomId, socket.id);
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        const room = serverState.getRoom(roomId);
+        
+        if (!room || !room.hasUser(user.uid)) {
+            logger.warn('Mic request for room user is not in', { 
+                userId: user.uid, 
+                roomId 
+            });
+            return;
+        }
+
+        logger.debug('Mic request received', {
+            userId: user.uid,
+            nickname: user.nickname,
+            roomId: room.id,
+            roomName: room.name,
+            isVoiceRoom: room.isVoice,
+            userAdmin: user.isAdmin(),
+            roomMicEnabled: room.micEnabled
+        });
+
+        // Check if this is a voice room
+        if (!room.isVoice) {
+            logger.warn('Mic request for non-voice room', { 
+                userId: user.uid, 
+                roomId: room.id,
+                roomName: room.name 
+            });
+            // Send denial response for text rooms
+            sendPacket(socket, 0x018d, Buffer.from('00000000', 'hex'), socket.id);
+            return;
+        }
+
+        // Check if room has mic enabled
+        if (!room.micEnabled) {
+            logger.warn('Mic request for room with mic disabled', { 
+                userId: user.uid, 
+                roomId: room.id 
+            });
+            sendPacket(socket, 0x018d, Buffer.from('00000000', 'hex'), socket.id);
+            return;
+        }
+
+        // Check user permissions - admins and room owners can always use mic
+        const roomUser = room.getUser(user.uid);
+        const isRoomAdmin = roomUser && roomUser.isRoomAdmin;
+        const isGlobalAdmin = user.isAdmin();
+        const isRoomOwner = room.createdBy === user.uid;
+        const canUseMic = isGlobalAdmin || isRoomAdmin || isRoomOwner || room.allowAllMics;
+
+        if (!canUseMic) {
+            logger.info('Mic request denied - insufficient permissions', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                isRoomAdmin,
+                isGlobalAdmin,
+                isRoomOwner,
+                allowAllMics: room.allowAllMics
+            });
+            sendPacket(socket, 0x018d, Buffer.from('00000000', 'hex'), socket.id);
+            return;
+        }
+
+        // Grant mic permission
+        logger.info('Mic permission granted', {
+            userId: user.uid,
+            nickname: user.nickname,
+            roomId: room.id,
+            roomName: room.name,
+            permissionReason: isGlobalAdmin ? 'global_admin' : 
+                             isRoomAdmin ? 'room_admin' : 
+                             isRoomOwner ? 'room_owner' : 'room_allows_all'
+        });
+
+        // Update user mic status
+        if (roomUser) {
+            roomUser.mic = 1;
+        }
+        user.mic = 1;
+
+        // Send mic granted response with room ID
+        const roomIdBuffer = payload.slice(0, 4);
+        sendPacket(socket, 0x018d, roomIdBuffer, socket.id);
+
+        // Broadcast updated user list to show mic status change
+        this.broadcastUserListUpdate(room);
+
+        // Log for voice server coordination
+        logger.debug('User granted mic permission', {
+            userId: user.uid,
+            roomId: room.id,
+            voiceServerPort: SERVER_CONFIG?.VOICE_PORT || 2090
+        });
     }
 
     async handleRoomBanner(socket, payload) {
@@ -1037,14 +1134,8 @@ class PacketProcessor {
             roomName: targetRoom.name
         });
 
-        // Remove user from current room if they're in one
-        if (user.currentRoom) {
-            const currentRoom = serverState.getRoom(user.currentRoom);
-            if (currentRoom) {
-                currentRoom.removeUser(user);
-                this.broadcastUserListUpdate(currentRoom);
-            }
-        }
+        // For multiple room support, users can join additional rooms as admin
+        // without leaving their current rooms (unless they choose to)
 
         // Join the target room as admin (4th parameter = true, like original joinRoom call)
         if (targetRoom.addUser(user, true, true)) { // visible=true, isAdmin=true

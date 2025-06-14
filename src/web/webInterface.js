@@ -387,6 +387,78 @@ class WebInterface {
                 res.status(500).json({ error: 'Failed to perform maintenance' });
             }
         });
+
+        // User management endpoints
+        this.app.get('/api/users/:userId', async (req, res) => {
+            try {
+                const userId = parseInt(req.params.userId);
+                const user = await this.db.getUserByUid(userId);
+                
+                if (!user) {
+                    return res.status(404).json({ error: 'User not found' });
+                }
+                
+                // Remove sensitive data
+                const { password, ...safeUser } = user;
+                res.json(safeUser);
+            } catch (error) {
+                logger.error('Failed to get user details', error);
+                res.status(500).json({ error: 'Failed to get user details' });
+            }
+        });
+
+        this.app.put('/api/admin/users/:userId', async (req, res) => {
+            try {
+                const userId = parseInt(req.params.userId);
+                const updateData = req.body;
+                
+                // Validate required fields
+                if (!updateData.nickname || !updateData.email) {
+                    return res.status(400).json({ error: 'Nickname and email are required' });
+                }
+                
+                // Update user in database
+                await this.db.updateUser(userId, updateData);
+                
+                // If user is online, update their data in memory
+                const onlineUser = this.serverState.getUser(userId);
+                if (onlineUser) {
+                    onlineUser.nickname = updateData.nickname;
+                    onlineUser.email = updateData.email;
+                    onlineUser.firstName = updateData.firstName || '';
+                    onlineUser.lastName = updateData.lastName || '';
+                    onlineUser.paid1 = updateData.paid1;
+                    onlineUser.admin = updateData.admin;
+                }
+                
+                logger.info('User updated by admin', { userId, updateData });
+                res.json({ success: true, message: 'User updated successfully' });
+            } catch (error) {
+                logger.error('Failed to update user', error);
+                res.status(500).json({ error: 'Failed to update user' });
+            }
+        });
+
+        this.app.delete('/api/admin/users/:userId', async (req, res) => {
+            try {
+                const userId = parseInt(req.params.userId);
+                
+                // First disconnect user if online
+                const onlineUser = this.serverState.getUser(userId);
+                if (onlineUser) {
+                    this.serverState.removeUserConnection(userId, 'Account deleted by administrator');
+                }
+                
+                // Delete user from database
+                await this.db.deleteUser(userId);
+                
+                logger.info('User deleted by admin', { userId });
+                res.json({ success: true, message: 'User deleted successfully' });
+            } catch (error) {
+                logger.error('Failed to delete user', error);
+                res.status(500).json({ error: 'Failed to delete user' });
+            }
+        });
     }
 
     setupWebSocket() {
@@ -423,6 +495,15 @@ class WebInterface {
         this.serverState.on('roomDeleted', () => {
             this.broadcastUpdate('roomDeleted');
         });
+
+        // New events for real-time room updates
+        this.serverState.on('userJoinedRoom', () => {
+            this.broadcastUpdate('userJoinedRoom');
+        });
+
+        this.serverState.on('userLeftRoom', () => {
+            this.broadcastUpdate('userLeftRoom');
+        });
     }
 
     async sendServerState(socket) {
@@ -437,15 +518,33 @@ class WebInterface {
             const voiceStats = this.voiceServer.getStats();
             
             // Get detailed user and room data for the dashboard
-            const users = this.serverState.getOnlineUsers().map(user => ({
-                uid: user.uid,
-                nickname: user.nickname,
-                mode: user.mode,
-                isAdmin: user.isAdmin(),
-                currentRoom: user.currentRoom?.name || null,
-                loginTime: user.loginTime,
-                lastActivity: user.lastActivity
-            }));
+            const users = this.serverState.getOnlineUsers().map(user => {
+                // Get all room names user is currently in
+                let currentRoomNames = [];
+                if (user.getRoomCount() > 0) {
+                    const roomIds = user.getRoomIds();
+                    currentRoomNames = roomIds.map(roomId => {
+                        const room = this.serverState.getRoom(roomId);
+                        return room ? room.name : `Room ${roomId}`;
+                    }).filter(Boolean);
+                }
+                
+                return {
+                    uid: user.uid,
+                    nickname: user.nickname,
+                    mode: user.mode,
+                    isAdmin: user.isAdmin(),
+                    currentRoom: currentRoomNames.length > 0 ? currentRoomNames.join(', ') : null,
+                    currentRooms: currentRoomNames, // Array of all room names
+                    roomCount: user.getRoomCount(),
+                    loginTime: user.loginTime,
+                    lastActivity: user.lastActivity,
+                    paid1: user.paid1, // Include paid status for badge display
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName
+                };
+            });
             
             const rooms = this.serverState.getAllRooms().map(room => ({
                 id: room.id,

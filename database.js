@@ -150,7 +150,7 @@ const db = new sqlite3.Database("database.db", (err) => {
         // TOP ROOMS (30001)
         [60001, 30001, "The Main Event", 0, 1, 'G', 0, ''],
         [60002, 30001, "VIP Lounge", 0, 1, 'A', 1, 'exclusive'],
-        [60003, 30001, "Comedy Central", 0, 1, 'T', 0, ''],
+        [60003, 30001, "Comedy Central", 0, 1, 'G', 0, ''],
         
         // FEATURED ROOMS (30002)
         [60004, 30002, "Weekend Warriors", 0, 1, 'A', 0, ''],
@@ -160,12 +160,12 @@ const db = new sqlite3.Database("database.db", (err) => {
         [60006, 30006, "Global Connections", 0, 1, 'G', 0, ''],
         [60007, 30006, "Coffee Chat", 0, 0, 'G', 0, ''],
         [60008, 30006, "Midnight Express", 0, 1, 'A', 0, ''],
-        [60009, 30006, "Friendship Circle", 0, 1, 'T', 0, ''],
+        [60009, 30006, "Friendship Circle", 0, 1, 'G', 0, ''],
         
         // LOVE AND ROMANCE (30007)
         [60010, 30007, "Cupid's Corner", 0, 1, 'A', 0, ''],
         [60011, 30007, "Sweet Dreams", 0, 0, 'A', 1, 'romance'],
-        [60012, 30007, "Hearts & Souls", 0, 1, 'T', 0, ''],
+        [60012, 30007, "Hearts & Souls", 0, 1, 'A', 0, ''],
         
         // SOCIAL ISSUES (30008)
         [60013, 30008, "Current Events Hub", 0, 1, 'G', 0, ''],
@@ -183,7 +183,7 @@ const db = new sqlite3.Database("database.db", (err) => {
         [60021, 30011, "México Lindo", 0, 0, 'G', 0, ''],
         
         // YOUNG ADULTS (30018)
-        [60022, 30018, "Campus Life", 0, 1, 'T', 0, ''],
+        [60022, 30018, "Campus Life", 0, 1, 'A', 0, ''],
         [60023, 30018, "Party Zone", 0, 1, 'A', 1, 'party2024'],
         [60024, 30018, "Study Buddies", 0, 0, 'G', 0, ''],
         
@@ -197,7 +197,7 @@ const db = new sqlite3.Database("database.db", (err) => {
         
         // SPORTS AND HOBBIES (30025)
         [60029, 30025, "Sports Fanatics", 0, 1, 'A', 0, ''],
-        [60030, 30025, "Gaming Paradise", 0, 1, 'T', 0, ''],
+        [60030, 30025, "Gaming Paradise", 0, 1, 'A', 0, ''],
         
         // MUSIC (30027)
         [60031, 30027, "Rock Legends", 0, 1, 'A', 0, ''],
@@ -208,7 +208,7 @@ const db = new sqlite3.Database("database.db", (err) => {
         [60034, 30028, "Late Night Diner", 0, 0, 'A', 0, ''],
         
         // ADULT ORIENTED (30029)
-        [60035, 30029, "Adults Only", 0, 1, 'A', 1, 'adults'],
+        [60035, 30029, "Adults Only", 0, 1, 'R', 1, 'adults'],
         [60036, 30029, "Mature Discussions", 0, 0, 'A', 0, ''],
       ],
     },

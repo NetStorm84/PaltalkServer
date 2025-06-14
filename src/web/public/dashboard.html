@@ -150,6 +150,120 @@
             background-color: #e53e3e;
         }
 
+        /* Paid user indicators */
+        .paid-indicator {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-left: 6px;
+        }
+
+        .paid-premium {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #000;
+            box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
+        }
+
+        .paid-extreme {
+            background: linear-gradient(45deg, #FF1493, #8A2BE2);
+            color: white;
+            box-shadow: 0 2px 4px rgba(255, 20, 147, 0.3);
+        }
+
+        .paid-free {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        /* User management modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+
         .admin-panel {
             grid-column: 1 / -1;
         }
@@ -530,22 +644,53 @@
                 return;
             }
 
-            container.innerHTML = users.map(user => `
+            // Debug: Log paid1 values for all users
+            console.log('=== User Paid Status Debug ===');
+            users.forEach(user => {
+                console.log(`User ${user.nickname}: paid1="${user.paid1}" (type: ${typeof user.paid1}), currentRoom="${user.currentRoom}"`);
+            });
+
+            // Sort users: paid users first, then by admin status, then by nickname
+            const sortedUsers = users.sort((a, b) => {
+                // First sort by paid status (Y, 6, E before N)
+                const aPaid = ['Y', '6', 'E'].includes(a.paid1) ? 1 : 0;
+                const bPaid = ['Y', '6', 'E'].includes(b.paid1) ? 1 : 0;
+                if (aPaid !== bPaid) return bPaid - aPaid;
+                
+                // Then by admin status
+                if (a.admin !== b.admin) return b.admin - a.admin;
+                
+                // Finally by nickname
+                return a.nickname.localeCompare(b.nickname);
+            });
+
+            container.innerHTML = sortedUsers.map(user => `
                 <div class="user-item">
                     <div class="user-info">
                         <div class="user-name">
                             <span class="status-indicator ${getStatusClass(user.mode)}"></span>
                             ${escapeHtml(user.nickname)}
                             ${user.isAdmin ? '👑' : ''}
+                            ${getPaidIndicator(user.paid1)}
                         </div>
                         <div class="user-details">
-                            UID: ${user.uid} • Room: ${user.currentRoom || 'Lobby'} • 
+                            UID: ${user.uid} • 
+                            ${user.roomCount > 0 ? 
+                                `Rooms (${user.roomCount}): ${user.currentRoom}` : 
+                                'Room: Lobby'
+                            } • 
                             Login: ${formatTime(user.loginTime)}
+                            ${user.email ? ` • ${user.email}` : ''}
                         </div>
                     </div>
-                    <button class="btn btn-danger btn-sm" onclick="kickUser(${user.uid}, '${escapeHtml(user.nickname)}')" style="font-size: 0.8rem; padding: 4px 8px;">
-                        Kick
-                    </button>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-info btn-sm" onclick="editUser(${user.uid})" style="font-size: 0.8rem; padding: 4px 8px;">
+                            Edit
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="kickUser(${user.uid}, '${escapeHtml(user.nickname)}')" style="font-size: 0.8rem; padding: 4px 8px;">
+                            Kick
+                        </button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -801,6 +946,167 @@
                 sendBroadcast();
             }
         });
+
+        // Helper function to get paid status indicator
+        function getPaidIndicator(paid1) {
+            // Convert to string to handle both string and number values
+            const paidStatus = String(paid1);
+            switch (paidStatus) {
+                case 'Y':
+                    return '<span class="paid-indicator paid-premium">💎 PREMIUM</span>';
+                case '6':
+                    return '<span class="paid-indicator paid-extreme">⚡ EXTREME</span>';
+                default:
+                    return '<span class="paid-indicator paid-free">BASIC</span>';
+            }
+        }
+
+        // User management functions
+        async function editUser(userId) {
+            try {
+                // Fetch user details
+                const response = await fetch(`/api/users/${userId}`);
+                const user = await response.json();
+                
+                if (!user) {
+                    alert('User not found');
+                    return;
+                }
+
+                // Create modal HTML
+                const modalHtml = `
+                    <div id="userEditModal" class="modal" style="display: block;">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2 class="modal-title">Edit User: ${escapeHtml(user.nickname)}</h2>
+                                <span class="close" onclick="closeUserModal()">&times;</span>
+                            </div>
+                            <form onsubmit="saveUserChanges(event, ${userId})">
+                                <div class="form-group">
+                                    <label class="form-label">Nickname:</label>
+                                    <input type="text" class="form-input" name="nickname" value="${escapeHtml(user.nickname)}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email:</label>
+                                    <input type="email" class="form-input" name="email" value="${escapeHtml(user.email || '')}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">First Name:</label>
+                                    <input type="text" class="form-input" name="firstName" value="${escapeHtml(user.firstName || '')}">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Last Name:</label>
+                                    <input type="text" class="form-input" name="lastName" value="${escapeHtml(user.lastName || '')}">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Paid Status:</label>
+                                    <select class="form-select" name="paid1" required>
+                                        <option value="0" ${String(user.paid1) === '0' ? 'selected' : ''}>Basic</option>
+                                        <option value="Y" ${String(user.paid1) === 'Y' ? 'selected' : ''}>Premium</option>
+                                        <option value="6" ${String(user.paid1) === '6' ? 'selected' : ''}>Extreme</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Admin Level:</label>
+                                    <select class="form-select" name="admin" required>
+                                        <option value="0" ${user.admin === 0 ? 'selected' : ''}>Regular User</option>
+                                        <option value="1" ${user.admin === 1 ? 'selected' : ''}>Admin</option>
+                                        <option value="2" ${user.admin === 2 ? 'selected' : ''}>Super Admin</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Listed (visible in user search):</label>
+                                    <select class="form-select" name="listed" required>
+                                        <option value="1" ${user.listed === 1 ? 'selected' : ''}>Yes</option>
+                                        <option value="0" ${user.listed === 0 ? 'selected' : ''}>No</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    <button type="button" class="btn btn-secondary" onclick="closeUserModal()">Cancel</button>
+                                    <button type="button" class="btn btn-danger" onclick="deleteUser(${userId}, '${escapeHtml(user.nickname)}')">Delete User</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+
+                // Add modal to page
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            } catch (error) {
+                alert('Error loading user details: ' + error.message);
+            }
+        }
+
+        function closeUserModal() {
+            const modal = document.getElementById('userEditModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function saveUserChanges(event, userId) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const userData = {
+                nickname: formData.get('nickname'),
+                email: formData.get('email'),
+                firstName: formData.get('firstName'),
+                lastName: formData.get('lastName'),
+                paid1: formData.get('paid1'),
+                admin: parseInt(formData.get('admin')),
+                listed: parseInt(formData.get('listed'))
+            };
+
+            try {
+                const response = await fetch(`/api/admin/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('User updated successfully');
+                    closeUserModal();
+                    refreshData();
+                } else {
+                    alert('Update failed: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error updating user: ' + error.message);
+            }
+        }
+
+        async function deleteUser(userId, nickname) {
+            if (!confirm(`Are you sure you want to DELETE user "${nickname}"? This action cannot be undone.`)) {
+                return;
+            }
+
+            if (!confirm('This will permanently delete the user account. Are you absolutely sure?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/users/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`User "${nickname}" has been deleted`);
+                    closeUserModal();
+                    refreshData();
+                } else {
+                    alert('Delete failed: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error deleting user: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>

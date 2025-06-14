@@ -108,6 +108,7 @@ class PaltalkServer {
             const permanentRooms = await this.databaseManager.getPermanentRooms();
             permanentRooms.forEach(roomData => {
                 const room = new Room(roomData, true);
+                room.setServerState(serverState);
                 serverState.addRoom(room);
             });
             logger.info(`✅ Loaded ${permanentRooms.length} permanent rooms`);

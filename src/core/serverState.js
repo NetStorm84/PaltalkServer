@@ -120,9 +120,10 @@ class ServerState extends EventEmitter {
                 return false;
             }
 
-            // Remove from current room
-            if (user.currentRoom) {
-                const room = this.rooms.get(user.currentRoom);
+            // Remove from all rooms user is in
+            const userRoomIds = user.getRoomIds();
+            userRoomIds.forEach(roomId => {
+                const room = this.rooms.get(roomId);
                 if (room) {
                     room.removeUser(user);
                     
@@ -131,7 +132,7 @@ class ServerState extends EventEmitter {
                         this.removeRoom(room.id);
                     }
                 }
-            }
+            });
 
             // Update user state
             user.setMode(USER_MODES.OFFLINE);

@@ -169,6 +169,179 @@ class DatabaseManager {
     }
 
     /**
+     * Get user by UID
+     * @param {number} uid 
+     * @returns {Promise<Object|null>}
+     */
+    async getUserByUid(uid) {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                'SELECT * FROM users WHERE uid = ?',
+                [uid],
+                (err, row) => {
+                    if (err) {
+                        logger.error('Failed to get user by UID', err, { uid });
+                        reject(err);
+                    } else {
+                        resolve(row || null);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Update user information
+     * @param {number} uid 
+     * @param {Object} updateData 
+     * @returns {Promise<boolean>}
+     */
+    async updateUser(uid, updateData) {
+        return new Promise((resolve, reject) => {
+            const {
+                nickname,
+                email,
+                firstName = '',
+                lastName = '',
+                paid1,
+                admin,
+                listed = 1
+            } = updateData;
+
+            this.db.run(
+                `UPDATE users 
+                 SET nickname = ?, email = ?, first = ?, last = ?, 
+                     paid1 = ?, admin = ?, listed = ? 
+                 WHERE uid = ?`,
+                [nickname, email, firstName, lastName, paid1, admin, listed, uid],
+                function(err) {
+                    if (err) {
+                        logger.error('Failed to update user', err, { uid, updateData });
+                        reject(err);
+                    } else {
+                        logger.info('User updated successfully', { uid, changes: this.changes });
+                        resolve(this.changes > 0);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Delete user permanently
+     * @param {number} uid 
+     * @returns {Promise<boolean>}
+     */
+    async deleteUser(uid) {
+        return new Promise((resolve, reject) => {
+            this.db.serialize(() => {
+                this.db.run('BEGIN TRANSACTION');
+                
+                // Delete user's offline messages
+                this.db.run('DELETE FROM offline_messages WHERE sender = ? OR receiver = ?', [uid, uid]);
+                
+                // Delete the user
+                this.db.run('DELETE FROM users WHERE uid = ?', [uid], function(err) {
+                    if (err) {
+                        logger.error('Failed to delete user', err, { uid });
+                        this.db.run('ROLLBACK');
+                        reject(err);
+                    } else {
+                        this.db.run('COMMIT', (commitErr) => {
+                            if (commitErr) {
+                                logger.error('Failed to commit user deletion', commitErr, { uid });
+                                reject(commitErr);
+                            } else {
+                                logger.info('User deleted successfully', { uid, changes: this.changes });
+                                resolve(this.changes > 0);
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    }
+
+    /**
+     * Update user information
+     * @param {number} uid 
+     * @param {Object} updateData 
+     * @returns {Promise<boolean>}
+     */
+    async updateUser(uid, updateData) {
+        return new Promise((resolve, reject) => {
+            const {
+                nickname,
+                email,
+                firstName,
+                lastName,
+                paid1,
+                admin,
+                listed
+            } = updateData;
+
+            this.db.run(
+                `UPDATE users SET 
+                    nickname = ?, 
+                    email = ?, 
+                    first = ?, 
+                    last = ?, 
+                    paid1 = ?, 
+                    admin = ?, 
+                    listed = ?
+                WHERE uid = ?`,
+                [nickname, email, firstName || '', lastName || '', paid1, admin, listed, uid],
+                function(err) {
+                    if (err) {
+                        logger.error('Failed to update user', err, { uid, updateData });
+                        reject(err);
+                    } else {
+                        logger.info('User updated successfully', { uid, changes: this.changes });
+                        resolve(this.changes > 0);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Delete user from database
+     * @param {number} uid 
+     * @returns {Promise<boolean>}
+     */
+    async deleteUser(uid) {
+        return new Promise((resolve, reject) => {
+            this.db.serialize(() => {
+                this.db.run('BEGIN TRANSACTION');
+                
+                // Delete from offline_messages
+                this.db.run('DELETE FROM offline_messages WHERE sender = ? OR receiver = ?', [uid, uid]);
+                
+                // Delete user
+                this.db.run('DELETE FROM users WHERE uid = ?', [uid], function(err) {
+                    if (err) {
+                        logger.error('Failed to delete user', err, { uid });
+                        reject(err);
+                        return;
+                    }
+                    
+                    const deleted = this.changes > 0;
+                    
+                    if (deleted) {
+                        logger.info('User deleted successfully', { uid });
+                    } else {
+                        logger.warn('No user found to delete', { uid });
+                    }
+                    
+                    resolve(deleted);
+                });
+                
+                this.db.run('COMMIT');
+            });
+        });
+    }
+
+    /**
      * Get all categories
      * @returns {Promise<Array>}
      */
