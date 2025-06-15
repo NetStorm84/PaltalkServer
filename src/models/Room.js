@@ -59,8 +59,12 @@ class Room {
         try {
             if (this.users.has(user.uid)) {
                 logger.warn('User already in room', { 
-                    userId: user.uid, 
-                    roomId: this.id
+                    userId: user.uid,
+                    nickname: user.nickname,
+                    roomId: this.id,
+                    roomName: this.name,
+                    currentUsersInRoom: Array.from(this.users.keys()),
+                    currentUserNicknames: Array.from(this.users.values()).map(u => u.nickname)
                 });
                 return false;
             }

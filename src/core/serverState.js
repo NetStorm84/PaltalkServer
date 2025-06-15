@@ -679,6 +679,52 @@ class ServerState extends EventEmitter {
             logger.error('Failed to cleanup empty temporary rooms', error);
         }
     }
+
+    /**
+     * Perform startup cleanup to ensure clean server state
+     * This fixes issues with stale user/room state from previous server runs
+     */
+    performStartupCleanup() {
+        try {
+            logger.info('🧹 Performing startup cleanup...');
+            
+            // Clear all users (they should reconnect after server restart)
+            const userCount = this.users.size;
+            this.users.clear();
+            this.sockets.clear();
+            
+            // Clean up room state - remove all users from rooms but keep permanent rooms
+            let totalUsersRemoved = 0;
+            this.rooms.forEach(room => {
+                const roomUserCount = room.users.size;
+                totalUsersRemoved += roomUserCount;
+                
+                // Clear all users from the room
+                room.users.clear();
+                
+                // Reset room user counts
+                if (room.resetUserCount) {
+                    room.resetUserCount();
+                }
+            });
+            
+            // Remove non-permanent rooms (they'll be recreated as needed)
+            const tempRooms = Array.from(this.rooms.values()).filter(room => !room.isPermanent);
+            tempRooms.forEach(room => {
+                this.rooms.delete(room.id);
+            });
+            
+            logger.info('✅ Startup cleanup completed', {
+                usersCleared: userCount,
+                usersRemovedFromRooms: totalUsersRemoved,
+                temporaryRoomsRemoved: tempRooms.length,
+                permanentRoomsRetained: this.rooms.size
+            });
+            
+        } catch (error) {
+            logger.error('Failed to perform startup cleanup', error);
+        }
+    }
 }
 
 // Create singleton instance

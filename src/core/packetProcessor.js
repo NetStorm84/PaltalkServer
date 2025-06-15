@@ -252,7 +252,8 @@ class PacketProcessor {
 
     /**
      * Handle UIN (User ID Number) request - provides a valid UID for login
-     * In the real Paltalk protocol, this typically involves looking up a user based on credentials
+     * Based on old implementation: payload.slice(4).toString('utf8') contains the nickname
+     * Response format: Buffer.from(`uid=${usr.uid}\nnickname=${usr.nickname}\n`)
      * @param {Socket} socket 
      * @param {Buffer} payload 
      */
@@ -264,85 +265,48 @@ class PacketProcessor {
         });
         
         try {
-            let userUid = null;
+            // OLD IMPLEMENTATION LOGIC: Extract nickname from payload.slice(4).toString('utf8')
+            const nickname = payload.slice(4).toString('utf8').trim();
             
-            // Check if payload contains credentials or user identification
-            if (payload.length > 0) {
-                // Try to parse potential username/nickname from payload
-                const payloadStr = payload.toString('utf8').trim();
-                logger.debug('GET_UIN payload content', { 
-                    socketId: socket.id, 
-                    payloadStr: payloadStr.substring(0, 100) // Limit log size
-                });
-                
-                // Look for potential username patterns in the payload
-                // The payload might contain username, email, or other identifying info
-                if (payloadStr.length > 0) {
-                    // Try to find user by nickname first
-                    const userData = await this.db.getUserByNickname(payloadStr);
-                    if (userData) {
-                        userUid = userData.uid;
-                        logger.info('Found user by nickname from payload', {
-                            socketId: socket.id,
-                            nickname: userData.nickname,
-                            uid: userUid
-                        });
-                    } else {
-                        // Try to find user by email if nickname lookup failed
-                        const userByEmail = await this.db.getUserByEmail(payloadStr);
-                        if (userByEmail) {
-                            userUid = userByEmail.uid;
-                            logger.info('Found user by email from payload', {
-                                socketId: socket.id,
-                                email: payloadStr,
-                                uid: userUid
-                            });
-                        }
-                    }
-                }
-            }
-            
-            // If no user found from payload, provide a guest/demo user
-            if (!userUid) {
-                // In a real implementation, you might:
-                // 1. Create a temporary guest user
-                // 2. Provide a default demo user
-                // 3. Return an error requiring proper credentials
-                
-                // For now, provide the NetStorm user as a demo user
-                userUid = 1000002; // NetStorm user
-                
-                // Verify this demo user exists
-                const demoUser = await this.db.getUserByUid(userUid);
-                if (!demoUser) {
-                    // Fallback to Paltalk system user
-                    userUid = 1000001;
-                }
-                
-                logger.info('Providing demo user UID', {
-                    socketId: socket.id,
-                    uid: userUid,
-                    reason: 'No valid credentials in payload'
-                });
-            }
-            
-            // Send UIN_RESPONSE with the determined UID
-            const response = Buffer.alloc(4);
-            response.writeUInt32BE(userUid, 0);
-            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
-            
-            logger.info('UIN_RESPONSE sent', { 
+            logger.debug('GET_UIN extracting nickname from payload', { 
                 socketId: socket.id, 
-                uid: userUid
+                nickname: nickname,
+                payloadAfterSlice: payload.slice(4).toString('hex')
             });
+            
+            // Find user by nickname
+            const userData = await this.db.getUserByNickname(nickname);
+            
+            if (userData) {
+                // OLD IMPLEMENTATION RESPONSE: Buffer.from(`uid=${usr.uid}\nnickname=${usr.nickname}\n`)
+                const responseString = `uid=${userData.uid}\nnickname=${userData.nickname}\n`;
+                const response = Buffer.from(responseString);
+                
+                sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
+                
+                logger.info('UIN_RESPONSE sent for found user', { 
+                    socketId: socket.id, 
+                    uid: userData.uid,
+                    nickname: userData.nickname,
+                    responseString: responseString
+                });
+            } else {
+                // User not found - send error response or no response
+                logger.warn('UIN request for non-existent user', { 
+                    socketId: socket.id, 
+                    requestedNickname: nickname
+                });
+                
+                // Don't send any response for non-existent users
+                // This prevents clients from getting fake UIDs
+                return;
+            }
             
         } catch (error) {
             logger.error('Failed to process GET_UIN request', error, { socketId: socket.id });
             
-            // Send fallback UID in case of error
-            const response = Buffer.alloc(4);
-            response.writeUInt32BE(1000001, 0); // Paltalk system user
-            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
+            // Don't send any fallback response to avoid fake user IDs
+            return;
         }
     }
 
@@ -356,7 +320,25 @@ class PacketProcessor {
                 return;
             }
 
+            // CRITICAL FIX: Clean up any existing session for this user BEFORE creating new user object
+            // This prevents "User already in room" errors from stale sessions
+            const existingUser = serverState.getUser(uid);
+            if (existingUser) {
+                logger.warn('User attempting to login while already connected - cleaning up existing session', {
+                    uid: existingUser.uid,
+                    nickname: existingUser.nickname,
+                    existingSocketId: existingUser.socket?.id
+                });
+                
+                // Force cleanup of existing session
+                serverState.removeUserConnection(existingUser.uid, 'Duplicate login - cleaning up old session');
+            }
+            
             const user = new User(userData);
+            
+            // CRITICAL FIX: Set socket.id to user.uid like the old implementation
+            // This makes socket.id equivalent to user ID for message broadcasting
+            socket.id = user.uid;
             
             if (!serverState.addUserConnection(socket, user)) {
                 logger.error('Failed to add user connection', { uid, socketId: socket.id });
@@ -499,6 +481,17 @@ class PacketProcessor {
         // - Regular users join as normal users (can still use "Join as Admin" separately)
         const isAdmin = user.isAdmin() || (room.createdBy === user.uid);
 
+        logger.info('Attempting to add user to room', {
+            userId: user.uid,
+            nickname: user.nickname,
+            roomId: room.id,
+            roomName: room.name,
+            isInvisible,
+            isAdmin,
+            currentUsersInRoom: Array.from(room.users.keys()),
+            currentUserNicknames: Array.from(room.users.values()).map(u => u.nickname)
+        });
+
         if (room.addUser(user, !isInvisible, isAdmin)) {
             await this.sendRoomJoinData(socket, room, user, isAdmin);
             
@@ -557,6 +550,18 @@ class PacketProcessor {
             
             // *** REAL-TIME BROADCAST: Send updated user lists to everyone ***
             this.broadcastUserListUpdate(room);
+        } else {
+            logger.error('Failed to add user to room', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName: room.name,
+                isInvisible,
+                isAdmin,
+                reason: 'room.addUser() returned false',
+                currentUsersInRoom: Array.from(room.users.keys()),
+                currentUserNicknames: Array.from(room.users.values()).map(u => u.nickname)
+            });
         }
     }
 
@@ -649,13 +654,22 @@ class PacketProcessor {
 
     async handleRoomMessage(socket, payload) {
         const user = serverState.getUserBySocketId(socket.id);
-        if (!user || !user.currentRoom) return;
+        if (!user) return;
 
         const roomId = Utils.hexToDec(payload.slice(0, 4));
         const room = serverState.getRoom(roomId);
         const rawMessage = payload.slice(4).toString('utf8');
 
-        if (!room || !room.hasUser(user.uid)) return;
+        if (!room || !room.hasUser(user.uid)) {
+            logger.warn('User trying to send message to room they are not in', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId,
+                roomExists: !!room,
+                userInRoom: room ? room.hasUser(user.uid) : false
+            });
+            return;
+        }
 
         // Enhanced message validation and sanitization
         const sanitizedMessage = Utils.sanitizeChatMessage(rawMessage, 1000);
@@ -674,14 +688,14 @@ class PacketProcessor {
         this.storeRecentMessage(user.uid, sanitizedMessage);
 
         // Broadcast message to all users in room except sender
-        // FIXED: Match old implementation format exactly - don't double-encode the message
+        // FIXED: Since socket.id = user.uid, we can use socket.id for sender identification
         const roomIdHex = Utils.decToHex(roomId);
-        const userIdHex = Utils.decToHex(user.uid);
-        const messageBuffer = Buffer.concat([
-            Buffer.from(roomIdHex, 'hex'),
-            Buffer.from(userIdHex, 'hex'), 
-            Buffer.from(sanitizedMessage, 'utf8')
-        ]);
+        const senderIdHex = Utils.decToHex(socket.id); // socket.id is now user.uid
+        const messageHex = Buffer.from(sanitizedMessage, 'utf8').toString('hex');
+        
+        // Match old implementation: concatenate hex strings then convert to buffer
+        const combinedHex = roomIdHex + senderIdHex + messageHex;
+        const messageBuffer = Buffer.from(combinedHex, 'hex');
 
         this.broadcastToRoom(room, PACKET_TYPES.ROOM_MESSAGE_IN, messageBuffer, user.socket);
 
@@ -1234,6 +1248,16 @@ class PacketProcessor {
         ]);
         sendPacket(socket, 0x015f, topicBuffer, socket.id);
 
+        // Send status message if it exists (this is what admins can change)
+        if (room.statusMessage && room.statusMessage.trim()) {
+            const statusBuffer = Buffer.concat([
+                Buffer.from(roomIdHex, 'hex'),
+                Buffer.from('00000000', 'hex'),
+                Buffer.from(room.statusMessage, 'utf8')
+            ]);
+            sendPacket(socket, 0x015f, statusBuffer, socket.id);
+        }
+
         // Send user list
         this.sendUserList(socket, room);
 
@@ -1303,11 +1327,69 @@ class PacketProcessor {
     }
 
     broadcastToRoom(room, packetType, payload, excludeSocket = null) {
-        room.getAllUsers().forEach(roomUserData => {
+        const allUsers = room.getAllUsers();
+        logger.debug('Broadcasting to room', {
+            roomId: room.id,
+            roomName: room.name,
+            packetType: `0x${packetType.toString(16)}`,
+            userCount: allUsers.length,
+            excludeSocketId: excludeSocket?.id
+        });
+
+        let successCount = 0;
+        let failCount = 0;
+
+        allUsers.forEach(roomUserData => {
             const user = serverState.getUser(roomUserData.uid);
-            if (user && user.socket && user.socket !== excludeSocket) {
-                sendPacket(user.socket, packetType, payload, user.socket.id);
+            if (!user) {
+                logger.warn('User not found in serverState during broadcast', {
+                    uid: roomUserData.uid,
+                    roomId: room.id
+                });
+                failCount++;
+                return;
             }
+
+            if (!user.socket) {
+                logger.warn('User has no socket during broadcast', {
+                    uid: user.uid,
+                    nickname: user.nickname,
+                    roomId: room.id
+                });
+                failCount++;
+                return;
+            }
+
+            if (user.socket === excludeSocket) {
+                logger.debug('Excluding sender from broadcast', {
+                    uid: user.uid,
+                    nickname: user.nickname,
+                    roomId: room.id
+                });
+                return;
+            }
+
+            try {
+                sendPacket(user.socket, packetType, payload, user.socket.id);
+                successCount++;
+            } catch (error) {
+                logger.error('Failed to send packet during broadcast', error, {
+                    uid: user.uid,
+                    nickname: user.nickname,
+                    roomId: room.id,
+                    packetType: `0x${packetType.toString(16)}`
+                });
+                failCount++;
+            }
+        });
+
+        logger.debug('Broadcast completed', {
+            roomId: room.id,
+            roomName: room.name,
+            packetType: `0x${packetType.toString(16)}`,
+            successCount,
+            failCount,
+            totalUsers: allUsers.length
         });
     }
 

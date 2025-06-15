@@ -57,6 +57,10 @@ class PaltalkServer {
             // Load initial data
             await this.loadInitialData();
 
+            // CRITICAL FIX: Perform startup cleanup to clear stale user/room state
+            // This prevents "User already in room" errors from previous server runs
+            serverState.performStartupCleanup();
+
             // Start voice server
             await this.voiceServer.start();
 
@@ -283,6 +287,9 @@ class PaltalkServer {
      */
     startPeriodicTasks() {
         logger.info('⏰ Starting periodic tasks...');
+
+        // Start ServerState periodic cleanup tasks
+        serverState.startPeriodicTasks();
 
         // Cleanup task every 5 minutes
         this.cleanupInterval = setInterval(() => {
