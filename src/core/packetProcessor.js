@@ -323,7 +323,23 @@ class PacketProcessor {
         const user = serverState.getUserBySocketId(socket.id);
         if (!user) return;
 
-        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        // Enhanced debugging for room ID conversion
+        const roomIdBuffer = payload.slice(0, 4);
+        const roomId = Utils.hexToDec(roomIdBuffer);
+        
+        // Log detailed conversion info for debugging
+        logger.info('Room join request details', {
+            userId: user.uid,
+            nickname: user.nickname,
+            payloadLength: payload.length,
+            payloadHex: payload.toString('hex'),
+            roomIdBufferHex: roomIdBuffer.toString('hex'),
+            roomIdBufferBytes: Array.from(roomIdBuffer),
+            convertedRoomId: roomId,
+            manualConversion: roomIdBuffer.readUInt32BE(0),
+            conversionMatch: roomId === roomIdBuffer.readUInt32BE(0)
+        });
+        
         const room = serverState.getRoom(roomId);
         
         if (!room) {

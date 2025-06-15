@@ -385,13 +385,7 @@ class Room {
      * @returns {boolean}
      */
     shouldAutoDelete() {
-        // NEVER auto-delete permanent rooms (loaded from database)
-        if (this.isPermanent) {
-            return false;
-        }
-        
-        // Only delete temporary rooms when empty
-        return this.users.size === 0;
+        return !this.isPermanent && this.users.size === 0;
     }
 }
 
