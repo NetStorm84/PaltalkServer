@@ -102,6 +102,10 @@ class PacketProcessor {
                     await this.handleLymerick(socket, payload);
                     break;
                 
+                case PACKET_TYPES.GET_UIN:
+                    await this.handleGetUin(socket, payload);
+                    break;
+                
                 case PACKET_TYPES.LOGIN:
                     await this.handleLogin(socket, payload);
                     break;
@@ -244,6 +248,102 @@ class PacketProcessor {
         
         const serverKey = Buffer.from('XyF¦164473312518');
         sendPacket(socket, PACKET_TYPES.SERVER_KEY, serverKey, socket.id);
+    }
+
+    /**
+     * Handle UIN (User ID Number) request - provides a valid UID for login
+     * In the real Paltalk protocol, this typically involves looking up a user based on credentials
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleGetUin(socket, payload) {
+        logger.info('GET_UIN request received', { 
+            socketId: socket.id,
+            payloadLength: payload.length,
+            payloadHex: payload.toString('hex')
+        });
+        
+        try {
+            let userUid = null;
+            
+            // Check if payload contains credentials or user identification
+            if (payload.length > 0) {
+                // Try to parse potential username/nickname from payload
+                const payloadStr = payload.toString('utf8').trim();
+                logger.debug('GET_UIN payload content', { 
+                    socketId: socket.id, 
+                    payloadStr: payloadStr.substring(0, 100) // Limit log size
+                });
+                
+                // Look for potential username patterns in the payload
+                // The payload might contain username, email, or other identifying info
+                if (payloadStr.length > 0) {
+                    // Try to find user by nickname first
+                    const userData = await this.db.getUserByNickname(payloadStr);
+                    if (userData) {
+                        userUid = userData.uid;
+                        logger.info('Found user by nickname from payload', {
+                            socketId: socket.id,
+                            nickname: userData.nickname,
+                            uid: userUid
+                        });
+                    } else {
+                        // Try to find user by email if nickname lookup failed
+                        const userByEmail = await this.db.getUserByEmail(payloadStr);
+                        if (userByEmail) {
+                            userUid = userByEmail.uid;
+                            logger.info('Found user by email from payload', {
+                                socketId: socket.id,
+                                email: payloadStr,
+                                uid: userUid
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // If no user found from payload, provide a guest/demo user
+            if (!userUid) {
+                // In a real implementation, you might:
+                // 1. Create a temporary guest user
+                // 2. Provide a default demo user
+                // 3. Return an error requiring proper credentials
+                
+                // For now, provide the NetStorm user as a demo user
+                userUid = 1000002; // NetStorm user
+                
+                // Verify this demo user exists
+                const demoUser = await this.db.getUserByUid(userUid);
+                if (!demoUser) {
+                    // Fallback to Paltalk system user
+                    userUid = 1000001;
+                }
+                
+                logger.info('Providing demo user UID', {
+                    socketId: socket.id,
+                    uid: userUid,
+                    reason: 'No valid credentials in payload'
+                });
+            }
+            
+            // Send UIN_RESPONSE with the determined UID
+            const response = Buffer.alloc(4);
+            response.writeUInt32BE(userUid, 0);
+            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
+            
+            logger.info('UIN_RESPONSE sent', { 
+                socketId: socket.id, 
+                uid: userUid
+            });
+            
+        } catch (error) {
+            logger.error('Failed to process GET_UIN request', error, { socketId: socket.id });
+            
+            // Send fallback UID in case of error
+            const response = Buffer.alloc(4);
+            response.writeUInt32BE(1000001, 0); // Paltalk system user
+            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
+        }
     }
 
     async handleLogin(socket, payload) {
