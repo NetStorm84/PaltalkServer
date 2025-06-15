@@ -20,8 +20,8 @@ class Room {
         this.color = roomData.c || roomData.color || '000000000';
         
         // Voice settings
-        this.micEnabled = roomData.mike || roomData.micEnabled || 1;
-        this.textEnabled = roomData.text || roomData.textEnabled || 1;
+        this.micEnabled = roomData.mike !== undefined ? roomData.mike : (roomData.micEnabled !== undefined ? roomData.micEnabled : 1);
+        this.textEnabled = roomData.text !== undefined ? roomData.text : (roomData.textEnabled !== undefined ? roomData.textEnabled : 1);
         this.allowAllMics = roomData.allowAllMics !== undefined ? roomData.allowAllMics : true; // Allow all users to use mic by default
         
         // Runtime properties
@@ -90,12 +90,33 @@ class Room {
                 // This is just a safety check
             }
 
+            // Implement automatic mic permissions logic
+            let micPermission = 0;
+            if (this.isVoice) {
+                if (isAdmin) {
+                    // Admins always get mic in voice rooms
+                    micPermission = 1;
+                } else if (this.micEnabled === 1) {
+                    // Auto mic enabled for new users in this voice room
+                    micPermission = 1;
+                } else {
+                    // Manual mic only - users must request mic
+                    micPermission = 0;
+                }
+            } else {
+                // Text rooms never grant mic permissions
+                micPermission = 0;
+            }
+
+            // Update user's mic status
+            user.mic = micPermission;
+
             const userRoomData = {
                 uid: user.uid,
                 nickname: user.nickname,
                 admin: isAdmin ? 1 : user.admin,
                 color: user.color,
-                mic: user.mic,
+                mic: micPermission,
                 pub: user.pub,
                 away: user.away,
                 visible: isVisible,
@@ -364,7 +385,13 @@ class Room {
      * @returns {boolean}
      */
     shouldAutoDelete() {
-        return !this.isPermanent && this.users.size === 0;
+        // NEVER auto-delete permanent rooms (loaded from database)
+        if (this.isPermanent) {
+            return false;
+        }
+        
+        // Only delete temporary rooms when empty
+        return this.users.size === 0;
     }
 }
 

@@ -11,40 +11,21 @@ class ServerState extends EventEmitter {
     constructor() {
         super();
         this.users = new Map(); // uid -> User
-        this.rooms = new Map(); // roomId -> Room  
-        this.categories = new Map(); // categoryCode -> category
+        this.rooms = new Map(); // roomId -> Room
+        this.categories = new Map(); // categoryCode -> Category
         this.sockets = new Map(); // socketId -> {user, socket}
         this.offlineMessages = new Map(); // receiverUid -> Array of messages
         this.serverStartTime = new Date();
+        
+        // Server statistics
         this.stats = {
             totalConnections: 0,
-            totalPacketsReceived: 0,
-            totalPacketsSent: 0,
-            totalMessagesProcessed: 0,
-            peakConcurrentUsers: 0,
-            totalRoomsCreated: 0,
             totalLoginAttempts: 0,
-            totalFailedLogins: 0,
-            uptime: 0
+            totalRoomsCreated: 0,
+            totalMessagesProcessed: 0,
+            totalUniqueUsers: 0,
+            lastActivity: new Date()
         };
-        
-        // Performance monitoring
-        this.performanceMetrics = {
-            memoryUsage: process.memoryUsage(),
-            lastUpdate: Date.now()
-        };
-        
-        // Update performance metrics periodically
-        setInterval(() => {
-            this.updatePerformanceMetrics();
-        }, 30000); // Every 30 seconds
-        
-        // Activity tracking
-        this.recentActivities = [];
-        this.maxActivities = 200;
-        
-        // Banned users tracking
-        this.bannedUsers = new Map(); // userId -> {reason, bannedAt, duration}
     }
 
     /**
@@ -54,28 +35,34 @@ class ServerState extends EventEmitter {
      */
     addUserConnection(socket, user) {
         try {
-            // Set socket properties
-            socket.id = user.uid;
-            socket.user = user;
-            user.socket = socket;
-            user.setMode(USER_MODES.ONLINE);
-
-            // Store in maps
+            // Store user and socket mapping
             this.users.set(user.uid, user);
             this.sockets.set(socket.id, { user, socket });
-
+            
+            // Set user's socket reference
+            user.socket = socket;
+            
+            // Update statistics
             this.stats.totalConnections++;
-
-            logger.logUserAction('connected', user.uid, {
+            this.stats.lastActivity = new Date();
+            
+            // Count unique users
+            this.stats.totalUniqueUsers = this.users.size;
+            
+            logger.info('User connection added', {
+                uid: user.uid,
                 nickname: user.nickname,
-                sessionId: user.sessionId
+                socketId: socket.id,
+                totalUsers: this.users.size
             });
-
-            this.emit('userConnected', user);
+            
+            // Emit user connected event
+            this.emit('userConnected', { user, socket });
+            
             return true;
         } catch (error) {
             logger.error('Failed to add user connection', error, {
-                userId: user?.uid,
+                uid: user?.uid,
                 socketId: socket?.id
             });
             return false;
@@ -127,34 +114,65 @@ class ServerState extends EventEmitter {
                 if (room) {
                     room.removeUser(user);
                     
-                    // Auto-delete temporary rooms
+                    // Auto-delete temporary rooms (NOT permanent database rooms)
                     if (room.shouldAutoDelete()) {
-                        this.removeRoom(room.id);
+                        logger.warn('Attempting to auto-delete room during user cleanup', { 
+                            roomId: room.id, 
+                            roomName: room.name,
+                            isPermanent: room.isPermanent,
+                            userCount: room.users.size,
+                            reason: 'user disconnection'
+                        });
+                        
+                        // Only delete if it's truly a temporary room (not from database)
+                        if (!room.isPermanent) {
+                            this.removeRoom(room.id);
+                            logger.info('Auto-deleted temporary room during user cleanup', { 
+                                roomId: room.id, 
+                                roomName: room.name 
+                            });
+                        } else {
+                            logger.warn('Prevented auto-deletion of permanent room during user cleanup', { 
+                                roomId: room.id, 
+                                roomName: room.name 
+                            });
+                        }
                     }
                 }
             });
 
-            // Update user state
+            // Set user mode to offline
             user.setMode(USER_MODES.OFFLINE);
-            user.socket = null;
-            user.currentRoom = null;
 
-            // Remove from maps
+            // Remove from collections
             this.users.delete(user.uid);
             if (socketId) {
                 this.sockets.delete(socketId);
             }
 
-            logger.logUserAction('disconnected', user.uid, {
+            // Clear user's socket reference
+            user.socket = null;
+
+            // Update statistics
+            this.stats.totalUniqueUsers = this.users.size;
+            this.stats.lastActivity = new Date();
+
+            logger.info('User connection removed', {
+                uid: user.uid,
                 nickname: user.nickname,
-                sessionId: user.sessionId,
-                reason: reason
+                reason,
+                totalUsers: this.users.size
             });
 
-            this.emit('userDisconnected', user);
+            // Emit user disconnected event
+            this.emit('userDisconnected', { user, reason });
+
             return true;
         } catch (error) {
-            logger.error('Failed to remove user connection', error);
+            logger.error('Failed to remove user connection', error, {
+                socketOrUid: typeof socketOrUid === 'object' ? socketOrUid.id : socketOrUid,
+                reason
+            });
             return false;
         }
     }
@@ -179,23 +197,74 @@ class ServerState extends EventEmitter {
     }
 
     /**
-     * Get all online users
-     * @returns {Array<User>}
+     * Get user by nickname
+     * @param {string} nickname 
+     * @returns {User|null}
      */
-    getOnlineUsers() {
-        return Array.from(this.users.values()).filter(user => user.isOnline());
+    getUserByNickname(nickname) {
+        return Array.from(this.users.values()).find(user => 
+            user.nickname.toLowerCase() === nickname.toLowerCase()
+        ) || null;
     }
 
     /**
-     * Find users by nickname (partial match)
-     * @param {string} nickname 
+     * Get all online users
      * @returns {Array<User>}
      */
-    findUsersByNickname(nickname) {
-        const searchTerm = nickname.toLowerCase();
-        return Array.from(this.users.values()).filter(user => 
-            user.nickname.toLowerCase().includes(searchTerm)
-        );
+    getAllUsers() {
+        return Array.from(this.users.values());
+    }
+
+    /**
+     * Get all online users (alias for getAllUsers for compatibility)
+     * @returns {Array<User>}
+     */
+    getOnlineUsers() {
+        return this.getAllUsers();
+    }
+
+    /**
+     * Get user activity summary for dashboard
+     * @returns {Array<Object>}
+     */
+    getUserActivitySummary() {
+        const users = this.getOnlineUsers();
+        return users.map(user => ({
+            uid: user.uid,
+            nickname: user.nickname,
+            loginTime: user.loginTime,
+            lastActivity: user.lastActivity,
+            roomCount: user.getRoomCount(),
+            isAdmin: user.isAdmin()
+        }));
+    }
+
+    /**
+     * Get recent activities for activity feed
+     * @param {number} limit 
+     * @returns {Array<Object>}
+     */
+    getRecentActivities(limit = 50) {
+        // Return a simple activity feed for now
+        // This could be enhanced to track actual activities in a more sophisticated way
+        const activities = [];
+        
+        // Add recent user connections
+        this.getOnlineUsers().forEach(user => {
+            activities.push({
+                type: 'user_connected',
+                timestamp: user.loginTime,
+                user: {
+                    uid: user.uid,
+                    nickname: user.nickname
+                }
+            });
+        });
+        
+        // Sort by timestamp and limit
+        return activities
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+            .slice(0, limit);
     }
 
     /**
@@ -203,18 +272,32 @@ class ServerState extends EventEmitter {
      * @param {Room} room 
      */
     addRoom(room) {
-        this.rooms.set(room.id, room);
-        
-        logger.logRoomActivity('room_created', room.id, room.createdBy, {
-            name: room.name,
-            category: room.category,
-            isVoice: room.isVoice,
-            isPermanent: room.isPermanent
-        });
-
-        this.stats.totalRoomsCreated++;
-
-        this.emit('roomCreated', room);
+        try {
+            // Inject server state reference into room
+            room.setServerState(this);
+            
+            this.rooms.set(room.id, room);
+            this.stats.totalRoomsCreated++;
+            this.stats.lastActivity = new Date();
+            
+            logger.info('Room added', {
+                roomId: room.id,
+                roomName: room.name,
+                isPermanent: room.isPermanent,
+                totalRooms: this.rooms.size
+            });
+            
+            // Emit room added event
+            this.emit('roomAdded', { room });
+            
+            return true;
+        } catch (error) {
+            logger.error('Failed to add room', error, {
+                roomId: room?.id,
+                roomName: room?.name
+            });
+            return false;
+        }
     }
 
     /**
@@ -222,25 +305,40 @@ class ServerState extends EventEmitter {
      * @param {number} roomId 
      */
     removeRoom(roomId) {
-        const room = this.rooms.get(roomId);
-        if (!room) {
+        try {
+            const room = this.rooms.get(roomId);
+            if (!room) {
+                logger.warn('Attempted to remove non-existent room', { roomId });
+                return false;
+            }
+
+            // Remove all users from room first
+            const userIds = Array.from(room.users.keys());
+            userIds.forEach(userId => {
+                const user = this.getUser(userId);
+                if (user) {
+                    room.removeUser(user);
+                }
+            });
+
+            // Remove room from collection
+            this.rooms.delete(roomId);
+            this.stats.lastActivity = new Date();
+
+            logger.info('Room removed', {
+                roomId: room.id,
+                roomName: room.name,
+                totalRooms: this.rooms.size
+            });
+
+            // Emit room removed event
+            this.emit('roomRemoved', { room });
+
+            return true;
+        } catch (error) {
+            logger.error('Failed to remove room', error, { roomId });
             return false;
         }
-
-        // Remove all users from room
-        room.getAllUsers().forEach(user => {
-            room.removeUser(user);
-        });
-
-        this.rooms.delete(roomId);
-
-        logger.logRoomActivity('room_deleted', roomId, null, {
-            name: room.name,
-            isPermanent: room.isPermanent
-        });
-
-        this.emit('roomDeleted', room);
-        return true;
     }
 
     /**
@@ -261,11 +359,20 @@ class ServerState extends EventEmitter {
     }
 
     /**
-     * Get rooms by category
+     * Get rooms by category code - with special handling for Top Rooms
      * @param {number} categoryCode 
      * @returns {Array<Room>}
      */
     getRoomsByCategory(categoryCode) {
+        // Special handling for Top Rooms category (30001)
+        // Return top 20 rooms by user count regardless of their original category
+        if (categoryCode === 30001) {
+            return Array.from(this.rooms.values())
+                .sort((a, b) => b.getUserCount() - a.getUserCount()) // Sort by user count descending
+                .slice(0, 20); // Take top 20
+        }
+        
+        // For all other categories, filter by category code as usual
         return Array.from(this.rooms.values()).filter(room => 
             room.category === categoryCode
         );
@@ -291,107 +398,114 @@ class ServerState extends EventEmitter {
      * Store an offline message
      * @param {number} senderUid 
      * @param {number} receiverUid 
-     * @param {string} content 
+     * @param {string} message 
      */
-    storeOfflineMessage(senderUid, receiverUid, content) {
-        if (!this.offlineMessages.has(receiverUid)) {
-            this.offlineMessages.set(receiverUid, []);
+    storeOfflineMessage(senderUid, receiverUid, message) {
+        try {
+            if (!this.offlineMessages.has(receiverUid)) {
+                this.offlineMessages.set(receiverUid, []);
+            }
+
+            const messageData = {
+                senderUid,
+                message,
+                timestamp: new Date(),
+                id: Date.now() + Math.random()
+            };
+
+            this.offlineMessages.get(receiverUid).push(messageData);
+
+            logger.debug('Offline message stored', {
+                senderUid,
+                receiverUid,
+                messageLength: message.length
+            });
+
+            return true;
+        } catch (error) {
+            logger.error('Failed to store offline message', error, {
+                senderUid,
+                receiverUid
+            });
+            return false;
         }
-
-        this.offlineMessages.get(receiverUid).push({
-            id: Date.now() + Math.random(), // Simple ID generation
-            sender: senderUid,
-            content: content,
-            timestamp: new Date(),
-            status: 'pending'
-        });
-
-        logger.info('Offline message stored', {
-            senderUid,
-            receiverUid,
-            contentLength: content.length
-        });
     }
 
     /**
-     * Get offline messages for a user
+     * Get and clear offline messages for a user
      * @param {number} uid 
-     * @returns {Array<Object>}
-     */
-    getOfflineMessages(uid) {
-        return this.offlineMessages.get(uid) || [];
-    }
-
-    /**
-     * Clear offline messages for a user
-     * @param {number} uid 
-     */
-    clearOfflineMessages(uid) {
-        this.offlineMessages.delete(uid);
-    }
-
-    /**
-     * Update server statistics
-     * @param {string} statName 
-     * @param {number} increment 
-     */
-    updateStats(statName, increment = 1) {
-        if (this.stats.hasOwnProperty(statName)) {
-            this.stats[statName] += increment;
-        }
-    }
-
-    /**
-     * Update performance metrics
-     */
-    updatePerformanceMetrics() {
-        this.performanceMetrics = {
-            memoryUsage: process.memoryUsage(),
-            lastUpdate: Date.now(),
-            cpuUsage: process.cpuUsage()
-        };
-        
-        // Update peak concurrent users
-        if (this.users.size > this.stats.peakConcurrentUsers) {
-            this.stats.peakConcurrentUsers = this.users.size;
-        }
-    }
-
-    /**
-     * Format uptime in human readable format
-     * @param {number} uptimeMs 
-     * @returns {string}
-     */
-    formatUptime(uptimeMs) {
-        const seconds = Math.floor(uptimeMs / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-        
-        if (days > 0) {
-            return `${days}d ${hours % 24}h ${minutes % 60}m`;
-        } else if (hours > 0) {
-            return `${hours}h ${minutes % 60}m`;
-        } else {
-            return `${minutes}m ${seconds % 60}s`;
-        }
-    }
-
-    /**
-     * Get detailed room statistics
      * @returns {Array}
      */
+    getOfflineMessages(uid) {
+        try {
+            const messages = this.offlineMessages.get(uid) || [];
+            this.offlineMessages.delete(uid);
+
+            logger.debug('Retrieved offline messages', {
+                uid,
+                messageCount: messages.length
+            });
+
+            return messages;
+        } catch (error) {
+            logger.error('Failed to get offline messages', error, { uid });
+            return [];
+        }
+    }
+
+    /**
+     * Search users by nickname pattern
+     * @param {string} pattern 
+     * @param {number} limit 
+     * @returns {Array<User>}
+     */
+    searchUsers(pattern, limit = 50) {
+        try {
+            const regex = new RegExp(pattern, 'i');
+            return Array.from(this.users.values())
+                .filter(user => regex.test(user.nickname))
+                .slice(0, limit);
+        } catch (error) {
+            logger.error('Failed to search users', error, { pattern, limit });
+            return [];
+        }
+    }
+
+    /**
+     * Get server statistics
+     * @returns {Object}
+     */
+    getStats() {
+        return {
+            ...this.stats,
+            currentUsers: this.users.size,
+            currentRooms: this.rooms.size,
+            uptime: Date.now() - this.serverStartTime.getTime(),
+            memory: process.memoryUsage()
+        };
+    }
+
+    /**
+     * Get room statistics
+     * @returns {Object}
+     */
     getRoomStatistics() {
-        return Array.from(this.rooms.values()).map(room => ({
-            id: room.id,
-            name: room.name,
-            userCount: room.users.size,
-            maxUsers: room.maxUsers,
-            isVoice: room.isVoice,
-            isPermanent: room.isPermanent,
-            createdAt: room.createdAt,
-            category: room.category
-        }));
+        const rooms = Array.from(this.rooms.values());
+        const totalUsers = rooms.reduce((sum, room) => sum + room.getUserCount(), 0);
+        
+        return {
+            totalRooms: rooms.length,
+            totalUsersInRooms: totalUsers,
+            averageUsersPerRoom: rooms.length > 0 ? (totalUsers / rooms.length).toFixed(2) : 0,
+            emptyRooms: rooms.filter(room => room.getUserCount() === 0).length,
+            mostPopularRoom: rooms.reduce((max, room) => 
+                room.getUserCount() > (max?.getUserCount() || 0) ? room : max, null
+            ),
+            roomsByCategory: rooms.reduce((acc, room) => {
+                acc[room.category] = (acc[room.category] || 0) + 1;
+                return acc;
+            }, {})
+        };
     }
 
     /**
@@ -400,231 +514,170 @@ class ServerState extends EventEmitter {
      */
     getUserActivitySummary() {
         const users = Array.from(this.users.values());
-        const now = Date.now();
-        
-        let activeUsers = 0;
-        let idleUsers = 0;
-        let awayUsers = 0;
-        
-        users.forEach(user => {
-            if (user.mode === USER_MODES.AWAY) {
-                awayUsers++;
-            } else if (user.isIdle()) {
-                idleUsers++;
-            } else {
-                activeUsers++;
-            }
-        });
         
         return {
-            total: users.length,
-            active: activeUsers,
-            idle: idleUsers,
-            away: awayUsers
+            totalOnlineUsers: users.length,
+            usersByMode: users.reduce((acc, user) => {
+                acc[user.mode] = (acc[user.mode] || 0) + 1;
+                return acc;
+            }, {}),
+            usersInRooms: users.filter(user => user.getRoomIds().length > 0).length,
+            usersInMultipleRooms: users.filter(user => user.getRoomIds().length > 1).length
         };
     }
 
     /**
-     * Log activity for tracking
-     * @param {string} type 
-     * @param {Object} details 
-     */
-    logActivity(type, details) {
-        const activity = {
-            id: Date.now() + Math.random().toString(36).substring(2),
-            type,
-            timestamp: new Date(),
-            details
-        };
-        
-        this.recentActivities.unshift(activity);
-        
-        // Keep only recent activities
-        if (this.recentActivities.length > this.maxActivities) {
-            this.recentActivities = this.recentActivities.slice(0, this.maxActivities);
-        }
-        
-        // Emit activity event for real-time updates
-        this.emit('activity', activity);
-    }
-
-    /**
-     * Get recent activities
-     * @param {number} limit 
-     * @returns {Array}
-     */
-    getRecentActivities(limit = 50) {
-        return this.recentActivities.slice(0, limit);
-    }
-
-    /**
-     * Get comprehensive server statistics
-     * @returns {Object}
-     */
-    getStats() {
-        const currentTime = Date.now();
-        const uptimeMs = currentTime - this.serverStartTime.getTime();
-        
-        return {
-            // Basic stats
-            totalConnections: this.stats.totalConnections,
-            totalPacketsReceived: this.stats.totalPacketsReceived,
-            totalPacketsSent: this.stats.totalPacketsSent,
-            totalMessagesProcessed: this.stats.totalMessagesProcessed,
-            peakConcurrentUsers: this.stats.peakConcurrentUsers,
-            totalRoomsCreated: this.stats.totalRoomsCreated,
-            totalLoginAttempts: this.stats.totalLoginAttempts,
-            totalFailedLogins: this.stats.totalFailedLogins,
-            
-            // Current state
-            onlineUsers: this.users.size,
-            totalRooms: this.rooms.size,
-            currentUsers: this.users.size,
-            activeRooms: Array.from(this.rooms.values()).filter(room => room.users.size > 0).length,
-            
-            // Uptime information
-            uptime: uptimeMs,
-            uptimeFormatted: this.formatUptime(uptimeMs),
-            serverStartTime: this.serverStartTime,
-            
-            // Performance metrics
-            memoryUsage: this.performanceMetrics.memoryUsage,
-            cpuUsage: this.performanceMetrics.cpuUsage,
-            
-            // Activity stats
-            recentActivitiesCount: this.recentActivities.length,
-            bannedUsersCount: this.bannedUsers.size,
-            
-            // Additional computed stats
-            averageUsersPerRoom: this.rooms.size > 0 ? (this.users.size / this.rooms.size).toFixed(2) : 0,
-            timestamp: currentTime
-        };
-    }
-
-    /**
-     * Ban a user
-     * @param {number} userId 
+     * Ban a user from the server
+     * @param {number} uid 
      * @param {string} reason 
-     * @param {number} duration - Duration in milliseconds, null for permanent
+     * @param {number} duration - Duration in minutes (0 = permanent)
      */
-    banUser(userId, reason = 'No reason provided', duration = null) {
-        const banInfo = {
-            reason,
-            bannedAt: new Date(),
-            duration,
-            expiresAt: duration ? new Date(Date.now() + duration) : null
-        };
-        
-        this.bannedUsers.set(userId, banInfo);
-        
-        // Disconnect user if online
-        const user = this.getUser(userId);
-        if (user && user.socket) {
-            this.removeUserConnection(user.socket, `Banned: ${reason}`);
-        }
-        
-        this.logActivity('user_banned', {
-            userId,
-            reason,
-            duration: duration ? `${Math.round(duration / 60000)} minutes` : 'permanent'
-        });
-        
-        logger.warn('User banned', { userId, reason, duration });
-    }
-
-    /**
-     * Check if user is banned
-     * @param {number} userId 
-     * @returns {boolean}
-     */
-    isUserBanned(userId) {
-        const banInfo = this.bannedUsers.get(userId);
-        if (!banInfo) return false;
-        
-        // Check if ban has expired
-        if (banInfo.expiresAt && banInfo.expiresAt < new Date()) {
-            this.bannedUsers.delete(userId);
-            this.logActivity('ban_expired', { userId });
+    banUser(uid, reason = 'No reason provided', duration = 0) {
+        try {
+            const user = this.getUser(uid);
+            if (user) {
+                user.banned = true;
+                user.banReason = reason;
+                user.banExpiry = duration > 0 ? Date.now() + (duration * 60000) : null;
+                
+                logger.info('User banned', {
+                    uid,
+                    nickname: user.nickname,
+                    reason,
+                    duration: duration > 0 ? `${duration} minutes` : 'permanent'
+                });
+                
+                // Disconnect the user
+                this.removeUserConnection(user.socket, `Banned: ${reason}`);
+                
+                return true;
+            }
+            return false;
+        } catch (error) {
+            logger.error('Failed to ban user', error, { uid, reason });
             return false;
         }
-        
-        return true;
     }
 
     /**
-     * Close a room
-     * @param {number} roomId 
-     * @param {string} reason 
+     * Check if a user is banned
+     * @param {number} uid 
+     * @returns {boolean}
      */
-    closeRoom(roomId, reason = 'Administrative action') {
-        const room = this.getRoom(roomId);
-        if (!room) return false;
-        
-        // Notify all users in the room
-        room.getAllUsers().forEach(user => {
-            if (user.socket) {
-                // Send room closure notification
-                const notificationBuffer = Buffer.from(`Room "${room.name}" has been closed: ${reason}`, 'utf8');
-                // You would send appropriate packet here
+    isUserBanned(uid) {
+        try {
+            const user = this.getUser(uid);
+            if (!user || !user.banned) return false;
+            
+            // Check if temporary ban has expired
+            if (user.banExpiry && Date.now() > user.banExpiry) {
+                user.banned = false;
+                user.banReason = null;
+                user.banExpiry = null;
+                return false;
             }
-        });
-        
-        // Remove all users from room
-        room.getAllUsers().forEach(user => {
-            room.removeUser(user);
-        });
-        
-        // Remove room
-        this.removeRoom(roomId);
-        
-        this.logActivity('room_closed', {
-            roomId,
-            roomName: room.name,
-            reason,
-            userCount: room.getAllUsers().length
-        });
-        
-        return true;
+            
+            return true;
+        } catch (error) {
+            logger.error('Failed to check user ban status', error, { uid });
+            return false;
+        }
     }
 
     /**
-     * Perform server maintenance and cleanup
+     * Update server statistics
+     * @param {string} statName 
+     * @param {number} increment 
+     */
+    updateStats(statName, increment = 1) {
+        try {
+            if (this.stats.hasOwnProperty(statName)) {
+                this.stats[statName] += increment;
+            } else {
+                this.stats[statName] = increment;
+            }
+            this.stats.lastActivity = new Date();
+        } catch (error) {
+            logger.error('Failed to update stats', error, { statName, increment });
+        }
+    }
+
+    /**
+     * Perform maintenance tasks
      */
     performMaintenance() {
-        logger.info('Performing server maintenance...');
-        
-        // Clean up expired bans
-        let expiredBans = 0;
-        for (const [userId, banInfo] of this.bannedUsers) {
-            if (banInfo.expiresAt && banInfo.expiresAt < new Date()) {
-                this.bannedUsers.delete(userId);
-                expiredBans++;
-            }
+        try {
+            this.cleanupExpiredBans();
+            this.cleanupEmptyTemporaryRooms();
+            logger.debug('Maintenance completed');
+        } catch (error) {
+            logger.error('Failed to perform maintenance', error);
         }
-        
-        // Clean up old activities
-        const oldActivityCount = this.recentActivities.length;
-        this.recentActivities = this.recentActivities.slice(0, this.maxActivities);
-        
-        // Clean up idle connections
-        let idleDisconnects = 0;
-        this.users.forEach(user => {
-            if (user.isIdle(30 * 60 * 1000)) { // 30 minutes
-                this.removeUserConnection(user.socket, 'Idle timeout');
-                idleDisconnects++;
+    }
+
+    /**
+     * Start periodic cleanup tasks
+     */
+    startPeriodicTasks() {
+        // Clean up expired bans every 5 minutes
+        setInterval(() => {
+            this.cleanupExpiredBans();
+        }, 5 * 60 * 1000);
+
+        // Clean up empty temporary rooms every 10 minutes
+        setInterval(() => {
+            this.cleanupEmptyTemporaryRooms();
+        }, 10 * 60 * 1000);
+
+        logger.info('Periodic cleanup tasks started');
+    }
+
+    /**
+     * Clean up expired bans
+     */
+    cleanupExpiredBans() {
+        try {
+            const users = Array.from(this.users.values());
+            let cleanedCount = 0;
+
+            users.forEach(user => {
+                if (user.banned && user.banExpiry && Date.now() > user.banExpiry) {
+                    user.banned = false;
+                    user.banReason = null;
+                    user.banExpiry = null;
+                    cleanedCount++;
+                }
+            });
+
+            if (cleanedCount > 0) {
+                logger.info('Cleaned up expired bans', { count: cleanedCount });
             }
-        });
-        
-        this.logActivity('maintenance_completed', {
-            expiredBans,
-            activitiesCleaned: oldActivityCount - this.recentActivities.length,
-            idleDisconnects
-        });
-        
-        logger.info('Server maintenance completed', {
-            expiredBans,
-            idleDisconnects
-        });
+        } catch (error) {
+            logger.error('Failed to cleanup expired bans', error);
+        }
+    }
+
+    /**
+     * Clean up empty temporary rooms
+     */
+    cleanupEmptyTemporaryRooms() {
+        try {
+            const rooms = Array.from(this.rooms.values());
+            let cleanedCount = 0;
+
+            rooms.forEach(room => {
+                if (!room.isPermanent && room.shouldAutoDelete()) {
+                    this.removeRoom(room.id);
+                    cleanedCount++;
+                }
+            });
+
+            if (cleanedCount > 0) {
+                logger.info('Cleaned up empty temporary rooms', { count: cleanedCount });
+            }
+        } catch (error) {
+            logger.error('Failed to cleanup empty temporary rooms', error);
+        }
     }
 }
 

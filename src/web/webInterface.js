@@ -119,6 +119,32 @@ class WebInterface {
             }
         });
 
+        // Rooms by category - supports dynamic Top Rooms
+        this.app.get('/api/rooms/category/:categoryId', (req, res) => {
+            try {
+                const categoryId = parseInt(req.params.categoryId);
+                const rooms = this.serverState.getRoomsByCategory(categoryId);
+                const roomList = rooms.map(room => room.getSummary());
+                
+                logger.debug('Category rooms requested', {
+                    categoryId,
+                    roomCount: rooms.length,
+                    isTopRooms: categoryId === 30001
+                });
+                
+                res.json({
+                    categoryId,
+                    rooms: roomList,
+                    count: roomList.length,
+                    isTopRooms: categoryId === 30001, // Flag for Top Rooms dynamic category
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get rooms by category', error, { categoryId: req.params.categoryId });
+                res.status(500).json({ error: 'Failed to get rooms by category' });
+            }
+        });
+
         // Server logs (recent)
         this.app.get('/api/logs', (req, res) => {
             try {
@@ -128,6 +154,58 @@ class WebInterface {
             } catch (error) {
                 logger.error('Failed to get logs', error);
                 res.status(500).json({ error: 'Failed to get logs' });
+            }
+        });
+
+        // Room ID validation and ranges
+        this.app.get('/api/rooms/validate/:roomId', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.roomId);
+                const allRooms = this.serverState.getAllRooms();
+                const room = this.serverState.getRoom(roomId);
+                
+                const roomIdRanges = {
+                    lowest: Math.min(...allRooms.map(r => r.id)),
+                    highest: Math.max(...allRooms.map(r => r.id)),
+                    totalRooms: allRooms.length
+                };
+                
+                const categoryRanges = {
+                    topRooms: { start: 10001, end: 10015, count: allRooms.filter(r => r.id >= 10001 && r.id <= 10015).length },
+                    featuredRooms: { start: 20001, end: 20015, count: allRooms.filter(r => r.id >= 20001 && r.id <= 20015).length },
+                    helpRooms: { start: 30001, end: 30012, count: allRooms.filter(r => r.id >= 30001 && r.id <= 30012).length },
+                    friendsRooms: { start: 40001, end: 40018, count: allRooms.filter(r => r.id >= 40001 && r.id <= 40018).length },
+                    loveRooms: { start: 50001, end: 50016, count: allRooms.filter(r => r.id >= 50001 && r.id <= 50016).length },
+                    socialRooms: { start: 60001, end: 60014, count: allRooms.filter(r => r.id >= 60001 && r.id <= 60014).length },
+                    youngAdultRooms: { start: 70001, end: 70017, count: allRooms.filter(r => r.id >= 70001 && r.id <= 70017).length },
+                    religiousRooms: { start: 80001, end: 80013, count: allRooms.filter(r => r.id >= 80001 && r.id <= 80013).length },
+                    computerRooms: { start: 90001, end: 90015, count: allRooms.filter(r => r.id >= 90001 && r.id <= 90015).length },
+                    sportsRooms: { start: 100001, end: 100020, count: allRooms.filter(r => r.id >= 100001 && r.id <= 100020).length },
+                    businessRooms: { start: 110001, end: 110016, count: allRooms.filter(r => r.id >= 110001 && r.id <= 110016).length },
+                    musicRooms: { start: 120001, end: 120018, count: allRooms.filter(r => r.id >= 120001 && r.id <= 120018).length },
+                    miscRooms: { start: 130001, end: 130019, count: allRooms.filter(r => r.id >= 130001 && r.id <= 130019).length },
+                    adultRooms: { start: 140001, end: 140015, count: allRooms.filter(r => r.id >= 140001 && r.id <= 140015).length }
+                };
+                
+                res.json({
+                    roomId,
+                    exists: !!room,
+                    room: room ? room.getSummary() : null,
+                    validation: {
+                        isValid: !!room,
+                        isInValidRange: roomId >= roomIdRanges.lowest && roomId <= roomIdRanges.highest,
+                        validRoomRange: `${roomIdRanges.lowest} - ${roomIdRanges.highest}`,
+                        totalRooms: roomIdRanges.totalRooms
+                    },
+                    categoryRanges,
+                    suggestions: room ? [] : allRooms
+                        .filter(r => Math.abs(r.id - roomId) <= 50)
+                        .map(r => ({ id: r.id, name: r.name, category: r.category }))
+                        .slice(0, 5)
+                });
+            } catch (error) {
+                logger.error('Failed to validate room ID', error);
+                res.status(500).json({ error: 'Failed to validate room ID' });
             }
         });
 

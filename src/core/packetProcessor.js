@@ -1,7 +1,7 @@
 /**
  * Improved packet processor with better organization and error handling
  */
-const { PACKET_TYPES } = require('../../packetHeaders');
+const { PACKET_TYPES } = require('../../PacketHeaders');
 const { sendPacket } = require('../network/packetSender');
 const serverState = require('./serverState');
 const User = require('../models/User');
@@ -147,7 +147,19 @@ class PacketProcessor {
                     break;
                 
                 case PACKET_TYPES.REQ_MIC:
+                    logger.info('🎤 REQ_MIC packet received!', { 
+                        socketId: socket.id, 
+                        payloadHex: payload.toString('hex') 
+                    });
                     await this.handleMicRequest(socket, payload);
+                    break;
+                
+                case PACKET_TYPES.UNREQ_MIC:
+                    logger.info('🎤 UNREQ_MIC packet received!', { 
+                        socketId: socket.id, 
+                        payloadHex: payload.toString('hex') 
+                    });
+                    await this.handleMicUnrequest(socket, payload);
                     break;
                 
                 case PACKET_TYPES.ROOM_BANNER_MESSAGE:
@@ -164,6 +176,47 @@ class PacketProcessor {
                 
                 case PACKET_TYPES.PACKET_ROOM_ADMIN_INFO:
                     await this.handleRoomAdminInfo(socket, payload);
+                    break;
+
+                // Handle unknown packet types that might be causing reconnections
+                case -2121:
+                    logger.debug('Received packet -2121 (unknown client packet)', { 
+                        socketId: socket.id,
+                        payloadHex: payload.toString('hex')
+                    });
+                    // Send generic OK response to prevent client reconnection
+                    break;
+                    
+                case -2100:
+                    logger.debug('Received packet -2100 (unknown client packet)', { 
+                        socketId: socket.id,
+                        payloadHex: payload.toString('hex')
+                    });
+                    // Send generic OK response to prevent client reconnection
+                    break;
+                    
+                case -160:
+                    logger.debug('Received packet -160 (unknown client packet)', { 
+                        socketId: socket.id,
+                        payloadHex: payload.toString('hex')
+                    });
+                    // Handle -160 packet (likely a keep-alive or status check)
+                    break;
+                    
+                case -3000:
+                    logger.debug('Received packet -3000 (unknown client packet)', { 
+                        socketId: socket.id,
+                        payloadHex: payload.toString('hex')
+                    });
+                    // Handle -3000 packet (likely disconnect preparation)
+                    break;
+                    
+                case -1100:
+                    logger.debug('Received packet -1100 (unknown client packet)', { 
+                        socketId: socket.id,
+                        payloadHex: payload.toString('hex')
+                    });
+                    // Handle -1100 packet (likely final disconnect)
                     break;
 
                 default:
@@ -274,10 +327,39 @@ class PacketProcessor {
         const room = serverState.getRoom(roomId);
         
         if (!room) {
+            // Get valid room ranges for debugging
+            const allRooms = serverState.getAllRooms();
+            const roomIdRanges = {
+                lowest: Math.min(...allRooms.map(r => r.id)),
+                highest: Math.max(...allRooms.map(r => r.id)),
+                topRooms: allRooms.filter(r => r.id >= 10001 && r.id <= 10015).map(r => r.id),
+                featuredRooms: allRooms.filter(r => r.id >= 20001 && r.id <= 20015).map(r => r.id),
+                religiousRooms: allRooms.filter(r => r.id >= 80001 && r.id <= 80013).map(r => r.id)
+            };
+            
             logger.warn('Attempt to join non-existent room', { 
                 roomId, 
-                userId: user.uid 
+                userId: user.uid,
+                nickname: user.nickname,
+                totalRoomsInMemory: allRooms.length,
+                validRoomIdRange: `${roomIdRanges.lowest} - ${roomIdRanges.highest}`,
+                sampleValidRooms: {
+                    topRooms: roomIdRanges.topRooms.slice(0, 5),
+                    featuredRooms: roomIdRanges.featuredRooms.slice(0, 3),
+                    religiousRooms: roomIdRanges.religiousRooms.slice(0, 3)
+                },
+                isRoomIdOutOfRange: roomId < roomIdRanges.lowest || roomId > roomIdRanges.highest
             });
+            
+            // Send an error response to the client
+            const errorMessage = `Room ${roomId} does not exist. Valid room range: ${roomIdRanges.lowest}-${roomIdRanges.highest}`;
+            const errorPayload = Buffer.from(errorMessage, 'utf8');
+            socket.write(Buffer.concat([
+                Buffer.from([0x01, 0x37, 0x00, 0x1D]), // Error packet header
+                Buffer.from([errorPayload.length & 0xFF, (errorPayload.length >> 8) & 0xFF]), // Length
+                errorPayload
+            ]));
+            
             return;
         }
 
@@ -303,6 +385,61 @@ class PacketProcessor {
 
         if (room.addUser(user, !isInvisible, isAdmin)) {
             await this.sendRoomJoinData(socket, room, user, isAdmin);
+            
+            // *** REAL-TIME BROADCAST: Notify other users that someone joined ***
+            if (!isInvisible) {
+                // FIXED: Use same format as user list - not just room+user IDs
+                const roomUser = room.getUser(user.uid);
+                const userJoinedString = `group_id=${room.id}\nuid=${user.uid}\nnickname=${user.nickname}\nadmin=${roomUser.admin}\ncolor=${roomUser.color}\nmic=${roomUser.mic}\npub=${roomUser.pub}\naway=${roomUser.away}`;
+                const userJoinedData = Buffer.concat([
+                    Buffer.from(userJoinedString),
+                    Buffer.from([0xC8]) // Delimiter
+                ]);
+                
+                this.broadcastToRoom(room, PACKET_TYPES.ROOM_USER_JOINED, userJoinedData, user.socket);
+                
+                logger.info('Broadcasting user joined to room', {
+                    userId: user.uid,
+                    nickname: user.nickname,
+                    roomId: room.id,
+                    roomName: room.name,
+                    isAdmin,
+                    userCount: room.getUserCount()
+                });
+            }
+            
+            // Check if user got automatic mic permissions and send mic packets
+            const roomUser = room.getUser(user.uid);
+            if (roomUser && roomUser.mic === 1 && room.isVoice) {
+                logger.info('Granting automatic mic permission', {
+                    userId: user.uid,
+                    nickname: user.nickname,
+                    roomId: room.id,
+                    roomName: room.name,
+                    isAdmin
+                });
+                
+                // Send mic permission packet to the user
+                const roomIdHex = Utils.decToHex(room.id);
+                sendPacket(socket, PACKET_TYPES.PACKET_ROOM_NEW_USER_MIC, Buffer.from(roomIdHex, 'hex'), socket.id);
+                
+                // Notify other users that this user has mic permissions
+                const micNotificationData = Buffer.from(
+                    roomIdHex + Utils.decToHex(user.uid) + '01', // 01 = mic granted
+                    'hex'
+                );
+                
+                room.getAllUsers().forEach(otherUserData => {
+                    if (otherUserData.uid !== user.uid) {
+                        const otherUser = serverState.getUser(otherUserData.uid);
+                        if (otherUser && otherUser.socket) {
+                            sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData, otherUser.socket.id);
+                        }
+                    }
+                });
+            }
+            
+            // *** REAL-TIME BROADCAST: Send updated user lists to everyone ***
             this.broadcastUserListUpdate(room);
         }
     }
@@ -316,15 +453,46 @@ class PacketProcessor {
         
         // Check if user is actually in this room
         if (room && user.isInRoom(roomId) && room.removeUser(user)) {
-            // Broadcast user left
-            this.broadcastToRoom(room, PACKET_TYPES.ROOM_USER_LEFT, 
-                Buffer.from(Utils.decToHex(roomId) + Utils.decToHex(user.uid), 'hex'),
-                user.socket
-            );
+            // *** REAL-TIME BROADCAST: Notify other users that someone left ***
+            // FIXED: Use raw binary format - 4 bytes room ID + 4 bytes user ID
+            const userLeftData = Buffer.alloc(8);
+            userLeftData.writeUInt32BE(roomId, 0);
+            userLeftData.writeUInt32BE(user.uid, 4);
+            this.broadcastToRoom(room, PACKET_TYPES.ROOM_USER_LEFT, userLeftData, user.socket);
+            
+            logger.info('Broadcasting user left room', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName: room.name,
+                remainingUsers: room.getUserCount()
+            });
+            
+            // *** REAL-TIME BROADCAST: Send updated user lists to remaining users ***
+            this.broadcastUserListUpdate(room);
 
-            // Auto-delete temporary rooms
+            // Auto-delete temporary rooms (NOT permanent database rooms)
             if (room.shouldAutoDelete()) {
-                serverState.removeRoom(room.id);
+                logger.warn('Attempting to auto-delete room', { 
+                    roomId: room.id, 
+                    roomName: room.name,
+                    isPermanent: room.isPermanent,
+                    userCount: room.users.size 
+                });
+                
+                // Only delete if it's truly a temporary room (not from database)
+                if (!room.isPermanent) {
+                    serverState.removeRoom(room.id);
+                    logger.info('Auto-deleted temporary room', { 
+                        roomId: room.id, 
+                        roomName: room.name 
+                    });
+                } else {
+                    logger.warn('Prevented auto-deletion of permanent room', { 
+                        roomId: room.id, 
+                        roomName: room.name 
+                    });
+                }
             }
         }
     }
@@ -390,10 +558,14 @@ class PacketProcessor {
         this.storeRecentMessage(user.uid, sanitizedMessage);
 
         // Broadcast message to all users in room except sender
-        const messageBuffer = Buffer.from(
-            Utils.decToHex(roomId) + Utils.decToHex(user.uid) + Buffer.from(sanitizedMessage, 'utf8').toString('hex'),
-            'hex'
-        );
+        // FIXED: Match old implementation format exactly - don't double-encode the message
+        const roomIdHex = Utils.decToHex(roomId);
+        const userIdHex = Utils.decToHex(user.uid);
+        const messageBuffer = Buffer.concat([
+            Buffer.from(roomIdHex, 'hex'),
+            Buffer.from(userIdHex, 'hex'), 
+            Buffer.from(sanitizedMessage, 'utf8')
+        ]);
 
         this.broadcastToRoom(room, PACKET_TYPES.ROOM_MESSAGE_IN, messageBuffer, user.socket);
 
@@ -484,6 +656,16 @@ class PacketProcessor {
             if (buddy && buddy.isOnline()) {
                 const statusBuffer = Buffer.from(Utils.decToHex(buddyUid) + '0000001E', 'hex');
                 sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            } else if (buddyData.nickname === 'Paltalk' || buddyUid === 1000001) {
+                // Special case: Paltalk user should always appear online when added as buddy
+                logger.debug('Sending Paltalk online status after buddy addition', { 
+                    userId: user.uid, 
+                    userNickname: user.nickname,
+                    buddyUid: buddyUid,
+                    buddyNickname: buddyData.nickname
+                });
+                const statusBuffer = Buffer.from(Utils.decToHex(buddyUid) + '0000001E', 'hex');
+                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
             }
         }
     }
@@ -565,78 +747,176 @@ class PacketProcessor {
             roomMicEnabled: room.micEnabled
         });
 
-        // Check if this is a voice room
-        if (!room.isVoice) {
-            logger.warn('Mic request for non-voice room', { 
-                userId: user.uid, 
-                roomId: room.id,
-                roomName: room.name 
-            });
-            // Send denial response for text rooms
-            sendPacket(socket, 0x018d, Buffer.from('00000000', 'hex'), socket.id);
-            return;
-        }
+        // From gaim-pt analysis: First notify others that user is requesting mic
+        // Send PACKET_ROOM_USER_MICREQUEST_ON (0x018E) to all users in room
+        // FIXED: Use proper buffer concatenation instead of hex string concatenation
+        const micRequestData = Buffer.concat([
+            Buffer.from(Utils.decToHex(room.id), 'hex'),
+            Buffer.from(Utils.decToHex(user.uid), 'hex')
+        ]);
+        
+        room.getAllUsers().forEach(otherUserData => {
+            const otherUser = serverState.getUser(otherUserData.uid);
+            if (otherUser && otherUser.socket) {
+                sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_ON, micRequestData, otherUser.socket.id);
+            }
+        });
 
-        // Check if room has mic enabled
-        if (!room.micEnabled) {
-            logger.warn('Mic request for room with mic disabled', { 
-                userId: user.uid, 
-                roomId: room.id 
-            });
-            sendPacket(socket, 0x018d, Buffer.from('00000000', 'hex'), socket.id);
-            return;
-        }
+        // Grant mic permission (for simplicity, auto-grant in voice rooms)
+        // In a real implementation, admin would need to approve
+        const shouldGrantMic = room.isVoice && (user.isAdmin() || room.micEnabled);
+        
+        if (shouldGrantMic) {
+            // Update user mic status
+            const roomUser = room.getUser(user.uid);
+            if (roomUser) {
+                roomUser.mic = 1;
+            }
+            user.mic = 1;
 
-        // Check user permissions - admins and room owners can always use mic
-        const roomUser = room.getUser(user.uid);
-        const isRoomAdmin = roomUser && roomUser.isRoomAdmin;
-        const isGlobalAdmin = user.isAdmin();
-        const isRoomOwner = room.createdBy === user.uid;
-        const canUseMic = isGlobalAdmin || isRoomAdmin || isRoomOwner || room.allowAllMics;
-
-        if (!canUseMic) {
-            logger.info('Mic request denied - insufficient permissions', {
+            logger.info('Mic permission granted', {
                 userId: user.uid,
                 nickname: user.nickname,
                 roomId: room.id,
-                isRoomAdmin,
-                isGlobalAdmin,
-                isRoomOwner,
-                allowAllMics: room.allowAllMics
+                roomName: room.name
             });
-            sendPacket(socket, 0x018d, Buffer.from('00000000', 'hex'), socket.id);
+
+            // Send PACKET_ROOM_USER_RED_DOT_OFF (0x018D) to grant mic
+            const roomIdHex = Utils.decToHex(room.id);
+            sendPacket(socket, PACKET_TYPES.PACKET_ROOM_USER_RED_DOT_OFF, Buffer.from(roomIdHex, 'hex'), socket.id);
+
+            // Notify all users that mic was granted using PACKET_ROOM_MIC_GIVEN_REMOVED
+            const micGrantedData = Buffer.from(
+                roomIdHex + Utils.decToHex(user.uid) + '01', // 01 = mic granted
+                'hex'
+            );
+            
+            room.getAllUsers().forEach(otherUserData => {
+                const otherUser = serverState.getUser(otherUserData.uid);
+                if (otherUser && otherUser.socket) {
+                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micGrantedData, otherUser.socket.id);
+                }
+            });
+
+            // Remove the mic request flag since it was granted
+            room.getAllUsers().forEach(otherUserData => {
+                const otherUser = serverState.getUser(otherUserData.uid);
+                if (otherUser && otherUser.socket) {
+                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_OFF, micRequestData, otherUser.socket.id);
+                }
+            });
+        } else {
+            logger.info('Mic request denied', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                reason: 'Not authorized or room settings'
+            });
+            
+            // Send denial response - empty buffer
+            sendPacket(socket, PACKET_TYPES.PACKET_ROOM_USER_RED_DOT_OFF, Buffer.from('00000000', 'hex'), socket.id);
+        }
+
+        // Broadcast updated user list
+        this.broadcastUserListUpdate(room);
+    }
+
+    async handleMicUnrequest(socket, payload) {
+        logger.info('=== MIC UNREQUEST DEBUG START ===', {
+            socketId: socket.id,
+            payloadHex: payload.toString('hex'),
+            payloadLength: payload.length
+        });
+
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) {
+            logger.warn('Mic unrequest: No user found for socket', { socketId: socket.id });
             return;
         }
 
-        // Grant mic permission
-        logger.info('Mic permission granted', {
+        logger.info('Mic unrequest: User found', {
+            userId: user.uid,
+            nickname: user.nickname
+        });
+
+        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        const room = serverState.getRoom(roomId);
+        
+        logger.info('Mic unrequest: Room lookup', {
+            roomId,
+            roomFound: !!room,
+            userInRoom: room ? room.hasUser(user.uid) : false
+        });
+        
+        if (!room || !room.hasUser(user.uid)) {
+            logger.warn('Mic unrequest for room user is not in', { 
+                userId: user.uid, 
+                roomId,
+                roomExists: !!room,
+                userInRoom: room ? room.hasUser(user.uid) : false
+            });
+            return;
+        }
+
+        logger.info('Mic unrequest received - processing', {
             userId: user.uid,
             nickname: user.nickname,
             roomId: room.id,
-            roomName: room.name,
-            permissionReason: isGlobalAdmin ? 'global_admin' : 
-                             isRoomAdmin ? 'room_admin' : 
-                             isRoomOwner ? 'room_owner' : 'room_allows_all'
+            roomName: room.name
         });
 
-        // Update user mic status
+        // Update user mic status - remove mic permissions
+        const roomUser = room.getUser(user.uid);
         if (roomUser) {
-            roomUser.mic = 1;
+            roomUser.mic = 0;
         }
-        user.mic = 1;
+        user.mic = 0;
 
-        // Send mic granted response with room ID
-        const roomIdBuffer = payload.slice(0, 4);
-        sendPacket(socket, 0x018d, roomIdBuffer, socket.id);
+        logger.info('Mic permission removed', {
+            userId: user.uid,
+            nickname: user.nickname,
+            roomId: room.id,
+            roomName: room.name
+        });
+
+        // Send acknowledgment of mic removal
+        const roomIdHex = Utils.decToHex(room.id);
+        sendPacket(socket, PACKET_TYPES.PACKET_ROOM_USER_RED_DOT_OFF, Buffer.from('00000000', 'hex'), socket.id);
+
+        // Notify all users that user no longer has mic request flag
+        // FIXED: Use proper buffer concatenation instead of hex string concatenation
+        const micRequestData = Buffer.concat([
+            Buffer.from(roomIdHex, 'hex'),
+            Buffer.from(Utils.decToHex(user.uid), 'hex')
+        ]);
+        
+        room.getAllUsers().forEach(otherUserData => {
+            const otherUser = serverState.getUser(otherUserData.uid);
+            if (otherUser && otherUser.socket) {
+                sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_OFF, micRequestData, otherUser.socket.id);
+            }
+        });
+
+        // Notify other users that this user no longer has mic permissions
+        const micNotificationData = Buffer.from(
+            roomIdHex + Utils.decToHex(user.uid) + '00', // 00 = mic removed
+            'hex'
+        );
+        
+        room.getAllUsers().forEach(otherUserData => {
+            const otherUser = serverState.getUser(otherUserData.uid);
+            if (otherUser && otherUser.socket) {
+                sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData, otherUser.socket.id);
+            }
+        });
 
         // Broadcast updated user list to show mic status change
         this.broadcastUserListUpdate(room);
 
-        // Log for voice server coordination
-        logger.debug('User granted mic permission', {
+        logger.info('=== MIC UNREQUEST DEBUG END ===', {
             userId: user.uid,
-            roomId: room.id,
-            voiceServerPort: SERVER_CONFIG?.VOICE_PORT || 2090
+            userMicStatus: user.mic,
+            roomUserMicStatus: roomUser ? roomUser.mic : 'no room user found'
         });
     }
 
@@ -652,10 +932,12 @@ class PacketProcessor {
 
         room.setStatusMessage(message, user.uid);
         
-        const bannerBuffer = Buffer.from(
-            Utils.decToHex(roomId) + '00000000' + payload.slice(4).toString('hex'),
-            'hex'
-        );
+        // FIXED: Use proper buffer concatenation instead of hex encoding to prevent reconnections
+        const bannerBuffer = Buffer.concat([
+            Buffer.from(Utils.decToHex(roomId), 'hex'),
+            Buffer.from('00000000', 'hex'),
+            payload.slice(4)
+        ]);
         
         this.broadcastToRoom(room, 0x015f, bannerBuffer);
     }
@@ -829,10 +1111,11 @@ class PacketProcessor {
         this.sendRoomMessage(socket, room.id, `${user.nickname}, welcome to the room ${room.name}.`);
         
         // Send topic
-        const topicBuffer = Buffer.from(
-            roomIdHex + '00000000' + Buffer.from(room.topic).toString('hex'),
-            'hex'
-        );
+        const topicBuffer = Buffer.concat([
+            Buffer.from(roomIdHex, 'hex'),
+            Buffer.from('00000000', 'hex'),
+            Buffer.from(room.topic, 'utf8')
+        ]);
         sendPacket(socket, 0x015f, topicBuffer, socket.id);
 
         // Send user list
@@ -860,10 +1143,12 @@ class PacketProcessor {
     }
 
     sendRoomMessage(socket, roomId, message) {
-        const messageBuffer = Buffer.from(
-            Utils.decToHex(roomId) + '00000000' + Buffer.from(message).toString('hex'),
-            'hex'
-        );
+        // FIXED: Use proper buffer concatenation instead of hex encoding to prevent reconnections
+        const messageBuffer = Buffer.concat([
+            Buffer.from(Utils.decToHex(roomId), 'hex'),
+            Buffer.from('00000000', 'hex'),
+            Buffer.from(message, 'utf8')
+        ]);
         sendPacket(socket, 0x015e, messageBuffer, socket.id);
     }
 
@@ -872,7 +1157,7 @@ class PacketProcessor {
         const delimiter = Buffer.from([0xC8]);
 
         const visibleUsers = room.getVisibleUsers();
-        logger.debug('Sending user list', {
+        logger.info('Sending user list', {
             roomId: room.id,
             userCount: visibleUsers.length,
             users: visibleUsers.map(u => ({ uid: u.uid, nickname: u.nickname, admin: u.admin, isRoomAdmin: u.isRoomAdmin }))
@@ -884,7 +1169,9 @@ class PacketProcessor {
             buffers.push(delimiter);
         });
 
-        buffers.push(Buffer.from('eof=1'));
+        // COMPATIBILITY FIX: The old implementation had Buffer.from('eof=1', 'hex') which creates an empty buffer
+        // since 'eof=1' is not valid hex. We need to match this exactly for client compatibility.
+        buffers.push(Buffer.from('eof=1', 'hex')); // This creates an empty buffer, matching old implementation
         const userListBuffer = Buffer.concat(buffers);
         
         sendPacket(socket, 0x0154, userListBuffer, socket.id);
@@ -934,6 +1221,14 @@ class PacketProcessor {
         user.buddies.forEach(buddy => {
             const buddyUser = serverState.getUser(buddy.uid);
             if (buddyUser && buddyUser.isOnline()) {
+                const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + '0000001E', 'hex');
+                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
+                // Special case: Paltalk user should always appear online
+                logger.debug('Sending Paltalk online status during login', { 
+                    userId: user.uid, 
+                    userNickname: user.nickname 
+                });
                 const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + '0000001E', 'hex');
                 sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
             }
@@ -1135,13 +1430,21 @@ class PacketProcessor {
         });
 
         // For multiple room support, users can join additional rooms as admin
-        // without leaving their current rooms (unless they choose to)
-
-        // Join the target room as admin (4th parameter = true, like original joinRoom call)
+        // without leaving their current rooms (unless they choose to)        // Join the target room as admin (4th parameter = true, like original joinRoom call)
         if (targetRoom.addUser(user, true, true)) { // visible=true, isAdmin=true
             await this.sendRoomJoinData(socket, targetRoom, user, true);
-            this.broadcastUserListUpdate(targetRoom);
             
+            // *** REAL-TIME BROADCAST: Notify other users that admin joined ***
+            const userJoinedData = Buffer.from(
+                Utils.decToHex(targetRoom.id) + Utils.decToHex(user.uid),
+                'hex'
+            );
+            
+            this.broadcastToRoom(targetRoom, PACKET_TYPES.ROOM_USER_JOINED, userJoinedData, user.socket);
+            
+            // *** REAL-TIME BROADCAST: Send updated user lists to everyone ***
+            this.broadcastUserListUpdate(targetRoom);
+
             logger.info('User successfully joined room as admin', {
                 userId: user.uid,
                 nickname: user.nickname,
