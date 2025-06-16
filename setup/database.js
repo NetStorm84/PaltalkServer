@@ -72,7 +72,7 @@ const db = new sqlite3.Database("database.db", (err) => {
       video                 INTEGER NOT NULL DEFAULT 0,
       created               TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       owner                 INTEGER REFERENCES users(uid) DEFAULT 0,
-      cr                    TEXT NOT NULL DEFAULT '', // creator UID
+      cr                    TEXT NOT NULL DEFAULT '', -- creator UID
       topic                 TEXT DEFAULT 'Please support our sponsors.'
     )
     `,
@@ -523,81 +523,174 @@ const db = new sqlite3.Database("database.db", (err) => {
 
   // Function to run all SQL create table statements
   function runSQLStatements(statements, callback) {
+    let completed = 0;
+    let hasError = false;
+
     db.serialize(() => {
       db.run("BEGIN TRANSACTION", (err) => {
-        if (err) return callback(err);
+        if (err) {
+          console.error("Error starting transaction:", err.message);
+          return callback(err);
+        }
 
-        statements.forEach((sql, index) => {
+        // Process each statement sequentially
+        function processStatement(index) {
+          if (index >= statements.length) {
+            // All statements processed, commit transaction
+            db.run("COMMIT", (err) => {
+              if (err) {
+                console.error("Error on committing transaction:", err.message);
+                return db.run("ROLLBACK", () => callback(err));
+              }
+              console.log("✅ All table creation statements completed successfully");
+              callback(null);
+            });
+            return;
+          }
+
+          const sql = statements[index];
           db.run(sql, (err) => {
             if (err) {
-              console.error(`Error running statement #${index + 1}:`, err.message);
+              console.error(`❌ Error running statement #${index + 1}:`, err.message);
+              console.error(`SQL: ${sql.substring(0, 100)}...`);
+              hasError = true;
               return db.run("ROLLBACK", () => callback(err));
             }
+            
+            console.log(`✅ Statement #${index + 1} completed successfully`);
+            processStatement(index + 1);
           });
-        });
+        }
 
-        db.run("COMMIT", (err) => {
-          if (err) {
-            console.error("Error on committing transaction:", err.message);
-            return db.run("ROLLBACK", () => callback(err));
-          }
-          callback(null);
-        });
+        processStatement(0);
       });
     });
   }
 
   // Function to insert initial data
   function insertInitialData(statements, callback) {
+    let statementIndex = 0;
+
     db.serialize(() => {
       db.run("BEGIN TRANSACTION", (err) => {
-        if (err) return callback(err);
+        if (err) {
+          console.error("Error starting insert transaction:", err.message);
+          return callback(err);
+        }
 
-        statements.forEach(({ sql, data }, index) => {
-          const stmt = db.prepare(sql, handleError(`preparing insert statement #${index + 1}`, callback));
-          data.forEach((row) => stmt.run(row, handleError(`inserting data for statement #${index + 1}`, callback)));
-          stmt.finalize();
-        });
-
-        db.run("COMMIT", (err) => {
-          if (err) {
-            console.error("Error on committing transaction:", err.message);
-            return db.run("ROLLBACK", () => callback(err));
+        function processInsertStatement(index) {
+          if (index >= statements.length) {
+            // All insert statements processed, commit transaction
+            db.run("COMMIT", (err) => {
+              if (err) {
+                console.error("Error on committing insert transaction:", err.message);
+                return db.run("ROLLBACK", () => callback(err));
+              }
+              console.log("✅ All data insertion completed successfully");
+              callback(null);
+            });
+            return;
           }
-          callback(null);
-        });
+
+          const { sql, data } = statements[index];
+          console.log(`📝 Processing insert statement #${index + 1} with ${data.length} rows`);
+
+          const stmt = db.prepare(sql, (err) => {
+            if (err) {
+              console.error(`❌ Error preparing insert statement #${index + 1}:`, err.message);
+              return db.run("ROLLBACK", () => callback(err));
+            }
+
+            let rowIndex = 0;
+            function insertRow() {
+              if (rowIndex >= data.length) {
+                // All rows for this statement inserted, finalize and move to next statement
+                stmt.finalize((err) => {
+                  if (err) {
+                    console.error(`❌ Error finalizing statement #${index + 1}:`, err.message);
+                    return db.run("ROLLBACK", () => callback(err));
+                  }
+                  console.log(`✅ Insert statement #${index + 1} completed`);
+                  processInsertStatement(index + 1);
+                });
+                return;
+              }
+
+              const row = data[rowIndex];
+              stmt.run(row, (err) => {
+                if (err) {
+                  console.error(`❌ Error inserting row ${rowIndex + 1} for statement #${index + 1}:`, err.message);
+                  console.error(`Data:`, row);
+                  return db.run("ROLLBACK", () => callback(err));
+                }
+                rowIndex++;
+                insertRow();
+              });
+            }
+
+            insertRow();
+          });
+        }
+
+        processInsertStatement(0);
       });
     });
   }
 
-  // Function to handle errors
+  // Function to handle errors (simplified since we're using different approach)
   function handleError(operation, callback) {
     return (err) => {
       if (err) {
-        console.error(`Error ${operation}:`, err.message);
-        db.run("ROLLBACK", () => {
-          db.close();
-          callback(err);
-        });
+        console.error(`❌ Error ${operation}:`, err.message);
+        callback(err);
       }
     };
   }
 
   // Main execution flow
+  console.log("🚀 Starting database setup...");
+  
   runSQLStatements(sqlStatements, (err) => {
     if (err) {
-      console.error("Failed to run SQL statements:", err.message);
+      console.error("❌ Failed to run SQL statements:", err.message);
+      db.close();
       return;
     }
 
+    console.log("📊 Tables created successfully, now inserting initial data...");
+    
     insertInitialData(insertStatements, (err) => {
       if (err) {
-        console.error("Failed to insert initial data:", err.message);
+        console.error("❌ Failed to insert initial data:", err.message);
+        db.close();
         return;
       }
 
-      console.log("All operations completed successfully.");
-      db.close();
+      console.log("🎉 All operations completed successfully!");
+      console.log("📋 Database summary:");
+      
+      // Get counts of inserted data
+      db.serialize(() => {
+        db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
+          if (!err) console.log(`   - Users: ${row.count}`);
+        });
+        
+        db.get("SELECT COUNT(*) as count FROM categories", (err, row) => {
+          if (!err) console.log(`   - Categories: ${row.count}`);
+        });
+        
+        db.get("SELECT COUNT(*) as count FROM groups", (err, row) => {
+          if (!err) console.log(`   - Rooms: ${row.count}`);
+        });
+        
+        db.get("SELECT COUNT(*) as count FROM offline_messages", (err, row) => {
+          if (!err) {
+            console.log(`   - Offline messages: ${row.count}`);
+            console.log("✅ Database setup complete!");
+            db.close();
+          }
+        });
+      });
     });
   });
 });
