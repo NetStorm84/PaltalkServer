@@ -304,7 +304,7 @@ class Room {
         const welcomeMessages = {
             'G': 'This is a G rated room intended for a General Audience including minors. Offensive language is not permitted.',
             'A': 'This is an A rated room not intended for minors. Offensive language is permitted.',
-            'T': 'This is a T rated room for teens and adults. Some mature content is permitted.'
+            'R': 'This is an R rated room for teens and adults. Some mature content is permitted.'
         };
 
         return welcomeMessages[this.rating] || welcomeMessages['G'];
@@ -320,11 +320,12 @@ class Room {
             qual: 2,
             channels: 1,
             premium: 1,
+            size: 468, // max amount of users?
             va: 'Y',
             ss: 'F',
-            own: 'NetStorm',
-            cr: '56958546',
-            sr: 0,
+            own: 'NetStorm', // owners nickname
+            cr: '56958546', // creators UID
+            sr: 0, // 0 or 1, not sure what it means, private/public?
             sra: 0,
             sru: 0,
             srf: 0,
