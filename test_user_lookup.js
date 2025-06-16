@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const DatabaseManager = require('../src/database/databaseManager');
+const DatabaseManager = require('./src/database/databaseManager');
 
 async function testUserLookup() {
     try {

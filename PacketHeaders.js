@@ -13,6 +13,7 @@ const PACKET_TYPES = {
     USER_DATA: 0x019A,
     BUDDY_LIST: 0x0043,
     LOOKAHEAD: 0x0064,
+    KEEP_ALIVE: 13, // 0x000D - Keep-alive or status packet sent by real clients
     STATUS_CHANGE: 0x0190,
     WM_MESSAGE: 0x02B2,
     ANNOUNCEMENT: -39,
@@ -46,6 +47,7 @@ const PACKET_TYPES = {
     SEARCH_RESPONSE: 0x0045,
     USER_SEARCH: -69,
     ADD_PAL: -67,
+    REMOVE_PAL: -66,  // Remove buddy from buddy list
     REFRESH_CATEGORIES: -330,
     ALERT_ADMIN: -305,
     EMAIL_INVITE: -200,

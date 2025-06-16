@@ -6,7 +6,7 @@
  */
 
 const net = require('net');
-const { PACKET_TYPES } = require('../PacketHeaders');
+const { PACKET_TYPES } = require('./PacketHeaders');
 
 // Test configuration
 const SERVER_HOST = 'localhost';

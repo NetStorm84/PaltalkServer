@@ -134,6 +134,10 @@ class PacketProcessor {
                     await this.handleAddBuddy(socket, payload);
                     break;
                 
+                case PACKET_TYPES.REMOVE_PAL:
+                    await this.handleRemoveBuddy(socket, payload);
+                    break;
+                
                 case PACKET_TYPES.USER_SEARCH:
                     await this.handleUserSearch(socket, payload);
                     break;
@@ -172,6 +176,15 @@ class PacketProcessor {
                 
                 case PACKET_TYPES.VERSIONS:
                     await this.handleVersions(socket, payload);
+                    break;
+                
+                case PACKET_TYPES.KEEP_ALIVE:
+                    // Handle packet type 13 (0x000D) - keep-alive or status packet
+                    logger.debug('Received KEEP_ALIVE packet', { 
+                        socketId: socket.id,
+                        payloadHex: payload.toString('hex')
+                    });
+                    // Just acknowledge - no response needed
                     break;
                 
                 case PACKET_TYPES.ROOM_JOIN_AS_ADMIN:
@@ -783,20 +796,64 @@ class PacketProcessor {
             
             // Send status if buddy is online
             const buddy = serverState.getUser(buddyUid);
+            let statusCode = '00000000'; // Default to offline
+            
             if (buddy && buddy.isOnline()) {
-                const statusBuffer = Buffer.from(Utils.decToHex(buddyUid) + '0000001E', 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+                // Buddy is online - check their mode
+                if (buddy.mode === USER_MODES.AWAY) {
+                    statusCode = '00000046'; // Away status
+                } else {
+                    statusCode = '0000001E'; // Online status
+                }
             } else if (buddyData.nickname === 'Paltalk' || buddyUid === 1000001) {
                 // Special case: Paltalk user should always appear online when added as buddy
+                statusCode = '0000001E';
                 logger.debug('Sending Paltalk online status after buddy addition', { 
                     userId: user.uid, 
                     userNickname: user.nickname,
                     buddyUid: buddyUid,
                     buddyNickname: buddyData.nickname
                 });
-                const statusBuffer = Buffer.from(Utils.decToHex(buddyUid) + '0000001E', 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
             }
+            // If buddy doesn't exist or is offline, statusCode remains '00000000' (offline)
+            
+            const statusBuffer = Buffer.from(Utils.decToHex(buddyUid) + statusCode, 'hex');
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            
+            logger.debug('Buddy status sent after addition', {
+                userId: user.uid,
+                buddyUid: buddyUid,
+                buddyNickname: buddyData.nickname,
+                statusCode,
+                status: statusCode === '0000001E' ? 'online' : statusCode === '00000046' ? 'away' : 'offline'
+            });
+        }
+    }
+
+    async handleRemoveBuddy(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        const buddyUid = Utils.hexToDec(payload.slice(0, 4));
+        
+        // Remove buddy from user's buddy list
+        if (user.removeBuddy(buddyUid)) {
+            // Update database
+            await this.db.updateUserBuddies(user.uid, user.buddies);
+            
+            // Send updated buddy list
+            const buddyList = this.createBuddyListBuffer(user);
+            sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList, socket.id);
+            
+            logger.info('Buddy removed', { 
+                userId: user.uid, 
+                buddyUid 
+            });
+        } else {
+            logger.warn('Attempt to remove non-existent buddy', { 
+                userId: user.uid, 
+                buddyUid 
+            });
         }
     }
 
@@ -841,15 +898,34 @@ class PacketProcessor {
         const user = serverState.getUserBySocketId(socket.id);
         if (!user) return;
 
+        const oldMode = user.mode;
         user.setMode(newMode);
         
-        const statusBuffer = Buffer.from(Utils.decToHex(user.uid) + 
-            (newMode === USER_MODES.AWAY ? '46' : '0000001E'), 'hex');
+        let statusCode;
+        switch(newMode) {
+            case USER_MODES.AWAY:
+                statusCode = '00000046';
+                break;
+            case USER_MODES.ONLINE:
+            default:
+                statusCode = '0000001E';
+                break;
+        }
         
+        const statusBuffer = Buffer.from(Utils.decToHex(user.uid) + statusCode, 'hex');
         sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
         
         // Broadcast to buddies
-        this.broadcastStatusChange(socket, newMode);
+        this.broadcastStatusChange(user, newMode);
+        
+        logger.debug('User mode changed', {
+            userId: user.uid,
+            nickname: user.nickname,
+            oldMode,
+            newMode,
+            statusCode,
+            status: newMode === USER_MODES.AWAY ? 'away' : 'online'
+        });
     }
 
     async handleMicRequest(socket, payload) {
@@ -1394,14 +1470,35 @@ class PacketProcessor {
     }
 
     broadcastStatusChange(user, mode) {
-        const statusBuffer = Buffer.from(
-            Utils.decToHex(user.uid) + (mode === USER_MODES.OFFLINE ? '00000000' : '0000001E'),
-            'hex'
-        );
+        let statusCode;
+        switch(mode) {
+            case USER_MODES.OFFLINE:
+                statusCode = '00000000';
+                break;
+            case USER_MODES.AWAY:
+                statusCode = '00000046';
+                break;
+            case USER_MODES.ONLINE:
+            default:
+                statusCode = '0000001E';
+                break;
+        }
+        
+        const statusBuffer = Buffer.from(Utils.decToHex(user.uid) + statusCode, 'hex');
 
         serverState.getOnlineUsers().forEach(onlineUser => {
             if (onlineUser.hasBuddy(user.uid) && onlineUser.socket) {
                 sendPacket(onlineUser.socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, onlineUser.socket.id);
+                
+                logger.debug('Status change broadcast', {
+                    userUid: user.uid,
+                    userNickname: user.nickname,
+                    mode,
+                    statusCode,
+                    status: mode === USER_MODES.OFFLINE ? 'offline' : mode === USER_MODES.AWAY ? 'away' : 'online',
+                    sentToUid: onlineUser.uid,
+                    sentToNickname: onlineUser.nickname
+                });
             }
         });
     }
@@ -1418,18 +1515,35 @@ class PacketProcessor {
     sendBuddyStatusUpdates(socket, user) {
         user.buddies.forEach(buddy => {
             const buddyUser = serverState.getUser(buddy.uid);
+            let statusCode = '00000000'; // Default to offline
+            
             if (buddyUser && buddyUser.isOnline()) {
-                const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + '0000001E', 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+                // Buddy is online - check their mode
+                if (buddyUser.mode === USER_MODES.AWAY) {
+                    statusCode = '00000046'; // Away status
+                } else {
+                    statusCode = '0000001E'; // Online status
+                }
             } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
                 // Special case: Paltalk user should always appear online
+                statusCode = '0000001E';
                 logger.debug('Sending Paltalk online status during login', { 
                     userId: user.uid, 
                     userNickname: user.nickname 
                 });
-                const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + '0000001E', 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
             }
+            // If buddyUser doesn't exist or is offline, statusCode remains '00000000' (offline)
+            
+            const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + statusCode, 'hex');
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            
+            logger.debug('Buddy status update sent', {
+                userId: user.uid,
+                buddyUid: buddy.uid,
+                buddyNickname: buddy.nickname,
+                statusCode,
+                status: statusCode === '0000001E' ? 'online' : statusCode === '00000046' ? 'away' : 'offline'
+            });
         });
     }
 
@@ -1722,32 +1836,7 @@ class PacketProcessor {
             packetType: PACKET_TYPES.PACKET_ROOM_ADMIN_INFO
         });
         
-        sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, Buffer.from(adminInfo, 'utf8'), socket.id);
-
-        logger.info('Room admin info sent successfully', {
-            userId: user.uid,
-            roomId: room.id,
-            micEnabled: room.micEnabled,
-            textEnabled: room.textEnabled,
-            adminType: isGlobalAdmin ? 'global_admin' : isRoomOwner ? 'room_owner' : 'room_admin'
-        });
-    }
-
-    /**
-     * Clean up old message history
-     */
-    cleanupMessageHistory() {
-        const cutoff = Date.now() - this.spamCheckWindow;
-        
-        for (const [userId, messages] of this.recentMessages) {
-            const filtered = messages.filter(msg => msg.timestamp > cutoff);
-            
-            if (filtered.length === 0) {
-                this.recentMessages.delete(userId);
-            } else {
-                this.recentMessages.set(userId, filtered);
-            }
-        }
+        sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, Buffer.from(adminInfo), socket.id);
     }
 }
 

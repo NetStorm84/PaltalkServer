@@ -7,6 +7,8 @@ This directory contains test files for the Paltalk Server application.
 - `test_get_uin.js` - Tests user ID lookup functionality
 - `test_room_messages.js` - Tests room messaging system
 - `test_user_lookup.js` - Tests user lookup functionality
+- `test_buddy_status.js` - Comprehensive buddy status system test
+- `test_buddy_simple.js` - Simple buddy status demonstration test
 
 ## Running Tests
 
@@ -20,6 +22,24 @@ Or run a specific test:
 
 ```bash
 node tests/test_get_uin.js
+```
+
+## Buddy Status Tests
+
+The buddy status tests demonstrate the real-time status broadcasting functionality:
+
+```bash
+# Simple demonstration test
+node tests/test_buddy_simple.js
+
+# Comprehensive buddy status test
+node tests/test_buddy_status.js
+```
+
+**Note**: These tests require the server to be running on port 5001. Make sure to start the server first:
+
+```bash
+node src/server.js
 ```
 
 ## Creating New Tests

@@ -189,8 +189,18 @@ class User {
             });
             
             return true;
+        } else {
+            // Log when buddy already exists
+            logger.debug('Buddy already exists in user buddy list', {
+                userId: this.uid,
+                userNickname: this.nickname,
+                buddyUid: buddy.uid,
+                buddyNickname: buddy.nickname,
+                currentBuddyCount: this.buddies.length,
+                existingBuddies: this.buddies.map(b => ({ uid: b.uid, nickname: b.nickname }))
+            });
+            return false;
         }
-        return false;
     }
 
     /**
