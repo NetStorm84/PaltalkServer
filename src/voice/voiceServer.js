@@ -30,13 +30,16 @@ class VoiceServer {
             this.server.listen(SERVER_CONFIG.VOICE_PORT, () => {
                 this.isRunning = true;
                 logger.info('Voice server started', { 
-                    port: SERVER_CONFIG.VOICE_PORT 
+                    port: SERVER_CONFIG.VOICE_PORT,
+                    module: 'voice'
                 });
                 resolve();
             });
 
             this.server.on('error', (error) => {
-                logger.error('Voice server error', error);
+                logger.error('Voice server error', error, {
+                    module: 'voice'
+                });
                 if (!this.isRunning) {
                     reject(error);
                 }
@@ -73,7 +76,8 @@ class VoiceServer {
             connectionId,
             remoteAddress: socket.remoteAddress,
             remotePort: socket.remotePort,
-            totalConnections: this.connections.size
+            totalConnections: this.connections.size,
+            module: 'voice'
         });
 
         socket.on('data', data => {
@@ -94,7 +98,7 @@ class VoiceServer {
 
         // Set socket timeout to prevent hanging connections
         socket.setTimeout(300000, () => { // 5 minutes
-            logger.warn('Voice connection timeout', { connectionId });
+            logger.warn('Voice connection timeout', { connectionId, module: 'voice' });
             socket.destroy();
         });
     }
@@ -108,7 +112,7 @@ class VoiceServer {
         try {
             const connection = this.connections.get(connectionId);
             if (!connection) {
-                logger.warn('Voice data from unknown connection', { connectionId });
+                logger.warn('Voice data from unknown connection', { connectionId, module: 'voice' });
                 return;
             }
 
@@ -119,7 +123,7 @@ class VoiceServer {
             // Parse RTP header for quality monitoring
             const rtpInfo = this.parseRTPHeader(data);
             if (rtpInfo.error) {
-                logger.debug('Invalid RTP packet', { connectionId, error: rtpInfo.error });
+                logger.debug('Invalid RTP packet', { connectionId, error: rtpInfo.error, module: 'voice' });
                 return;
             }
 
@@ -133,7 +137,7 @@ class VoiceServer {
             this.relayAudioData(connectionId, processedData);
 
         } catch (error) {
-            logger.error('Error handling voice data', error, { connectionId });
+            logger.error('Error handling voice data', error, { connectionId, module: 'voice' });
         }
     }
 
@@ -261,18 +265,17 @@ class VoiceServer {
      */
     handleControlPacket(connectionId, data) {
         const connection = this.connections.get(connectionId);
-        const dataHex = data.toString('hex');
-
-        logger.debug('Control packet received', {
+        const dataHex = data.toString('hex');            logger.debug('Control packet received', {
             connectionId,
-            dataHex: dataHex.substring(0, 32) + (dataHex.length > 32 ? '...' : '')
+            dataHex: dataHex.substring(0, 32) + (dataHex.length > 32 ? '...' : ''),
+            module: 'voice'
         });
 
         // Handle authentication packets
         if (dataHex === '0000c353000f4242' || dataHex === '0000c353000f4244') {
             // Send acknowledgment
             connection.socket.write(Buffer.alloc(0));
-            logger.debug('Authentication packet acknowledged', { connectionId });
+            logger.debug('Authentication packet acknowledged', { connectionId, module: 'voice' });
             return;
         }
 
@@ -315,7 +318,8 @@ class VoiceServer {
             connectionId,
             roomId,
             userId,
-            roomMemberCount: this.rooms.get(roomId).size
+            roomMemberCount: this.rooms.get(roomId).size,
+            module: 'voice'
         });
 
         // Send join confirmation
@@ -353,13 +357,14 @@ class VoiceServer {
                             roomId,
                             packetLength: processedData.length,
                             sequenceNumber: rtpInfo.sequenceNumber,
-                            timestamp: rtpInfo.timestamp
+                            timestamp: rtpInfo.timestamp,
+                            module: 'voice'
                         });
                     }
                 }
             }
         } catch (error) {
-            logger.debug('Error parsing RTP packet, relaying raw data', { error: error.message });
+            logger.debug('Error parsing RTP packet, relaying raw data', { error: error.message, module: 'voice' });
         }
 
         // Relay to all other connections in the room
@@ -377,7 +382,8 @@ class VoiceServer {
                     } catch (error) {
                         logger.debug('Failed to relay audio to connection', {
                             targetConnectionId: connectionId,
-                            error: error.message
+                            error: error.message,
+                            module: 'voice'
                         });
                         errorCount++;
                     }
@@ -395,7 +401,8 @@ class VoiceServer {
                 roomId,
                 relayCount,
                 errorCount,
-                dataSize: processedData.length
+                dataSize: processedData.length,
+                module: 'voice'
             });
         }
     }
@@ -452,7 +459,7 @@ class VoiceServer {
             // Clean up empty rooms
             if (roomConnections.size === 0) {
                 this.rooms.delete(roomId);
-                logger.debug('Empty voice room cleaned up', { roomId });
+                logger.debug('Empty voice room cleaned up', { roomId, module: 'voice' });
             }
         }
     }
@@ -473,7 +480,8 @@ class VoiceServer {
             userId: connection.userId,
             duration: Date.now() - connection.connectTime.getTime(),
             bytesReceived: connection.bytesReceived,
-            bytesSent: connection.bytesSent
+            bytesSent: connection.bytesSent,
+            module: 'voice'
         });
 
         this.cleanupConnection(connectionId);
@@ -485,7 +493,10 @@ class VoiceServer {
      * @param {Error} error 
      */
     handleConnectionError(connectionId, error) {
-        logger.error('Voice connection error', error, { connectionId });
+        logger.error('Voice connection error', error, { 
+            connectionId,
+            module: 'voice'
+        });
         this.cleanupConnection(connectionId);
     }
 
@@ -494,7 +505,7 @@ class VoiceServer {
      * @param {string} connectionId 
      */
     handleConnectionEnd(connectionId) {
-        logger.debug('Voice connection ended', { connectionId });
+        logger.debug('Voice connection ended', { connectionId, module: 'voice' });
         this.cleanupConnection(connectionId);
     }
 
@@ -517,7 +528,8 @@ class VoiceServer {
         logger.debug('Voice connection cleaned up', {
             connectionId,
             remainingConnections: this.connections.size,
-            activeRooms: this.rooms.size
+            activeRooms: this.rooms.size,
+            module: 'voice'
         });
     }
 
@@ -574,7 +586,7 @@ class VoiceServer {
      */
     performCleanup() {
         try {
-            logger.debug('🧹 Performing voice server cleanup...');
+            logger.debug('🧹 Performing voice server cleanup...', { module: 'voice' });
 
             const now = Date.now();
             let cleanedConnections = 0;
@@ -588,7 +600,8 @@ class VoiceServer {
                 if (inactiveTime > 5 * 60 * 1000) {
                     logger.debug('Cleaning up inactive voice connection', { 
                         connectionId, 
-                        inactiveTime: Math.round(inactiveTime / 1000) + 's'
+                        inactiveTime: Math.round(inactiveTime / 1000) + 's',
+                        module: 'voice'
                     });
                     
                     this.handleConnectionEnd(connectionId);
@@ -608,7 +621,8 @@ class VoiceServer {
             if (cleanedConnections > 0 || cleanedRooms > 0) {
                 logger.info('Voice server cleanup completed', { 
                     cleanedConnections, 
-                    cleanedRooms 
+                    cleanedRooms,
+                    module: 'voice'
                 });
             }
 
@@ -616,7 +630,7 @@ class VoiceServer {
             this.stats.lastCleanup = now;
 
         } catch (error) {
-            logger.error('Error during voice server cleanup', error);
+            logger.error('Error during voice server cleanup', error, { module: 'voice' });
         }
     }
 
@@ -666,13 +680,15 @@ class VoiceServer {
             logger.debug('Voice server health check', {
                 connections: stats.currentConnections,
                 rooms: stats.activeRooms,
-                totalPackets: stats.totalPacketsRelayed
+                totalPackets: stats.totalPacketsRelayed,
+                module: 'voice'
             });
 
             // Check for performance issues
             if (stats.currentConnections > 50) {
                 logger.warn('High voice connection count', { 
-                    connections: stats.currentConnections 
+                    connections: stats.currentConnections,
+                    module: 'voice'
                 });
             }
 
@@ -684,7 +700,8 @@ class VoiceServer {
             if (poorQualityConnections.length > 0) {
                 logger.warn('Poor quality voice connections detected', {
                     count: poorQualityConnections.length,
-                    connections: poorQualityConnections.map(r => r.connectionId)
+                    connections: poorQualityConnections.map(r => r.connectionId),
+                    module: 'voice'
                 });
             }
 
@@ -711,7 +728,7 @@ class VoiceServer {
                 this.connections.clear();
                 this.rooms.clear();
                 
-                logger.info('Voice server stopped');
+                logger.info('Voice server stopped', { module: 'voice' });
                 resolve();
             });
         });

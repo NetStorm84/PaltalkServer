@@ -54,8 +54,35 @@ class Logger {
         return logEntry;
     }
 
-    getRecentLogs(limit = 50) {
-        return this.recentLogs.slice(0, limit);
+    /**
+     * Get recent logs with optional filtering
+     * @param {number} limit - Maximum number of logs to return
+     * @param {string} module - Optional module filter (e.g., 'voice', 'chat')
+     * @returns {Array} - Array of log entries
+     */
+    getRecentLogs(limit = 50, module = null) {
+        let filtered = this.recentLogs;
+        
+        // Filter by module if specified
+        if (module) {
+            filtered = filtered.filter(log => {
+                // Check both in message and metadata
+                return (
+                    (log.message && log.message.toLowerCase().includes(module.toLowerCase())) ||
+                    (log.meta && log.meta.module === module) ||
+                    (log.meta && log.meta.service && log.meta.service.includes(module))
+                );
+            });
+        }
+        
+        // Limit results
+        return filtered.slice(0, limit).map(log => ({
+            id: log.id,
+            timestamp: log.timestamp,
+            level: log.level,
+            message: log.message,
+            details: log.meta
+        }));
     }
 
     info(message, meta = {}) {

@@ -45,6 +45,11 @@ class WebInterface {
             res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
         });
 
+        // Voice dashboard
+        this.app.get('/voice-dashboard.html', (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'voice-dashboard.html'));
+        });
+
         // API Routes
         
         // Server statistics
@@ -100,7 +105,13 @@ class WebInterface {
         // Online users
         this.app.get('/api/users', (req, res) => {
             try {
-                const users = this.serverState.getOnlineUsers().map(user => user.getSummary());
+                const users = this.serverState.getAllUsers().map(user => ({
+                    uid: user.uid,
+                    nickname: user.nickname,
+                    mode: user.mode,
+                    isAdmin: user.isAdmin(),
+                    loginTime: user.loginTime
+                }));
                 res.json(users);
             } catch (error) {
                 logger.error('Failed to get users', error);
@@ -108,312 +119,79 @@ class WebInterface {
             }
         });
 
-        // Active rooms
-        this.app.get('/api/rooms', (req, res) => {
+        // Voice server detailed statistics 
+        this.app.get('/api/voice/stats', (req, res) => {
             try {
-                const rooms = this.serverState.getAllRooms().map(room => room.getSummary());
-                res.json(rooms);
+                // Use the enhanced statistics method instead of basic stats
+                const voiceStats = this.voiceServer.getServerStatistics();
+                res.json(voiceStats);
             } catch (error) {
-                logger.error('Failed to get rooms', error);
-                res.status(500).json({ error: 'Failed to get rooms' });
+                logger.error('Failed to get voice server stats', error);
+                res.status(500).json({ error: 'Failed to get voice server stats' });
             }
         });
 
-        // Rooms by category - supports dynamic Top Rooms
-        this.app.get('/api/rooms/category/:categoryId', (req, res) => {
-            try {
-                const categoryId = parseInt(req.params.categoryId);
-                const rooms = this.serverState.getRoomsByCategory(categoryId);
-                const roomList = rooms.map(room => room.getSummary());
-                
-                logger.debug('Category rooms requested', {
-                    categoryId,
-                    roomCount: rooms.length,
-                    isTopRooms: categoryId === 30001
-                });
-                
-                res.json({
-                    categoryId,
-                    rooms: roomList,
-                    count: roomList.length,
-                    isTopRooms: categoryId === 30001, // Flag for Top Rooms dynamic category
-                    timestamp: new Date().toISOString()
-                });
-            } catch (error) {
-                logger.error('Failed to get rooms by category', error, { categoryId: req.params.categoryId });
-                res.status(500).json({ error: 'Failed to get rooms by category' });
-            }
-        });
-
-        // Server logs (recent)
-        this.app.get('/api/logs', (req, res) => {
+        // Voice server logs
+        this.app.get('/api/voice/logs', (req, res) => {
             try {
                 const limit = parseInt(req.query.limit) || 50;
-                const logs = logger.getRecentLogs(limit);
-                res.json({ logs });
+                // Fetch the most recent voice-related logs from the logger
+                const logs = logger.getRecentLogs(limit, 'voice');
+                res.json(logs);
             } catch (error) {
-                logger.error('Failed to get logs', error);
-                res.status(500).json({ error: 'Failed to get logs' });
+                logger.error('Failed to get voice logs', error);
+                res.status(500).json({ error: 'Failed to get voice logs' });
             }
         });
 
-        // Room ID validation and ranges
-        this.app.get('/api/rooms/validate/:roomId', (req, res) => {
+        // Voice server debug information
+        this.app.get('/api/voice/debug', (req, res) => {
             try {
-                const roomId = parseInt(req.params.roomId);
-                const allRooms = this.serverState.getAllRooms();
-                const room = this.serverState.getRoom(roomId);
+                const voiceStats = this.voiceServer.getServerStatistics();
                 
-                const roomIdRanges = {
-                    lowest: Math.min(...allRooms.map(r => r.id)),
-                    highest: Math.max(...allRooms.map(r => r.id)),
-                    totalRooms: allRooms.length
+                // Extend with additional debug information
+                const debugData = {
+                    packetsProcessed: voiceStats.totalPacketsRelayed || 0,
+                    avgPacketSize: 0,
+                    dataRate: 0,
+                    totalConnections: 0,
+                    connectionErrors: 0,
+                    avgDuration: 0,
+                    rawState: voiceStats
                 };
                 
-                const categoryRanges = {
-                    topRooms: { start: 10001, end: 10015, count: allRooms.filter(r => r.id >= 10001 && r.id <= 10015).length },
-                    featuredRooms: { start: 20001, end: 20015, count: allRooms.filter(r => r.id >= 20001 && r.id <= 20015).length },
-                    helpRooms: { start: 30001, end: 30012, count: allRooms.filter(r => r.id >= 30001 && r.id <= 30012).length },
-                    friendsRooms: { start: 40001, end: 40018, count: allRooms.filter(r => r.id >= 40001 && r.id <= 40018).length },
-                    loveRooms: { start: 50001, end: 50016, count: allRooms.filter(r => r.id >= 50001 && r.id <= 50016).length },
-                    socialRooms: { start: 60001, end: 60014, count: allRooms.filter(r => r.id >= 60001 && r.id <= 60014).length },
-                    youngAdultRooms: { start: 70001, end: 70017, count: allRooms.filter(r => r.id >= 70001 && r.id <= 70017).length },
-                    religiousRooms: { start: 80001, end: 80013, count: allRooms.filter(r => r.id >= 80001 && r.id <= 80013).length },
-                    computerRooms: { start: 90001, end: 90015, count: allRooms.filter(r => r.id >= 90001 && r.id <= 90015).length },
-                    sportsRooms: { start: 100001, end: 100020, count: allRooms.filter(r => r.id >= 100001 && r.id <= 100020).length },
-                    businessRooms: { start: 110001, end: 110016, count: allRooms.filter(r => r.id >= 110001 && r.id <= 110016).length },
-                    musicRooms: { start: 120001, end: 120018, count: allRooms.filter(r => r.id >= 120001 && r.id <= 120018).length },
-                    miscRooms: { start: 130001, end: 130019, count: allRooms.filter(r => r.id >= 130001 && r.id <= 130019).length },
-                    adultRooms: { start: 140001, end: 140015, count: allRooms.filter(r => r.id >= 140001 && r.id <= 140015).length }
-                };
-                
-                res.json({
-                    roomId,
-                    exists: !!room,
-                    room: room ? room.getSummary() : null,
-                    validation: {
-                        isValid: !!room,
-                        isInValidRange: roomId >= roomIdRanges.lowest && roomId <= roomIdRanges.highest,
-                        validRoomRange: `${roomIdRanges.lowest} - ${roomIdRanges.highest}`,
-                        totalRooms: roomIdRanges.totalRooms
-                    },
-                    categoryRanges,
-                    suggestions: room ? [] : allRooms
-                        .filter(r => Math.abs(r.id - roomId) <= 50)
-                        .map(r => ({ id: r.id, name: r.name, category: r.category }))
-                        .slice(0, 5)
-                });
-            } catch (error) {
-                logger.error('Failed to validate room ID', error);
-                res.status(500).json({ error: 'Failed to validate room ID' });
-            }
-        });
-
-        // User search
-        this.app.get('/api/users/search', async (req, res) => {
-            try {
-                const { nickname } = req.query;
-                if (!nickname) {
-                    return res.status(400).json({ error: 'Nickname parameter required' });
-                }
-                
-                const users = await this.db.searchUsersByNickname(nickname, false);
-                res.json(users);
-            } catch (error) {
-                logger.error('Failed to search users', error);
-                res.status(500).json({ error: 'Failed to search users' });
-            }
-        });
-
-        // Admin actions
-        this.app.post('/api/admin/kick-user', (req, res) => {
-            try {
-                const { userId, reason } = req.body;
-                
-                if (!userId || isNaN(parseInt(userId))) {
-                    return res.status(400).json({ error: 'Valid User ID required' });
-                }
-                
-                const user = this.serverState.getUser(parseInt(userId));
-                if (!user) {
-                    return res.status(404).json({ error: 'User not found or not online' });
-                }
-                
-                // Send kick notification to user before disconnecting
-                if (user.socket) {
-                    try {
-                        const kickMessage = `You have been kicked by an administrator. Reason: ${reason || 'No reason provided'}`;
-                        const kickBuffer = Buffer.from(kickMessage, 'utf8');
-                        sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, kickBuffer, user.socket.id);
-                        
-                        // Give a moment for the message to be sent before disconnecting
-                        setTimeout(() => {
-                            try {
-                                if (user.socket && user.socket.destroy) {
-                                    user.socket.destroy();
-                                }
-                            } catch (destroyError) {
-                                logger.warn('Error destroying socket during kick', { 
-                                    userId: parseInt(userId), 
-                                    error: destroyError.message 
-                                });
-                            }
-                        }, 100);
-                    } catch (packetError) {
-                        logger.warn('Failed to send kick notification', { 
-                            userId: parseInt(userId), 
-                            error: packetError.message 
-                        });
-                    }
-                }
-                
-                // Remove user connection using UID (more reliable than socket)
-                const removed = this.serverState.removeUserConnection(parseInt(userId), `Kicked by admin: ${reason || 'No reason provided'}`);
-                
-                if (removed) {
-                    logger.info('User kicked by admin', { userId: parseInt(userId), reason, nickname: user.nickname });
-                    res.json({ success: true, message: 'User kicked successfully' });
-                } else {
-                    logger.warn('Failed to remove user connection during kick', { userId: parseInt(userId) });
-                    res.status(500).json({ error: 'Failed to disconnect user' });
-                }
-            } catch (error) {
-                logger.error('Failed to kick user', error, { userId: req.body.userId });
-                res.status(500).json({ error: 'Failed to kick user: ' + error.message });
-            }
-        });
-
-        // Alternative kick endpoint to match dashboard expectations
-        this.app.post('/api/admin/kick/:userId', (req, res) => {
-            try {
-                const userId = parseInt(req.params.userId);
-                const { reason } = req.body;
-                
-                if (!userId || isNaN(userId)) {
-                    return res.status(400).json({ error: 'Valid User ID required' });
-                }
-                
-                const user = this.serverState.getUser(userId);
-                if (!user) {
-                    return res.status(404).json({ error: 'User not found or not online' });
-                }
-                
-                // Send kick notification to user before disconnecting
-                if (user.socket) {
-                    try {
-                        const kickMessage = `You have been kicked by an administrator. Reason: ${reason || 'No reason provided'}`;
-                        const kickBuffer = Buffer.from(kickMessage, 'utf8');
-                        sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, kickBuffer, user.socket.id);
-                        
-                        // Give a moment for the message to be sent before disconnecting
-                        setTimeout(() => {
-                            try {
-                                if (user.socket && user.socket.destroy) {
-                                    user.socket.destroy();
-                                }
-                            } catch (destroyError) {
-                                logger.warn('Error destroying socket during kick', { 
-                                    userId, 
-                                    error: destroyError.message 
-                                });
-                            }
-                        }, 100);
-                    } catch (packetError) {
-                        logger.warn('Failed to send kick notification', { 
-                            userId, 
-                            error: packetError.message 
-                        });
-                    }
-                }
-                
-                // Remove user connection using UID (more reliable than socket)
-                const removed = this.serverState.removeUserConnection(userId, `Kicked by admin: ${reason || 'No reason provided'}`);
-                
-                if (removed) {
-                    logger.info('User kicked by admin', { userId, reason, nickname: user.nickname });
-                    res.json({ success: true, message: 'User kicked successfully' });
-                } else {
-                    logger.warn('Failed to remove user connection during kick', { userId });
-                    res.status(500).json({ error: 'Failed to disconnect user' });
-                }
-            } catch (error) {
-                logger.error('Failed to kick user', error, { userId: req.params.userId });
-                res.status(500).json({ error: 'Failed to kick user: ' + error.message });
-            }
-        });
-
-        this.app.post('/api/admin/broadcast', (req, res) => {
-            try {
-                const { message } = req.body;
-                
-                if (!message || message.trim().length === 0) {
-                    return res.status(400).json({ error: 'Message required' });
-                }
-                
-                // Broadcast to all users using proper packet protocol
-                let sentCount = 0;
-                this.serverState.getOnlineUsers().forEach(user => {
-                    if (user.socket) {
-                        try {
-                            const announcementBuffer = Buffer.from(`ADMIN BROADCAST: ${message}`, 'utf8');
-                            sendPacket(user.socket, PACKET_TYPES.ANNOUNCEMENT, announcementBuffer, user.socket.id);
-                            sentCount++;
-                        } catch (error) {
-                            logger.warn('Failed to send broadcast to user', { userId: user.uid, error: error.message });
+                // Calculate additional metrics if data is available
+                if (voiceStats.connections && voiceStats.connections.length > 0) {
+                    // Calculate average packet size across connections
+                    let totalBytes = 0;
+                    voiceStats.connections.forEach(conn => {
+                        totalBytes += (conn.bytesReceived || 0);
+                    });
+                    debugData.avgPacketSize = Math.round(totalBytes / Math.max(voiceStats.totalPacketsRelayed, 1));
+                    
+                    // Calculate approximate data rate (bytes per second)
+                    const uptime = Date.now() - voiceStats.serverStartTime;
+                    const uptimeSeconds = uptime / 1000;
+                    debugData.dataRate = Math.round(totalBytes / Math.max(uptimeSeconds, 1) / 1024); // KB/s
+                    
+                    // Calculate average connection duration
+                    let totalDuration = 0;
+                    const now = Date.now();
+                    voiceStats.connections.forEach(conn => {
+                        if (conn.connectTime) {
+                            totalDuration += (now - new Date(conn.connectTime).getTime()) / 1000;
                         }
-                    }
-                });
-                
-                logger.info('Admin broadcast sent', { message, sentToUsers: sentCount });
-                res.json({ success: true, message: `Broadcast sent successfully to ${sentCount} users` });
-            } catch (error) {
-                logger.error('Failed to send broadcast', error);
-                res.status(500).json({ error: 'Failed to send broadcast' });
-            }
-        });
-
-        // Performance monitoring endpoint
-        this.app.get('/api/performance', (req, res) => {
-            try {
-                const memUsage = process.memoryUsage();
-                const cpuUsage = process.cpuUsage();
-                
-                res.json({
-                    memory: {
-                        rss: Math.round(memUsage.rss / 1024 / 1024), // MB
-                        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-                        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-                        external: Math.round(memUsage.external / 1024 / 1024)
-                    },
-                    cpu: cpuUsage,
-                    uptime: Math.round(process.uptime()),
-                    timestamp: new Date().toISOString()
-                });
-            } catch (error) {
-                logger.error('Failed to get performance data', error);
-                res.status(500).json({ error: 'Failed to get performance data' });
-            }
-        });
-
-        // Enhanced user management
-        this.app.post('/api/admin/user/:userId/ban', (req, res) => {
-            try {
-                const { userId } = req.params;
-                const { reason, duration } = req.body;
-                
-                const user = this.serverState.getUser(parseInt(userId));
-                if (!user) {
-                    return res.status(404).json({ error: 'User not found' });
+                    });
+                    debugData.avgDuration = Math.round(totalDuration / voiceStats.connections.length);
+                    
+                    // Set total connections count
+                    debugData.totalConnections = voiceStats.connections.length;
                 }
                 
-                // Ban user
-                this.serverState.banUser(userId, reason, duration);
-                
-                logger.info('User banned by admin', { userId, reason, duration });
-                res.json({ success: true, message: 'User banned successfully' });
+                res.json(debugData);
             } catch (error) {
-                logger.error('Failed to ban user', error);
-                res.status(500).json({ error: 'Failed to ban user' });
+                logger.error('Failed to get voice debug info', error);
+                res.status(500).json({ error: 'Failed to get voice debug info' });
             }
         });
 
@@ -582,6 +360,12 @@ class WebInterface {
         this.serverState.on('userLeftRoom', () => {
             this.broadcastUpdate('userLeftRoom');
         });
+
+        // Voice server specific events
+        // Start periodic voice metrics broadcasting
+        setInterval(() => {
+            this.broadcastVoiceMetrics();
+        }, 3000); // Update every 3 seconds
     }
 
     async sendServerState(socket) {
@@ -647,6 +431,28 @@ class WebInterface {
             });
         } catch (error) {
             logger.error('Failed to send server state', error);
+        }
+    }
+
+    /**
+     * Broadcast voice server metrics to connected clients
+     */
+    broadcastVoiceMetrics() {
+        try {
+            // Get comprehensive voice server statistics
+            const voiceStats = this.voiceServer.getServerStatistics();
+            
+            // Get voice-specific logs
+            const voiceLogs = logger.getRecentLogs(10, 'voice');
+            
+            // Broadcast to all connected clients
+            this.io.emit('voiceMetrics', {
+                stats: voiceStats,
+                logs: voiceLogs,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            logger.error('Failed to broadcast voice metrics', error);
         }
     }
 
