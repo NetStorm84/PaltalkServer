@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js --dev",
-    "test": "node test.js",
-    "migrate": "node migrate.js"
+    "test": "node tests/test_runner.js",
+    "migrate": "node migrate.js",
+    "setup": "node setup/database.js"
   },
   "keywords": [],
   "author": "",

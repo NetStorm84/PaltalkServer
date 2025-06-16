@@ -25,6 +25,9 @@ src/
 ├── voice/           # Voice server functionality
 ├── web/             # Web interface and dashboard
 └── server.js        # Main server entry point
+setup/               # Setup and initialization scripts
+└── database.js      # Database creation and initialization
+tests/               # Test files and test utilities
 ```
 
 ## 🔧 Setup
@@ -109,12 +112,12 @@ The project has been completely overhauled into a modern, modular architecture:
 ### Available Scripts
 
 - `npm start` - Start the enhanced Paltalk server
-- `npm test` - Run the comprehensive test suite  
+- `npm test` - Run the comprehensive test suite (located in the `/tests` directory)
 - `npm run dev` - Start in development mode
 - `npm run migrate` - Migration script (for upgrading from legacy version)
 
  - `npm install` to install the dependencies.
- - `node database.js` to create the database.
+ - `node setup/database.js` to create the database.
  - Followed by `npm start`. This will initialise the chat server on port 5001 and the voice server on 12718.
 
 ### Preparing the client

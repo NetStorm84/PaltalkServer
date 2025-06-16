@@ -16,7 +16,7 @@ mkdir -p logs backups
 # Check if database exists, create if not
 if [ ! -f "database.db" ]; then
     echo "🗄️ Creating database..."
-    node database.js
+    node setup/database.js
 fi
 
 echo ""
