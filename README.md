@@ -38,17 +38,12 @@ src/
    npm install
    ```
 
-2. **Run migration (if upgrading from old version):**
-   ```bash
-   node migrate.js
-   ```
-
-3. **Start the server:**
+2. **Start the server:**
    ```bash
    npm start
    ```
 
-4. **Access the web dashboard:**
+3. **Access the web dashboard:**
    Open your browser to `http://localhost:3000`
 
 ### Manual Setup
@@ -56,12 +51,11 @@ src/
 To get the server up and running manually:
 
  - `npm install` to install the dependencies.
- - `node database.js` to create the database (or it will be created automatically).
- - `npm start` to start the integrated server.
+ - `npm start` to start the server.
 
 **Server Ports:**
 - Chat Server: `5001` (default)
-- Voice Server: `8075` (default) 
+- Voice Server: `2090` (default) 
 - Web Dashboard: `3000` (default)
 
 ## 🌐 Web Dashboard
@@ -83,7 +77,7 @@ Server configuration can be modified in `src/config/constants.js`:
 ```javascript
 const CONFIG = {
     CHAT_PORT: 5001,
-    VOICE_PORT: 8075,
+    VOICE_PORT: 2090,
     WEB_PORT: 3000,
     MAX_USERS: 100,
     // ... other settings
@@ -99,27 +93,25 @@ Logs are written to the `logs/` directory:
 
 ## 🔧 Development
 
-### Old vs New Structure
+### Project Structure
 
-The project has been completely overhauled from the original structure:
+The project has been completely overhauled into a modern, modular architecture:
 
-**Old Structure (preserved in root):**
-- `server.js` - Monolithic chat server
-- `voiceServer.js` - Separate voice server
-- `helper.js` - Mixed utility functions
-
-**New Structure (in src/):**
-- Modular, organized components
+**Current Structure (Enhanced):**
+- Modular, organized components in `src/`
 - Integrated voice and chat servers
 - Web interface with real-time monitoring
 - Enhanced error handling and logging
+- Comprehensive test suite and documentation
 
-### Migration
+**Legacy files preserved in `backups/` for reference**
 
-If you're upgrading from the old server:
-1. Run `node migrate.js` to backup original files
-2. The old files remain in the root directory for reference
-3. New server runs from `src/server.js`
+### Available Scripts
+
+- `npm start` - Start the enhanced Paltalk server
+- `npm test` - Run the comprehensive test suite  
+- `npm run dev` - Start in development mode
+- `npm run migrate` - Migration script (for upgrading from legacy version)
 
  - `npm install` to install the dependencies.
  - `node database.js` to create the database.

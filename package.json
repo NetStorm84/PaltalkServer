@@ -1,11 +1,10 @@
 {
   "name": "palserver",
-  "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "Enhanced Paltalk Server with modern features and web dashboard",
+  "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "start:old": "concurrently \"node server.js\" \"node voiceServer.js\"",
     "dev": "node src/server.js --dev",
     "test": "node test.js",
     "migrate": "node migrate.js"
@@ -18,8 +17,5 @@
     "socket.io": "^4.8.1",
     "sqlite3": "^5.1.7",
     "winston": "^3.14.2"
-  },
-  "devDependencies": {
-    "concurrently": "^7.0.0"
   }
 }
