@@ -318,7 +318,7 @@ class Room {
         return {
             codec: 'spexproj.dll',
             qual: 2,
-            channels: 1,
+            channels: 1, // 1 or 0 - single mic or multimic?
             premium: 1,
             size: 468, // max amount of users?
             va: 'Y',
