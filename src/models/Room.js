@@ -130,8 +130,18 @@ class Room {
 
             this.users.set(user.uid, userRoomData);
             
-            // Use the new multiple room tracking methods
-            user.addToRoom(this.id);
+            // Use the new multiple room tracking methods if the user object has them
+            // This handles both User instances (with methods) and plain objects (bots might use)
+            if (typeof user.addToRoom === 'function') {
+                user.addToRoom(this.id);
+            } else {
+                logger.debug('User object does not have addToRoom method', {
+                    userId: user.uid,
+                    userType: typeof user,
+                    hasMethod: typeof user.addToRoom,
+                    isBot: user.isBot
+                });
+            }
 
             logger.logUserAction('room_join', user.uid, {
                 roomId: this.id,

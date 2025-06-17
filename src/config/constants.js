@@ -6,6 +6,7 @@ const SERVER_CONFIG = {
     CHAT_PORT: 5001,
     VOICE_PORT: 2090,
     WEB_UI_PORT: 3000,
+    SERVER_IP: '192.168.1.75', // Network IP address for external connections
     SERVER_KEY: 'XyF¦164473312518',
     DATABASE_PATH: 'database.db'
 };
@@ -50,6 +51,31 @@ const SECURITY_SETTINGS = {
     LOCKOUT_DURATION: 15 * 60 * 1000 // 15 minutes
 };
 
+const BOT_CONFIG = {
+    DEFAULT_BOT_COUNT: 10,
+    MAX_BOT_COUNT: 5000, // Maximum number of bots allowed
+    DEFAULT_CHAT_FREQUENCY_MS: 30000, // Chat every 30 seconds
+    DEFAULT_MOVE_FREQUENCY_MS: 300000, // Move rooms every 5 minutes
+    MIN_CHAT_FREQUENCY_MS: 5000, // Minimum 5 seconds between chats
+    MAX_CHAT_FREQUENCY_MS: 300000, // Maximum 5 minutes between chats
+    MIN_MOVE_FREQUENCY_MS: 60000, // Minimum 1 minute between moves
+    MAX_MOVE_FREQUENCY_MS: 1800000, // Maximum 30 minutes between moves
+    BOT_UID_START: 2000000, // Starting UID for bots to avoid conflicts
+    MAX_BOTS_PER_ROOM: 100, // Maximum bots allowed in a single room
+    ROOM_DISTRIBUTION_MODES: {
+        RANDOM: 'random', // Distribute bots randomly across all public rooms
+        SINGLE_ROOM: 'single_room', // Put all bots in one specific room
+        WEIGHTED: 'weighted', // Distribute based on room popularity
+        BALANCED: 'balanced' // Try to balance bot distribution across rooms
+    },
+    // Bot status colors for room list display
+    STATUS_COLORS: {
+        BLACK: 0, // Most common - regular users
+        GREEN: 1, // Some bots appear as premium/online
+        BLUE: 2   // Few bots appear as special status
+    }
+};
+
 module.exports = {
     SERVER_CONFIG,
     USER_PERMISSIONS,
@@ -57,5 +83,6 @@ module.exports = {
     USER_MODES,
     MESSAGE_LIMITS,
     RATE_LIMITS,
-    SECURITY_SETTINGS
+    SECURITY_SETTINGS,
+    BOT_CONFIG
 };

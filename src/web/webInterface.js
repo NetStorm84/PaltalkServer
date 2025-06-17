@@ -244,6 +244,180 @@ class WebInterface {
             }
         });
 
+        // Bot management endpoints
+        this.app.get('/api/bots/stats', (req, res) => {
+            try {
+                const botManager = require('../core/botManager');
+                const stats = botManager.getBotStats();
+                
+                // Add the roomDistribution property for frontend compatibility
+                stats.roomDistribution = stats.botsPerRoom;
+                
+                res.json({
+                    success: true,
+                    data: stats
+                });
+            } catch (error) {
+                logger.error('Failed to get bot stats', error);
+                res.status(500).json({ success: false, error: 'Failed to get bot stats' });
+            }
+        });
+
+        this.app.post('/api/bots/start', (req, res) => {
+            try {
+                const botManager = require('../core/botManager');
+                const { BOT_CONFIG } = require('../config/constants');
+                const { 
+                    botCount = BOT_CONFIG.DEFAULT_BOT_COUNT, 
+                    chatFrequency = BOT_CONFIG.DEFAULT_CHAT_FREQUENCY_MS, 
+                    moveFrequency = BOT_CONFIG.DEFAULT_MOVE_FREQUENCY_MS, 
+                    targetRoomId = null,
+                    distributionMode = null,
+                    roomIds = null
+                } = req.body;
+                
+                logger.info('Bot start request received', { 
+                    botCount, 
+                    chatFrequency, 
+                    moveFrequency, 
+                    targetRoomId, 
+                    distributionMode,
+                    roomIds 
+                });
+                
+                // Handle special values and parse room selection
+                let processedConfig = {
+                    botCount: parseInt(botCount),
+                    chatFrequencyMs: parseInt(chatFrequency),
+                    moveFrequencyMs: parseInt(moveFrequency),
+                    targetRoomId: null,
+                    distributionMode: distributionMode,
+                    roomIds: null
+                };
+
+                // Process room selection
+                if (targetRoomId === "first") {
+                    // Use the first available room
+                    const availableRooms = this.serverState?.getAllRooms?.()?.filter(room => !room.isPrivate) || [];
+                    if (availableRooms.length > 0) {
+                        processedConfig.targetRoomId = availableRooms[0].id;
+                        processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM;
+                        logger.info('Using first available room for bots', { 
+                            roomId: processedConfig.targetRoomId, 
+                            roomName: availableRooms[0].name,
+                            totalAvailableRooms: availableRooms.length
+                        });
+                    } else {
+                        logger.warn('No available rooms found for "first" target');
+                    }
+                } else if (targetRoomId && targetRoomId !== null && targetRoomId !== "null") {
+                    processedConfig.targetRoomId = parseInt(targetRoomId);
+                    processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM;
+                    logger.info('Using specific room ID', { targetRoomId: processedConfig.targetRoomId });
+                } else if (roomIds && Array.isArray(roomIds) && roomIds.length > 0) {
+                    // Multiple rooms specified
+                    processedConfig.roomIds = roomIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+                    processedConfig.distributionMode = processedConfig.roomIds.length === 1 
+                        ? BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM 
+                        : BOT_CONFIG.ROOM_DISTRIBUTION_MODES.WEIGHTED;
+                    logger.info('Using specific rooms', { roomIds: processedConfig.roomIds });
+                } else if (!distributionMode || distributionMode === 'random') {
+                    processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.RANDOM;
+                } else if (distributionMode === 'balanced') {
+                    processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.BALANCED;
+                }
+                
+                logger.info('Final bot configuration', processedConfig);
+                
+                botManager.startBots(processedConfig).then(result => {
+                    if (result.success) {
+                        logger.info('Bots started via web interface', { 
+                            botCount: result.botCount,
+                            chatFrequency,
+                            moveFrequency 
+                        });
+                        
+                        const response = {
+                            success: true,
+                            data: {
+                                activeBots: result.botCount,
+                                message: result.message
+                            }
+                        };
+                        res.json(response);
+                        
+                        // Broadcast update to all connected dashboards
+                        this.io.emit('botStatus', { isRunning: true, activeBots: result.botCount });
+                    } else {
+                        res.status(400).json(result);
+                    }
+                }).catch(error => {
+                    logger.error('Error starting bots', error);
+                    res.status(500).json({ error: 'Failed to start bots', details: error.message });
+                });
+            } catch (error) {
+                logger.error('Failed to start bots', error);
+                res.status(500).json({ error: 'Failed to start bots' });
+            }
+        });
+
+        this.app.post('/api/bots/stop', (req, res) => {
+            try {
+                const botManager = require('../core/botManager');
+                
+                botManager.stopBots().then(result => {
+                    if (result.success) {
+                        logger.info('Bots stopped via web interface');
+                        
+                        const response = {
+                            success: true,
+                            data: {
+                                message: result.message
+                            }
+                        };
+                        res.json(response);
+                        
+                        // Broadcast update to all connected dashboards
+                        this.io.emit('botStatus', { isRunning: false, activeBots: 0 });
+                    } else {
+                        res.status(400).json(result);
+                    }
+                }).catch(error => {
+                    logger.error('Error stopping bots', error);
+                    res.status(500).json({ error: 'Failed to stop bots', details: error.message });
+                });
+            } catch (error) {
+                logger.error('Failed to stop bots', error);
+                res.status(500).json({ error: 'Failed to stop bots' });
+            }
+        });
+
+        // Available rooms endpoint for bot configuration
+        this.app.get('/api/rooms/available', (req, res) => {
+            try {
+                const availableRooms = this.serverState?.getAllRooms?.()?.filter(room => !room.isPrivate) || [];
+                const roomData = availableRooms.map(room => ({
+                    id: room.id,
+                    name: room.name,
+                    userCount: room.getUserCount(),
+                    isVoice: room.isVoice,
+                    topic: room.topic || '',
+                    category: room.category || 'General'
+                }));
+
+                res.json({
+                    success: true,
+                    data: {
+                        rooms: roomData,
+                        total: roomData.length
+                    }
+                });
+            } catch (error) {
+                logger.error('Failed to get available rooms', error);
+                res.status(500).json({ error: 'Failed to get available rooms' });
+            }
+        });
+
         // User management endpoints
         this.app.get('/api/users/:userId', async (req, res) => {
             try {

@@ -134,8 +134,8 @@ class PaltalkServer {
                 this.handleNewChatConnection(socket);
             });
 
-            this.chatServer.listen(SERVER_CONFIG.CHAT_PORT, () => {
-                logger.info(`✅ Chat server listening on port ${SERVER_CONFIG.CHAT_PORT}`);
+            this.chatServer.listen(SERVER_CONFIG.CHAT_PORT, SERVER_CONFIG.SERVER_IP, () => {
+                logger.info(`✅ Chat server listening on ${SERVER_CONFIG.SERVER_IP}:${SERVER_CONFIG.CHAT_PORT}`);
                 resolve();
             });
 

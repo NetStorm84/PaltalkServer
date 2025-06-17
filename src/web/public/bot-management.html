@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Management - Paltalk Server</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+            border-bottom: 3px solid #3b82f6;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 16px;
+        }
+
+        .nav-link {
+            padding: 8px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #475569;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card h2 {
+            color: #1e293b;
+            margin-bottom: 16px;
+            font-size: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 12px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .status-running {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .status-stopped {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .form-section {
+            margin-bottom: 24px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-section h3 {
+            margin-bottom: 16px;
+            color: #334155;
+        }
+
+        .form-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            color: #475569;
+            min-width: 120px;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input[type="number"] {
+            width: 100px;
+        }
+
+        .form-group select {
+            min-width: 150px;
+        }
+
+        .room-selection {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .room-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .room-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .room-option:hover {
+            background: #f1f5f9;
+            border-color: #3b82f6;
+        }
+
+        .room-option.selected {
+            background: #dbeafe;
+            border-color: #3b82f6;
+        }
+
+        .room-info {
+            flex: 1;
+        }
+
+        .room-name {
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .room-details {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-info {
+            background: #0ea5e9;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #0284c7;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .bot-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .bot-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .bot-item:last-child {
+            border-bottom: none;
+        }
+
+        .bot-info {
+            flex: 1;
+        }
+
+        .bot-name {
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .bot-room {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .distribution-chart {
+            margin: 16px 0;
+        }
+
+        .distribution-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .distribution-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            flex: 1;
+            margin: 0 12px;
+        }
+
+        .distribution-fill {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+            
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .form-group {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .form-group label {
+                min-width: auto;
+            }
+            
+            .action-buttons {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="logo-container">
+                    <div class="logo">🤖</div>
+                    <div>
+                        <h1>Bot Management</h1>
+                        <p style="color: #64748b; margin: 0;">Manage automated users and room distribution</p>
+                    </div>
+                </div>
+                <div class="nav-links">
+                    <a href="/" class="nav-link">📊 Dashboard</a>
+                    <a href="/voice-dashboard.html" class="nav-link">🎙️ Voice</a>
+                    <a href="/bot-management.html" class="nav-link" style="background: #3b82f6; color: white;">🤖 Bots</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Bot Status Overview -->
+        <div class="card">
+            <h2>🤖 Bot System Status</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalBots">0</div>
+                    <div class="stat-label">Active Bots</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="roomsWithBots">0</div>
+                    <div class="stat-label">Rooms with Bots</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="averageBotsPerRoom">0</div>
+                    <div class="stat-label">Avg Bots/Room</div>
+                </div>
+                <div class="stat-card">
+                    <div class="status-indicator" id="botSystemStatus">
+                        <span id="botStatusIcon">⚪</span>
+                        <span id="botStatusText">Checking...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bot Configuration -->
+        <div class="card">
+            <h2>⚙️ Bot Configuration</h2>
+            
+            <!-- Basic Settings -->
+            <div class="form-section">
+                <h3>📋 Basic Settings</h3>
+                <div class="form-group">
+                    <label for="botCount">Number of Bots:</label>
+                    <input type="number" id="botCount" min="1" max="5000" value="10">
+                    <small style="color: #64748b;">Maximum 5000 bots total</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="chatFrequency">Chat Frequency:</label>
+                    <select id="chatFrequency">
+                        <option value="5000">Every 5 seconds</option>
+                        <option value="15000">Every 15 seconds</option>
+                        <option value="30000" selected>Every 30 seconds</option>
+                        <option value="60000">Every 1 minute</option>
+                        <option value="120000">Every 2 minutes</option>
+                        <option value="300000">Every 5 minutes</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="moveFrequency">Room Movement:</label>
+                    <select id="moveFrequency">
+                        <option value="60000">Every 1 minute</option>
+                        <option value="180000">Every 3 minutes</option>
+                        <option value="300000" selected>Every 5 minutes</option>
+                        <option value="600000">Every 10 minutes</option>
+                        <option value="1800000">Every 30 minutes</option>
+                        <option value="0">Disabled (stay in assigned rooms)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Distribution Mode -->
+            <div class="form-section">
+                <h3>🎯 Distribution Mode</h3>
+                <div class="form-group">
+                    <label>
+                        <input type="radio" name="distributionMode" value="single_room" checked>
+                        Single Room - All bots in one specific room
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="radio" name="distributionMode" value="weighted">
+                        Multiple Rooms - Distribute across selected rooms
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="radio" name="distributionMode" value="balanced">
+                        Balanced - Automatically balance across all public rooms
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="radio" name="distributionMode" value="random">
+                        Random - Randomly distribute across all public rooms
+                    </label>
+                </div>
+            </div>
+
+            <!-- Room Selection -->
+            <div class="form-section" id="roomSelectionSection">
+                <h3>🏠 Room Selection</h3>
+                <div class="room-selection">
+                    <div style="margin-bottom: 12px;">
+                        <button class="btn btn-info" onclick="refreshRooms()">🔄 Refresh Rooms</button>
+                        <button class="btn btn-primary" onclick="selectAllRooms()">✅ Select All</button>
+                        <button class="btn btn-primary" onclick="clearRoomSelection()">❌ Clear All</button>
+                    </div>
+                    <div class="room-grid" id="roomGrid">
+                        <div style="text-align: center; padding: 20px; color: #64748b;">
+                            Loading rooms...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-success" id="startBotsBtn" onclick="startBots()">
+                    🚀 Start Bots
+                </button>
+                <button class="btn btn-danger" id="stopBotsBtn" onclick="stopBots()" disabled>
+                    ⏹️ Stop All Bots
+                </button>
+                <button class="btn btn-info" onclick="refreshBotStats()">
+                    📊 Refresh Stats
+                </button>
+                <button class="btn btn-primary" onclick="testConfiguration()">
+                    🧪 Test Configuration
+                </button>
+            </div>
+        </div>
+
+        <!-- Bot Distribution -->
+        <div class="card" id="distributionCard" style="display: none;">
+            <h2>📊 Bot Distribution</h2>
+            <div class="distribution-chart" id="distributionChart">
+                <!-- Distribution data will be populated here -->
+            </div>
+        </div>
+
+        <!-- Active Bots List -->
+        <div class="card" id="botListCard" style="display: none;">
+            <h2>👥 Active Bots</h2>
+            <div class="bot-list" id="botList">
+                <!-- Bot list will be populated here -->
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div id="alertContainer"></div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        const socket = io();
+        let isConnected = false;
+        let selectedRooms = new Set();
+        let availableRooms = [];
+
+        // Connection handling
+        socket.on('connect', () => {
+            isConnected = true;
+            console.log('Connected to server');
+            refreshRooms();
+            refreshBotStats();
+        });
+
+        socket.on('disconnect', () => {
+            isConnected = false;
+            console.log('Disconnected from server');
+        });
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            refreshRooms();
+            refreshBotStats();
+            
+            // Refresh stats every 10 seconds
+            setInterval(refreshBotStats, 10000);
+        });
+
+        function setupEventListeners() {
+            // Distribution mode change handler
+            document.querySelectorAll('input[name="distributionMode"]').forEach(radio => {
+                radio.addEventListener('change', updateRoomSelectionVisibility);
+            });
+            
+            updateRoomSelectionVisibility();
+        }
+
+        function updateRoomSelectionVisibility() {
+            const distributionMode = document.querySelector('input[name="distributionMode"]:checked').value;
+            const roomSection = document.getElementById('roomSelectionSection');
+            
+            if (distributionMode === 'balanced' || distributionMode === 'random') {
+                roomSection.style.display = 'none';
+            } else {
+                roomSection.style.display = 'block';
+            }
+        }
+
+        async function refreshRooms() {
+            try {
+                const response = await fetch('/api/rooms/available');
+                const data = await response.json();
+                
+                if (data.success) {
+                    availableRooms = data.data.rooms;
+                    updateRoomGrid();
+                } else {
+                    showAlert('Failed to load rooms: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading rooms: ' + error.message, 'error');
+            }
+        }
+
+        function updateRoomGrid() {
+            const roomGrid = document.getElementById('roomGrid');
+            
+            if (availableRooms.length === 0) {
+                roomGrid.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">No rooms available</div>';
+                return;
+            }
+            
+            roomGrid.innerHTML = availableRooms.map(room => `
+                <div class="room-option" onclick="toggleRoomSelection(${room.id})" data-room-id="${room.id}">
+                    <input type="checkbox" ${selectedRooms.has(room.id) ? 'checked' : ''} onchange="event.stopPropagation()">
+                    <div class="room-info">
+                        <div class="room-name">${room.name}</div>
+                        <div class="room-details">ID: ${room.id} • Users: ${room.userCount} • Type: ${room.isVoice ? 'Voice' : 'Text'}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleRoomSelection(roomId) {
+            const distributionMode = document.querySelector('input[name="distributionMode"]:checked').value;
+            
+            if (distributionMode === 'single_room') {
+                // Single room mode - only allow one selection
+                selectedRooms.clear();
+                selectedRooms.add(roomId);
+            } else {
+                // Multiple room mode - toggle selection
+                if (selectedRooms.has(roomId)) {
+                    selectedRooms.delete(roomId);
+                } else {
+                    selectedRooms.add(roomId);
+                }
+            }
+            
+            updateRoomGrid();
+        }
+
+        function selectAllRooms() {
+            availableRooms.forEach(room => selectedRooms.add(room.id));
+            updateRoomGrid();
+        }
+
+        function clearRoomSelection() {
+            selectedRooms.clear();
+            updateRoomGrid();
+        }
+
+        async function startBots() {
+            const distributionMode = document.querySelector('input[name="distributionMode"]:checked').value;
+            const botCount = parseInt(document.getElementById('botCount').value);
+            const chatFrequency = parseInt(document.getElementById('chatFrequency').value);
+            const moveFrequency = parseInt(document.getElementById('moveFrequency').value);
+            
+            let config = {
+                botCount,
+                chatFrequencyMs: chatFrequency,
+                moveFrequencyMs: moveFrequency,
+                distributionMode
+            };
+            
+            // Add room-specific configuration
+            if (distributionMode === 'single_room') {
+                if (selectedRooms.size !== 1) {
+                    showAlert('Please select exactly one room for single room mode', 'error');
+                    return;
+                }
+                config.targetRoomId = Array.from(selectedRooms)[0];
+            } else if (distributionMode === 'weighted') {
+                if (selectedRooms.size === 0) {
+                    showAlert('Please select at least one room for weighted distribution', 'error');
+                    return;
+                }
+                config.roomIds = Array.from(selectedRooms);
+            }
+            
+            try {
+                document.getElementById('startBotsBtn').disabled = true;
+                document.getElementById('startBotsBtn').textContent = '🚀 Starting...';
+                
+                const response = await fetch('/api/bots/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(`Successfully started ${data.data.botCount} bots`, 'success');
+                    refreshBotStats();
+                } else {
+                    showAlert('Failed to start bots: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error starting bots: ' + error.message, 'error');
+            } finally {
+                document.getElementById('startBotsBtn').disabled = false;
+                document.getElementById('startBotsBtn').textContent = '🚀 Start Bots';
+            }
+        }
+
+        async function stopBots() {
+            try {
+                document.getElementById('stopBotsBtn').disabled = true;
+                document.getElementById('stopBotsBtn').textContent = '⏹️ Stopping...';
+                
+                const response = await fetch('/api/bots/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Successfully stopped all bots', 'success');
+                    refreshBotStats();
+                } else {
+                    showAlert('Failed to stop bots: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error stopping bots: ' + error.message, 'error');
+            } finally {
+                document.getElementById('stopBotsBtn').disabled = false;
+                document.getElementById('stopBotsBtn').textContent = '⏹️ Stop All Bots';
+            }
+        }
+
+        async function refreshBotStats() {
+            try {
+                const response = await fetch('/api/bots/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateBotStats(data.data);
+                } else {
+                    console.error('Failed to get bot stats:', data.error);
+                }
+            } catch (error) {
+                console.error('Error getting bot stats:', error);
+            }
+        }
+
+        function updateBotStats(stats) {
+            // Update overview stats
+            document.getElementById('totalBots').textContent = stats.totalBots || 0;
+            document.getElementById('roomsWithBots').textContent = stats.roomDistribution ? Object.keys(stats.roomDistribution).length : 0;
+            
+            const avgBots = stats.totalBots > 0 && stats.roomDistribution ? 
+                Math.round(stats.totalBots / Object.keys(stats.roomDistribution).length * 10) / 10 : 0;
+            document.getElementById('averageBotsPerRoom').textContent = avgBots;
+            
+            // Update status
+            const statusEl = document.getElementById('botSystemStatus');
+            const iconEl = document.getElementById('botStatusIcon');
+            const textEl = document.getElementById('botStatusText');
+            
+            if (stats.isRunning) {
+                statusEl.className = 'status-indicator status-running';
+                iconEl.textContent = '🟢';
+                textEl.textContent = 'Running';
+            } else {
+                statusEl.className = 'status-indicator status-stopped';
+                iconEl.textContent = '🔴';
+                textEl.textContent = 'Stopped';
+            }
+            
+            // Update button states
+            document.getElementById('startBotsBtn').disabled = stats.isRunning;
+            document.getElementById('stopBotsBtn').disabled = !stats.isRunning;
+            
+            // Update distribution chart
+            if (stats.roomDistribution && Object.keys(stats.roomDistribution).length > 0) {
+                updateDistributionChart(stats.roomDistribution, stats.totalBots);
+                document.getElementById('distributionCard').style.display = 'block';
+            } else {
+                document.getElementById('distributionCard').style.display = 'none';
+            }
+            
+            // Update bot list
+            if (stats.botDetails && stats.botDetails.length > 0) {
+                updateBotList(stats.botDetails);
+                document.getElementById('botListCard').style.display = 'block';
+            } else {
+                document.getElementById('botListCard').style.display = 'none';
+            }
+        }
+
+        function updateDistributionChart(distribution, totalBots) {
+            const chartEl = document.getElementById('distributionChart');
+            
+            const items = Object.entries(distribution).map(([roomName, count]) => ({
+                roomName,
+                count,
+                percentage: Math.round((count / totalBots) * 100)
+            }));
+            
+            chartEl.innerHTML = items.map(item => `
+                <div class="distribution-item">
+                    <span>${item.roomName}</span>
+                    <div class="distribution-bar">
+                        <div class="distribution-fill" style="width: ${item.percentage}%"></div>
+                    </div>
+                    <span>${item.count} (${item.percentage}%)</span>
+                </div>
+            `).join('');
+        }
+
+        function updateBotList(botDetails) {
+            const listEl = document.getElementById('botList');
+            
+            listEl.innerHTML = botDetails.map(bot => {
+                const statusColors = { 0: '⚫', 1: '🟢', 2: '🔵' };
+                const statusText = { 0: 'Regular', 1: 'Premium', 2: 'Special' };
+                
+                return `
+                <div class="bot-item">
+                    <div class="bot-info">
+                        <div class="bot-name">${statusColors[bot.statusColor] || '⚫'} ${bot.nickname}</div>
+                        <div class="bot-room">Room: ${bot.roomName} • Personality: ${bot.chatPersonality} • Status: ${statusText[bot.statusColor] || 'Regular'}</div>
+                    </div>
+                    <div style="color: #64748b; font-size: 0.8rem;">
+                        UID: ${bot.uid}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function testConfiguration() {
+            const distributionMode = document.querySelector('input[name="distributionMode"]:checked').value;
+            const botCount = parseInt(document.getElementById('botCount').value);
+            
+            let message = `Configuration Test:\n`;
+            message += `• ${botCount} bots\n`;
+            message += `• Distribution: ${distributionMode}\n`;
+            
+            if (distributionMode === 'single_room') {
+                if (selectedRooms.size === 1) {
+                    const roomId = Array.from(selectedRooms)[0];
+                    const room = availableRooms.find(r => r.id === roomId);
+                    message += `• Target room: ${room ? room.name : 'Unknown'}\n`;
+                } else {
+                    message += `• ❌ Error: Select exactly one room\n`;
+                }
+            } else if (distributionMode === 'weighted') {
+                message += `• Selected rooms: ${selectedRooms.size}\n`;
+                if (selectedRooms.size === 0) {
+                    message += `• ❌ Error: Select at least one room\n`;
+                }
+            }
+            
+            showAlert(message, 'info');
+        }
+
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alertId = 'alert-' + Date.now();
+            
+            const alertEl = document.createElement('div');
+            alertEl.id = alertId;
+            alertEl.className = `alert alert-${type}`;
+            alertEl.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="white-space: pre-line;">${message}</div>
+                    <button onclick="removeAlert('${alertId}')" style="background: none; border: none; font-size: 1.2rem; cursor: pointer;">×</button>
+                </div>
+            `;
+            
+            container.appendChild(alertEl);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => removeAlert(alertId), 5000);
+        }
+
+        function removeAlert(alertId) {
+            const alertEl = document.getElementById(alertId);
+            if (alertEl) {
+                alertEl.remove();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -27,9 +27,10 @@ class VoiceServer {
                 this.handleNewConnection(socket);
             });
 
-            this.server.listen(SERVER_CONFIG.VOICE_PORT, () => {
+            this.server.listen(SERVER_CONFIG.VOICE_PORT, SERVER_CONFIG.SERVER_IP, () => {
                 this.isRunning = true;
                 logger.info('Voice server started', { 
+                    ip: SERVER_CONFIG.SERVER_IP,
                     port: SERVER_CONFIG.VOICE_PORT,
                     module: 'voice'
                 });

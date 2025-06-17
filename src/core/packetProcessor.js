@@ -1414,8 +1414,7 @@ class PacketProcessor {
 
         // Send voice server info if voice room
         if (room.isVoice) {
-            const ip = socket.localAddress || '127.0.0.1';
-            const ipHex = Utils.ipToHex(Utils.extractIPv4(ip));
+            const ipHex = Utils.ipToHex(SERVER_CONFIG.SERVER_IP);
             const voiceBuffer = Buffer.from(
                 roomIdHex + ipHex + '0001869f' + '0000' + '082a',
                 'hex'
