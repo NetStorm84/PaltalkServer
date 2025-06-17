@@ -16,6 +16,9 @@ class BotManager {
         this.moveInterval = null;
         this.currentConfig = null; // Store current bot configuration
         
+        // Performance optimization: Track bots per room for O(1) lookups
+        this.botsPerRoom = new Map(); // roomId -> count
+        
         // Bot name generation data - More natural, random names that real users would use
         this.firstNames = [
             'alex', 'sam', 'jordan', 'casey', 'taylor', 'morgan', 'riley', 'avery', 'drew', 'blake',
@@ -53,106 +56,186 @@ class BotManager {
         ];
         
         this.chatMessages = [
-            "hey everyone!",
-            "what's up?",
-            "anyone here from California?",
-            "good morning all",
-            "how's everyone's day going?",
-            "nice to see some familiar faces",
-            "quiet in here today",
-            "love this room",
-            "anyone watching the game tonight?",
-            "coffee anyone? ☕",
-            "working from home today",
-            "beautiful weather outside",
-            "weekend plans anyone?",
-            "just got back from vacation",
-            "anyone into music?",
-            "what's everyone up to?",
-            "new here, seems cool",
-            "been here a while, great community",
-            "anyone play video games?",
-            "cooking dinner later",
-            "just finished work",
-            "long day today",
-            "excited for the weekend",
-            "anyone seen any good movies lately?",
-            "thinking about ordering pizza",
-            "traffic was terrible today",
-            "working late tonight",
-            "can't wait for summer",
-            "spring is finally here",
-            "love this time of year",
-            "just woke up",
-            "having lunch break",
-            "Netflix recommendations?",
-            "anyone else working weekends?",
-            "gorgeous sunset today",
-            "need more caffeine",
-            "finally Friday!",
-            "anyone from the east coast?",
-            "homework is killing me",
-            "can't believe it's Monday already",
-            "this weather is crazy",
-            "anyone else stressed lately?",
-            "pets are being adorable today",
-            "grocery shopping is exhausting",
-            "technology confuses me sometimes",
-            "miss traveling so much",
-            "workout motivation needed",
-            "cooking show marathon",
-            "anyone else love rainy days?",
-            "planning my next vacation",
-            "can't find my keys again"
+            // Very short messages (1-3 words)
+            "hey",
+            "hi all",
+            "what's up",
+            "morning",
+            "afternoon",
+            "evening",
+            "hello",
+            "sup",
+            "hey there",
+            "good morning",
+            "how's it going",
+            "what's new",
+            "hey everyone",
+            "hi there",
+            "wassup",
+            
+            // Short casual messages (4-10 words)
+            "just got here, what did I miss?",
+            "anyone around today?",
+            "pretty quiet in here",
+            "how's everyone doing?",
+            "nice to see familiar faces",
+            "coffee time for me",
+            "just finished work finally",
+            "weekend vibes anyone?",
+            "Monday blues hitting hard",
+            "beautiful day outside today",
+            "rainy weather here",
+            "traffic was terrible",
+            "running late as usual",
+            "need more coffee",
+            "almost Friday thank god",
+            
+            // Medium length conversational messages (10-20 words)
+            "hey everyone! hope you're all having a good day so far",
+            "what's up? just finished my morning coffee and feeling human again",
+            "anyone here from the west coast? thinking about visiting soon",
+            "good morning all! the sun is finally shining here today",
+            "how's everyone's week going? mine's been absolutely crazy busy",
+            "nice to see some activity in here, was getting pretty quiet",
+            "working from home today and my cat is being super distracting",
+            "anyone watching anything good on Netflix lately? need recommendations",
+            "thinking about ordering takeout because I'm too lazy to cook tonight",
+            "finally got my weekend plans sorted, gonna be a good one",
+            
+            // Longer personal updates (20-40 words)
+            "just got back from vacation and I'm already missing the beach, why does real life have to be so harsh? back to the grind tomorrow unfortunately",
+            "anyone else feel like technology is moving too fast? I swear my phone gets a new update every other day and I have no idea what anything does anymore",
+            "been working from home for months now and I honestly don't know if I ever want to go back to an office, this whole setup is pretty sweet",
+            "grocery shopping today was an adventure, spent like 20 minutes in the cereal aisle because there are apparently 47 different types of cheerios now, when did that happen?",
+            "my dog has been extra clingy today which is cute but also makes it impossible to get any work done, currently have a 60 pound lap dog situation happening",
+            "trying to decide what to binge watch this weekend, any suggestions? I've already watched everything good on Netflix and I'm getting desperate here",
+            
+            // Very long detailed stories (40+ words)
+            "so I had the weirdest experience at the grocery store today, I was in line behind this guy who was buying like 47 cans of cat food and nothing else, and when the cashier asked if he had a lot of cats he just said 'not yet' and walked away, I'm still thinking about what that could possibly mean",
+            "anyone else have those days where you start with the best intentions and then by noon you're eating cereal for lunch while watching cooking shows? because that's exactly where I am right now and I'm not even sorry about it, sometimes you just have to embrace the chaos",
+            "my neighbor has been playing the same song on repeat for like 3 hours now and I'm torn between being annoyed and being impressed by their dedication to whatever emotional journey they're going through, it's that one sad song from the 90s and honestly it's kind of a mood",
+            "just spent 45 minutes looking for my keys only to find them in the refrigerator next to the milk, I have absolutely no memory of putting them there but apparently that's where I thought they belonged, adulthood is going really well for me right now as you can tell",
+            "went for a walk today and saw this elderly couple holding hands and feeding ducks at the pond, they looked like they'd been doing it every day for 50 years and it was honestly the most beautiful thing I've seen all week, sometimes the simple moments are the best ones",
+            "my coworker just told me she's been putting pineapple on pizza for her whole life and acting like it's normal, I don't know if we can continue working together after this revelation, this feels like a fundamental incompatibility that can't be overcome",
+            
+            // Random observations and thoughts
+            "why do they call it rush hour when nobody's moving",
+            "shower thoughts: if you're waiting for the waiter, aren't you the waiter?",
+            "does anyone else get irrationally angry at slow internet? like it's 2025, my memes should load instantly",
+            "conspiracy theory: grocery stores move everything around just to mess with us",
+            "unpopular opinion: pineapple on pizza is actually fine and people need to calm down about it",
+            "life hack: if you can't remember if you locked the door, you probably did but you'll check anyway",
+            "random question: why do we park in driveways and drive on parkways? who designed this system?",
+            "philosophical moment: are we all just NPCs in someone else's video game? discuss",
+            "scientific fact: the 5 second rule for dropped food doesn't actually work but we all still use it",
+            "universal truth: the moment you get comfortable, you'll need to use the bathroom",
+            
+            // Emotional/personal moments
+            "having one of those days where everything feels overwhelming but I know it'll pass",
+            "grateful for this little corner of the internet where people are actually nice to each other",
+            "sometimes I miss being a kid when the biggest decision was which cartoon to watch",
+            "adulting is hard but at least I can eat ice cream for dinner if I want to",
+            "reminder to myself and everyone else: it's okay to have bad days, tomorrow is a fresh start",
+            
+            // Current events and observations (staying general)
+            "the weather has been absolutely bonkers lately, can't tell if it's spring or winter",
+            "gas prices are making me consider walking everywhere, might actually be healthier anyway",
+            "saw someone using a flip phone today and honestly felt a little jealous of their simplicity",
+            "the amount of streaming services now is getting ridiculous, I need a spreadsheet to track them all",
+            "remember when we thought Y2K was going to end the world? good times, simpler problems"
         ];
         
         this.responses = [
+            // Ultra short (1-2 words)
             "lol",
-            "yeah totally",
-            "same here",
-            "nice",
-            "cool",
-            "agreed",
-            "definitely",
-            "haha",
-            "for real",
             "yep",
-            "true that",
-            "right?",
-            "exactly",
-            "no way",
-            "awesome",
-            "sweet",
-            "nice one",
-            "oh wow",
-            "that's crazy",
-            "interesting",
-            "makes sense",
-            "good point",
-            "i hear ya",
-            "tell me about it",
-            "been there",
-            "so true",
-            "love it",
-            "that's funny",
-            "omg yes",
-            "seriously?",
-            "no kidding",
-            "sounds good",
-            "count me in",
-            "same boat",
-            "totally get it",
+            "nah",
+            "true",
+            "same",
+            "wow",
+            "nice",
+            "omg",
+            "ikr",
             "mood",
             "facts",
-            "this ^^",
-            "couldn't agree more",
-            "story of my life",
-            "ain't that the truth",
-            "preach",
-            "you said it",
-            "100%",
+            "this",
+            "yes",
+            "no",
+            "maybe",
+            "definitely",
             "absolutely",
-            "my thoughts exactly"
+            "totally",
+            "exactly",
+            "right?",
+            
+            // Short responses (3-6 words)
+            "lol totally",
+            "yeah absolutely",
+            "same here honestly",
+            "oh nice",
+            "that's really cool",
+            "I completely agree",
+            "definitely feeling that",
+            "haha exactly",
+            "for real though",
+            "yep same energy",
+            "true that for sure",
+            "right? it's so obvious",
+            "no way really?",
+            "that's awesome honestly",
+            "oh wow that's sweet",
+            "nice one I like it",
+            "oh wow really?",
+            "that's actually insane",
+            "super interesting",
+            "makes total sense",
+            "been there before",
+            "so true though",
+            "love that energy",
+            "that's genuinely funny",
+            "wait seriously?",
+            "couldn't agree more",
+            
+            // Medium responses (7-15 words)
+            "that makes so much sense when you think about it",
+            "okay that's actually a really good point you made",
+            "I totally hear you on that one",
+            "ugh tell me about it, I feel exactly the same way",
+            "been there before, it's honestly the worst feeling",
+            "so true, happens to me literally all the time",
+            "love that energy honestly, we need more of that",
+            "omg yes, finally someone who gets it completely",
+            "no kidding, I was just thinking the exact same thing",
+            "sounds really good actually, count me in for sure",
+            "we're definitely in the same boat with that one",
+            "I totally get what you mean by that",
+            "that's such a mood honestly, felt that",
+            "those are straight facts, no arguments here",
+            "this is exactly what I needed to hear today",
+            "literally the story of my life right there",
+            "ain't that the truth though, so relatable",
+            "you really said it perfectly, couldn't have put it better",
+            "absolutely, that's so relatable it's not even funny",
+            "my thoughts exactly, word for word what I was thinking",
+            
+            // Longer conversational responses (15-30 words)
+            "100% agree with everything you just said, you really hit the nail on the head with that observation about life in general",
+            "that's such a valid point and honestly something I never really thought about before, but now that you mention it, it makes perfect sense",
+            "you're speaking my language here, finally someone who understands what I've been trying to explain to people for years, thank you for putting it into words",
+            "that really resonates with me on a spiritual level, like you just described my entire existence in one sentence and I don't know how to feel about it",
+            "you took the words right out of my mouth, that's exactly how I would have put it if I was smart enough to think of it first",
+            "preach, someone had to say it and I'm glad it was you, this needed to be said and you did it perfectly",
+            "that's honestly so true it hurts, like why did you have to call me out like that in front of everyone, I feel personally attacked but also validated",
+            "I'm living for this take right here, this is the kind of wisdom I come to the internet for, keep dropping truth bombs like this",
+            "you just described my entire existence in one paragraph and I don't know whether to laugh or cry about it, probably both honestly",
+            "that's the realest thing I've heard all day and it's only noon, you're out here spitting facts and making the rest of us look bad",
+            
+            // Very long detailed responses (30+ words)
+            "okay so this is going to sound weird but I was literally just thinking about this exact same thing yesterday when I was stuck in traffic for like an hour, and I came to the exact same conclusion you just did, which either means great minds think alike or we're both just overthinking everything, but honestly I'm okay with either option at this point",
+            "I appreciate you sharing that perspective because it's actually something I've been struggling with lately and hearing someone else put it into words like that makes me feel less alone in thinking about it, sometimes you just need to know other people are having the same thoughts and experiences as you, you know?",
+            "this reminds me of something my grandmother used to say about how life has a way of teaching you lessons when you least expect it, she was always dropping wisdom like that and I never really appreciated it until I got older and started experiencing these things for myself, funny how that works",
+            "not to get too deep or anything but this really makes me think about how we're all just trying to figure things out as we go along and pretending like we have any idea what we're doing, like we're all just winging it and hoping for the best, which is both terrifying and somehow comforting at the same time",
+            "I had a similar experience last week and it completely changed my perspective on things, sometimes you don't realize how much you needed to hear something until someone says it, and then suddenly everything clicks into place and you wonder how you never saw it that way before, it's like having a lightbulb moment but for your entire worldview"
         ];
     }
 
@@ -301,6 +384,9 @@ class BotManager {
                             if (room && room.hasUser(bot.uid)) {
                                 room.removeUser({ uid: bot.uid });
                                 
+                                // Update room count cache
+                                this.updateBotRoomCount(bot.currentRoomId, -1);
+                                
                                 // Send disconnect notification to real users in the room
                                 this.sendBotDisconnectNotification(room, bot);
                             }
@@ -327,6 +413,7 @@ class BotManager {
             
             // Clear all bots and mark system as stopped
             this.bots.clear();
+            this.botsPerRoom.clear(); // Clear room count cache
             this.isRunning = false;
             this.currentConfig = null;
             
@@ -396,51 +483,87 @@ class BotManager {
             roomNames: availableRooms.map(r => r.name).slice(0, 5) // Log first 5 room names
         });
 
-        // Create bots with controlled room distribution and batch processing for large numbers
-        const batchSize = 50; // Process bots in batches to avoid overwhelming the server
+        // Optimized bot creation with intelligent batching and memory management
+        const baseBatchSize = this.calculateOptimalBatchSize(botCount);
         let createdCount = 0;
+        const startTime = Date.now();
         
-        for (let i = 0; i < botCount; i += batchSize) {
-            const currentBatchSize = Math.min(batchSize, botCount - i);
-            const batchPromises = [];
+        // Pre-allocate arrays for better memory performance
+        const botPromises = [];
+        const roomAssignments = this.preCalculateRoomAssignments(botCount, availableRooms, distributionMode);
+        
+        for (let i = 0; i < botCount; i += baseBatchSize) {
+            const currentBatchSize = Math.min(baseBatchSize, botCount - i);
+            const batchStartTime = Date.now();
             
-            // Create batch of bots concurrently
+            // Create batch of bots with optimized creation
+            const batchPromises = [];
             for (let j = 0; j < currentBatchSize; j++) {
                 const botIndex = i + j;
-                batchPromises.push(this.createSingleBot(botIndex, availableRooms, distributionMode));
+                const assignedRoom = roomAssignments[botIndex];
+                batchPromises.push(this.createSingleBotOptimized(botIndex, assignedRoom, distributionMode));
             }
             
             try {
                 // Wait for current batch to complete
-                const bots = await Promise.all(batchPromises);
+                const bots = await Promise.allSettled(batchPromises);
                 
-                // Add all bots from this batch to the collection
-                bots.forEach(bot => {
-                    if (bot) {
-                        this.bots.set(bot.uid, bot);
+                // Process results and collect successful bots
+                const successfulBots = [];
+                bots.forEach((result, index) => {
+                    if (result.status === 'fulfilled' && result.value) {
+                        successfulBots.push(result.value);
                         createdCount++;
+                    } else if (result.status === 'rejected') {
+                        logger.warn('Failed to create bot in batch', { 
+                            botIndex: i + index, 
+                            error: result.reason?.message || 'Unknown error' 
+                        });
                     }
                 });
                 
-                // Small delay between batches to prevent overwhelming the server
-                if (i + batchSize < botCount) {
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                // Add successful bots to collection in one operation
+                successfulBots.forEach(bot => {
+                    this.bots.set(bot.uid, bot);
+                    // Update room count cache
+                    this.updateBotRoomCount(bot.currentRoomId, 1);
+                });
+                
+                // Dynamic delay based on performance
+                const batchTime = Date.now() - batchStartTime;
+                if (i + baseBatchSize < botCount) {
+                    const delay = this.calculateBatchDelay(batchTime, currentBatchSize);
+                    if (delay > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
                 }
                 
-                // Log progress for large numbers
-                if (botCount > 100 && (i + batchSize) % 500 === 0) {
+                // Progress logging for large numbers
+                if (botCount > 100 && (createdCount % 1000 === 0 || i + baseBatchSize >= botCount)) {
+                    const elapsed = Date.now() - startTime;
+                    const rate = createdCount / (elapsed / 1000);
                     logger.info('Bot creation progress', { 
                         created: createdCount, 
                         total: botCount, 
-                        percentage: Math.round((createdCount / botCount) * 100) 
+                        percentage: Math.round((createdCount / botCount) * 100),
+                        rate: Math.round(rate * 10) / 10 + ' bots/sec',
+                        elapsed: Math.round(elapsed / 1000) + 's'
                     });
                 }
                 
+                // Memory cleanup for large batches
+                if (botCount > 1000 && i % 1000 === 0) {
+                    if (global.gc) {
+                        global.gc();
+                    }
+                }
+                
             } catch (error) {
-                logger.warn('Failed to create bot batch', { 
+                logger.error('Critical error in bot batch creation', { 
                     batchStart: i, 
                     batchSize: currentBatchSize, 
-                    error: error.message 
+                    error: error.message,
+                    stack: error.stack
                 });
             }
         }
@@ -657,10 +780,23 @@ class BotManager {
     }
 
     /**
-     * Get the number of bots currently in a specific room
+     * Get the number of bots currently in a specific room (optimized with cache)
      */
     getBotsInRoom(roomId) {
-        return Array.from(this.bots.values()).filter(bot => bot.currentRoomId === roomId).length;
+        return this.botsPerRoom.get(roomId) || 0;
+    }
+    
+    /**
+     * Update bot room count cache
+     */
+    updateBotRoomCount(roomId, delta) {
+        const current = this.botsPerRoom.get(roomId) || 0;
+        const newCount = Math.max(0, current + delta);
+        if (newCount === 0) {
+            this.botsPerRoom.delete(roomId);
+        } else {
+            this.botsPerRoom.set(roomId, newCount);
+        }
     }
 
     /**
@@ -708,17 +844,17 @@ class BotManager {
      * Get minimum chat interval based on personality
      */
     getMinChatInterval(personality) {
-        const baseInterval = 90000; // 1.5 minutes base
-        const randomFactor = Math.random() * 60000; // 0-1 minute random
+        const baseInterval = 20000; // 20 seconds base (reduced from 45 seconds)
+        const randomFactor = Math.random() * 15000; // 0-15 seconds random (reduced from 30 seconds)
         
         switch (personality) {
-            case 'chatty': return baseInterval * 0.5 + randomFactor; // 45s - 1m 45s
-            case 'social': return baseInterval * 0.7 + randomFactor; // 1m 3s - 2m 3s
-            case 'friendly': return baseInterval * 0.8 + randomFactor; // 1m 12s - 2m 12s
-            case 'casual': return baseInterval * 1.0 + randomFactor; // 1m 30s - 2m 30s
-            case 'responsive': return baseInterval * 1.5 + randomFactor; // 2m 15s - 3m 15s
-            case 'lurker': return baseInterval * 3.0 + randomFactor; // 4m 30s - 5m 30s
-            default: return baseInterval + randomFactor;
+            case 'chatty': return baseInterval * 0.2 + randomFactor; // 4s - 19s
+            case 'social': return baseInterval * 0.3 + randomFactor; // 6s - 21s
+            case 'friendly': return baseInterval * 0.4 + randomFactor; // 8s - 23s
+            case 'casual': return baseInterval * 0.5 + randomFactor; // 10s - 25s
+            case 'responsive': return baseInterval * 0.6 + randomFactor; // 12s - 27s
+            case 'lurker': return baseInterval * 1.0 + randomFactor; // 20s - 35s
+            default: return baseInterval * 0.4 + randomFactor;
         }
     }
 
@@ -726,26 +862,26 @@ class BotManager {
      * Get personality-based chat probability bonus
      */
     getPersonalityChatBonus(personality, userCount, recentMessageCount) {
-        let bonus = 0.5; // base 50% chance
+        let bonus = 0.7; // increased base to 70% chance
         
         switch (personality) {
             case 'chatty':
-                bonus = 0.8; // Always eager to chat
+                bonus = 0.9; // Always eager to chat
                 break;
             case 'social':
-                bonus = userCount > 2 ? 0.7 : 0.4; // Loves crowds
+                bonus = userCount > 2 ? 0.85 : 0.6; // Loves crowds
                 break;
             case 'friendly':
-                bonus = 0.6; // Consistently friendly
+                bonus = 0.8; // Consistently friendly
                 break;
             case 'casual':
-                bonus = recentMessageCount < 2 ? 0.6 : 0.3; // Prefers quieter moments
+                bonus = recentMessageCount < 2 ? 0.75 : 0.5; // Prefers quieter moments
                 break;
             case 'responsive':
-                bonus = recentMessageCount > 0 ? 0.7 : 0.2; // Responds to activity
+                bonus = recentMessageCount > 0 ? 0.8 : 0.4; // Responds to activity
                 break;
             case 'lurker':
-                bonus = 0.1; // Rarely speaks
+                bonus = 0.3; // Still rarely speaks but slightly more than before
                 break;
         }
         
@@ -912,9 +1048,7 @@ class BotManager {
         this.moveInterval = setInterval(() => {
             this.performRandomMovement();
         }, frequencyMs);
-    }
-
-    /**
+    }    /**
      * Make random bots chat - Much more realistic timing and behavior
      */
     performRandomChat() {
@@ -923,37 +1057,48 @@ class BotManager {
         const activeBots = Array.from(this.bots.values()).filter(bot => bot.currentRoomId);
         if (activeBots.length === 0) return;
 
-        // Only 1 bot talks at a time, and not every interval
-        // Adjust probability based on total bot count to prevent spam
-        const baseChatProbability = Math.min(0.4, 0.1 + (0.3 / Math.max(1, activeBots.length / 5)));
-        if (Math.random() > baseChatProbability) return;
-
-        // Select a bot based on personality weights
-        const chattingBot = this.selectBotByPersonality(activeBots);
-        if (!chattingBot) return;
+        // MUCH higher chat probability for very active rooms
+        // With 50 bots, we want 3-5 bots to chat per 8-second interval
+        const baseChatProbability = Math.min(0.95, 0.6 + (0.3 / Math.max(1, activeBots.length / 15)));
         
-        // Check if this bot has chatted recently (prevent spam)
-        const timeSinceLastChat = Date.now() - chattingBot.lastChatTime;
-        const minTimeBetweenChats = this.getMinChatInterval(chattingBot.chatPersonality);
+        // Allow multiple bots to chat in the same interval
+        const maxBotsToChat = Math.min(5, Math.max(1, Math.floor(activeBots.length / 10)));
         
-        if (timeSinceLastChat < minTimeBetweenChats) return;
+        for (let i = 0; i < maxBotsToChat; i++) {
+            if (Math.random() > baseChatProbability) continue;
 
-        // Check room activity level to adjust chat probability
-        const room = serverState.getRoom(chattingBot.currentRoomId);
-        if (!room) return;
+            // Select a bot based on personality weights
+            const chattingBot = this.selectBotByPersonality(activeBots);
+            if (!chattingBot) continue;
+            
+            // Check if this bot has chatted recently (prevent individual spam)
+            const timeSinceLastChat = Date.now() - chattingBot.lastChatTime;
+            const minTimeBetweenChats = this.getMinChatInterval(chattingBot.chatPersonality);
+            
+            if (timeSinceLastChat < minTimeBetweenChats) continue;
 
-        const recentMessages = this.getRecentRoomMessages(room.id);
-        const roomUsers = room.getAllUsers().filter(u => !serverState.getUser(u.uid)?.isBot); // Count real users only
-        
-        // Less likely to chat if no real users or if there's been a lot of recent activity
-        if (roomUsers.length === 0) return;
-        if (recentMessages.length > 3 && Math.random() > 0.2) return; // Back off if room is busy
+            // Check room activity level
+            const room = serverState.getRoom(chattingBot.currentRoomId);
+            if (!room) continue;
 
-        // Personality-based chat probability adjustments
-        const personalityBonus = this.getPersonalityChatBonus(chattingBot.chatPersonality, roomUsers.length, recentMessages.length);
-        if (Math.random() > personalityBonus) return;
+            const recentMessages = this.getRecentRoomMessages(room.id);
+            const roomUsers = room.getAllUsers().filter(u => !serverState.getUser(u.uid)?.isBot);
+            
+            // Much more active when no real users are present
+            if (roomUsers.length === 0) {
+                // Chat 85% of the time when no real users are present
+                if (Math.random() > 0.85) continue;
+            }
 
-        this.makeBotChat(chattingBot);
+            // Less restrictive room activity check
+            if (recentMessages.length > 8 && Math.random() > 0.6) continue;
+
+            // Enhanced personality-based chat probability
+            const personalityBonus = this.getPersonalityChatBonus(chattingBot.chatPersonality, roomUsers.length, recentMessages.length);
+            if (Math.random() > personalityBonus) continue;
+
+            this.makeBotChat(chattingBot);
+        }
     }
 
     /**
@@ -979,19 +1124,50 @@ class BotManager {
         
         switch (personality) {
             case 'chatty':
-                responsePool.push("tell me more!", "that's interesting", "oh really?", "go on...");
+                responsePool.push(
+                    "tell me more!", "that's interesting", "oh really?", "go on...", "wait what?", "no way!",
+                    "that's so cool!", "I love hearing about this stuff", "keep talking, this is fascinating",
+                    "oh my god yes, tell me everything about this because I'm genuinely invested now",
+                    "this is exactly the kind of conversation I was hoping to have today, you've got my full attention",
+                    "okay I need to hear the whole story because what you just said has completely captured my interest and I must know more details"
+                );
                 break;
             case 'social':
-                responsePool.push("anyone else agree?", "what do you all think?", "same here!");
+                responsePool.push(
+                    "anyone else agree?", "what do you all think?", "same here!", "who else has experienced this?",
+                    "let's all discuss this", "I want to hear everyone's thoughts", "this is a great topic for the group",
+                    "this is something we should all talk about because I bet everyone has different perspectives on it",
+                    "I love when the room gets into discussions like this, everyone always has such interesting viewpoints to share",
+                    "this is why I love coming here, we always end up having these amazing conversations where everyone contributes something valuable"
+                );
                 break;
             case 'friendly':
-                responsePool.push("that's nice :)", "sounds good!", "awesome!", "love it!");
+                responsePool.push(
+                    "that's nice :)", "sounds good!", "awesome!", "love it!", "so sweet!", "that's wonderful!",
+                    "you're so right about that", "I'm really happy to hear that", "that sounds absolutely lovely",
+                    "that's such a positive way to look at it, I really appreciate your optimistic perspective on things",
+                    "you always manage to find the bright side of everything and it's honestly one of the things I love most about talking with you",
+                    "your positive energy is absolutely contagious and it always makes me feel better about whatever's going on in my life"
+                );
                 break;
             case 'casual':
-                responsePool = responsePool.filter(r => r.length <= 10); // Shorter responses
+                responsePool = responsePool.filter(r => r.length <= 15); // Keep only shorter casual responses
+                responsePool.push("cool", "nice", "word", "bet", "facts", "mood", "vibe", "lit", "same energy");
                 break;
             case 'lurker':
-                responsePool = ["yeah", "ok", "true", "yep", "mhm"]; // Very minimal
+                responsePool = [
+                    "yeah", "ok", "true", "yep", "mhm", "sure", "k", "right", "maybe", "idk",
+                    "fair point", "makes sense", "agreed", "pretty much", "basically"
+                ]; // Very minimal responses only
+                break;
+            case 'responsive':
+                responsePool.push(
+                    "that's a really good point", "I hadn't thought of it that way", "thanks for sharing that",
+                    "that really makes me think", "you've given me something to consider",
+                    "that's actually a perspective I haven't considered before and it's making me rethink some things",
+                    "I really appreciate you taking the time to explain that because it's helped me understand the situation better",
+                    "your comment really resonated with me and I think it's exactly what I needed to hear right now, thank you for that insight"
+                );
                 break;
         }
         
@@ -1032,21 +1208,68 @@ class BotManager {
         // Personality-specific message filtering and additions
         switch (personality) {
             case 'chatty':
-                contextualMessages.push("so what's everyone up to?", "tell me about your day", "anyone have exciting plans?", "what's new with everyone?");
+                // Add lots of longer, engaging messages
+                contextualMessages.push(
+                    "so what's everyone up to?", "tell me about your day", "anyone have exciting plans?", "what's new with everyone?",
+                    "I'm in such a talkative mood today, someone please start an interesting conversation with me",
+                    "has anyone else been thinking about how weird it is that we're all here talking to strangers on the internet but somehow it feels totally normal now?",
+                    "okay random question but if you could only eat one food for the rest of your life what would it be? I've been debating this with myself for like an hour"
+                );
+                // Include all message lengths
                 break;
+                
             case 'social':
-                contextualMessages.push("anyone else here from the west coast?", "what does everyone do for work?", "how's everyone's week going?", "anyone have weekend plans?");
+                // Add engaging group-focused messages
+                contextualMessages.push(
+                    "anyone else here from the west coast?", "what does everyone do for work?", "how's everyone's week going?", "anyone have weekend plans?",
+                    "I love getting to know the people in this room, everyone always has such interesting stories to tell",
+                    "this room has the best community, I've met so many cool people here and learned about things I never would have discovered otherwise"
+                );
+                // Prefer medium to long messages that engage others
+                contextualMessages = contextualMessages.filter(msg => msg.length >= 15);
                 break;
+                
             case 'friendly':
-                contextualMessages.push("hope everyone's having a great day!", "sending good vibes to all", "you're all awesome!", "happy to be here with you all");
+                // Add warm, positive messages of varying lengths
+                contextualMessages.push(
+                    "hope everyone's having a great day!", "sending good vibes to all", "you're all awesome!", "happy to be here with you all",
+                    "just wanted to say hi and let everyone know they're appreciated",
+                    "this room always brightens my day, you all are such wonderful people and I'm grateful to be part of this community"
+                );
+                // Filter out overly negative or neutral messages
+                contextualMessages = contextualMessages.filter(msg => 
+                    !msg.includes('stressed') && !msg.includes('terrible') && !msg.includes('worst')
+                );
                 break;
+                
             case 'casual':
-                // Prefer shorter, more casual messages
-                contextualMessages = contextualMessages.filter(msg => msg.length <= 30);
+                // Much more variety - from very short to medium length
+                contextualMessages.push(
+                    "sup", "what's good", "chillin", "just vibing", "same old same old",
+                    "not much happening here", "pretty standard day", "just hanging out",
+                    "nothing too exciting but that's fine with me honestly"
+                );
+                // Keep a mix of short and medium messages, remove very long ones
+                contextualMessages = contextualMessages.filter(msg => msg.length <= 60);
                 break;
+                
             case 'lurker':
-                // Very minimal messages
-                contextualMessages = ["hey", "hi all", "what's up", "afternoon", "evening"];
+                // Very minimal messages only - mostly very short
+                contextualMessages = [
+                    "hey", "hi", "sup", "morning", "afternoon", "evening", "night",
+                    "what's up", "hi all", "hello everyone", "good morning", "good afternoon",
+                    "not much", "just lurking", "quiet today", "same here"
+                ];
+                break;
+                
+            case 'responsive':
+                // Add thoughtful, medium-length messages
+                contextualMessages.push(
+                    "interesting discussion happening here", "good point someone made earlier", "thanks for sharing that perspective",
+                    "I've been thinking about what someone said earlier and it really made sense",
+                    "this room always gives me something to think about, the conversations here are genuinely thought-provoking"
+                );
+                // Prefer messages that could lead to responses
                 break;
         }
         
@@ -1120,17 +1343,20 @@ class BotManager {
 
             bot.lastChatTime = Date.now();
             
-            logger.debug('Bot sent message', {
-                botUid: bot.uid,
-                botNickname: bot.nickname,
-                roomId: room.id,
-                roomName: room.name,
-                message: message.substring(0, 50),
-                personality: bot.chatPersonality,
-                timeContext: currentHour >= 6 && currentHour < 12 ? 'morning' : 
-                           currentHour >= 12 && currentHour < 17 ? 'afternoon' : 
-                           currentHour >= 17 && currentHour < 22 ? 'evening' : 'night'
-            });
+            // Reduce debug logging for performance with large bot counts
+            if (this.bots.size < 100 || Math.random() < 0.1) {
+                logger.debug('Bot sent message', {
+                    botUid: bot.uid,
+                    botNickname: bot.nickname,
+                    roomId: room.id,
+                    roomName: room.name,
+                    message: message.substring(0, 50),
+                    personality: bot.chatPersonality,
+                    timeContext: currentHour >= 6 && currentHour < 12 ? 'morning' : 
+                               currentHour >= 12 && currentHour < 17 ? 'afternoon' : 
+                               currentHour >= 17 && currentHour < 22 ? 'evening' : 'night'
+                });
+            }
 
         } catch (error) {
             logger.warn('Failed to make bot chat', { 
@@ -1162,7 +1388,7 @@ class BotManager {
     }
 
     /**
-     * Move a bot to a random room
+     * Move a bot to a random room (optimized)
      */
     moveBotToRandomRoom(bot, availableRooms) {
         const currentRoom = serverState.getRoom(bot.currentRoomId);
@@ -1174,6 +1400,8 @@ class BotManager {
             // Leave current room
             if (currentRoom && currentRoom.hasUser(bot.uid)) {
                 currentRoom.removeUser({ uid: bot.uid });
+                // Update room count cache
+                this.updateBotRoomCount(bot.currentRoomId, -1);
             }
 
             // Join new room
@@ -1181,6 +1409,8 @@ class BotManager {
             if (botUserData && newRoom.addUser(botUserData, true, false)) {
                 bot.currentRoomId = newRoom.id;
                 bot.lastMoveTime = Date.now();
+                // Update room count cache
+                this.updateBotRoomCount(newRoom.id, 1);
                 
                 logger.debug('Bot moved rooms', {
                     botUid: bot.uid,
@@ -1272,6 +1502,153 @@ class BotManager {
 
         return stats;
     }
+
+    /**
+     * Calculate optimal batch size based on bot count and system resources
+     */
+    calculateOptimalBatchSize(botCount) {
+        if (botCount <= 100) return 25;        // Small batches for small numbers
+        if (botCount <= 500) return 50;        // Medium batches for medium numbers  
+        if (botCount <= 1000) return 75;       // Larger batches for better throughput
+        if (botCount <= 2500) return 100;      // Optimized for thousands
+        return 150;                            // Maximum batch size for very large numbers
+    }
+
+    /**
+     * Calculate delay between batches based on performance
+     */
+    calculateBatchDelay(batchTime, batchSize) {
+        const targetTimePerBot = 10; // Target 10ms per bot
+        const actualTimePerBot = batchTime / batchSize;
+        
+        // If we're going too fast, add a small delay
+        if (actualTimePerBot < targetTimePerBot) {
+            return Math.min(50, (targetTimePerBot - actualTimePerBot) * batchSize);
+        }
+        
+        // If we're going slow, no additional delay needed
+        return 0;
+    }
+
+    /**
+     * Pre-calculate room assignments for better performance
+     */
+    preCalculateRoomAssignments(botCount, availableRooms, distributionMode) {
+        const assignments = new Array(botCount);
+        
+        switch (distributionMode) {
+            case BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM:
+                assignments.fill(availableRooms[0]);
+                break;
+                
+            case BOT_CONFIG.ROOM_DISTRIBUTION_MODES.BALANCED:
+                // Pre-calculate balanced distribution
+                for (let i = 0; i < botCount; i++) {
+                    assignments[i] = availableRooms[i % availableRooms.length];
+                }
+                break;
+                
+            case BOT_CONFIG.ROOM_DISTRIBUTION_MODES.WEIGHTED:
+                // Distribute across specified rooms
+                for (let i = 0; i < botCount; i++) {
+                    assignments[i] = availableRooms[i % availableRooms.length];
+                }
+                break;
+                
+            case BOT_CONFIG.ROOM_DISTRIBUTION_MODES.RANDOM:
+            default:
+                // Pre-generate random assignments
+                for (let i = 0; i < botCount; i++) {
+                    assignments[i] = availableRooms[Math.floor(Math.random() * availableRooms.length)];
+                }
+                break;
+        }
+        
+        return assignments;
+    }
+
+    /**
+     * Optimized single bot creation with reduced overhead
+     */
+    async createSingleBotOptimized(index, assignedRoom, distributionMode) {
+        try {
+            // Generate bot data efficiently
+            const botName = this.generateBotName();
+            const botUid = BOT_CONFIG.BOT_UID_START + index;
+            const personality = this.assignBotPersonality();
+            const statusColor = this.assignBotStatusColor();
+            
+            // Create bot object with minimal allocations
+            const bot = {
+                uid: botUid,
+                nickname: botName,
+                mode: USER_MODES.ONLINE,
+                currentRoomId: assignedRoom.id,
+                isBot: true,
+                createdAt: Date.now(),
+                lastChatTime: 0,
+                lastMoveTime: Date.now(),
+                chatPersonality: personality,
+                statusColor: statusColor,
+                distributionMode: distributionMode
+            };
+
+            // Create user data with optimized approach
+            const botUserData = new User({
+                uid: botUid,
+                nickname: botName,
+                email: `bot${botUid}@paltalk.local`,
+                first: 'Bot',
+                last: 'User',
+                admin: 0,
+                created: Date.now(),
+                last_login: Date.now(),
+                listed: 0,
+                verified: 1
+            });
+            
+            // Set bot-specific properties efficiently
+            botUserData.mode = USER_MODES.ONLINE;
+            botUserData.socket = null;
+            botUserData.isBot = true;
+            botUserData.statusColor = statusColor;
+            
+            // Add to server state and room in one operation
+            serverState.users.set(botUid, botUserData);
+            
+            // Room capacity check (optimized)
+            const currentBotCount = this.getBotsInRoom(assignedRoom.id);
+            if (currentBotCount >= BOT_CONFIG.MAX_BOTS_PER_ROOM) {
+                logger.debug('Room at capacity, bot created but may not be added to room', {
+                    roomId: assignedRoom.id,
+                    roomName: assignedRoom.name,
+                    currentBots: currentBotCount
+                });
+            }
+            
+            // Add bot to room (with error handling but no exceptions)
+            const addedToRoom = assignedRoom.addUser(botUserData, true, false);
+            if (!addedToRoom) {
+                logger.debug('Bot created but not added to room (room may be full)', {
+                    botUid: botUid,
+                    botName: botName,
+                    roomId: assignedRoom.id
+                });
+            }
+
+            return bot;
+            
+        } catch (error) {
+            logger.warn('Failed to create optimized bot', { 
+                index, 
+                roomId: assignedRoom?.id,
+                error: error.message 
+            });
+            return null;
+        }
+    }
+
+    // ...existing code...
 }
 
 module.exports = new BotManager();

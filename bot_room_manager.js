@@ -202,13 +202,14 @@ async function handleRoomsCommand() {
 function parseOptions(args) {
     const options = {};
     
-    for (let i = 0; i < args.length; i += 2) {
-        if (args[i].startsWith('--')) {
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] && args[i].startsWith('--')) {
             const key = args[i].substring(2);
             const value = args[i + 1];
             
             if (value && !value.startsWith('--')) {
                 options[key] = isNaN(value) ? value : parseInt(value);
+                i++; // Skip the value in next iteration
             }
         }
     }

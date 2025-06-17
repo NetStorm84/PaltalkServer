@@ -54,9 +54,9 @@ const SECURITY_SETTINGS = {
 const BOT_CONFIG = {
     DEFAULT_BOT_COUNT: 10,
     MAX_BOT_COUNT: 5000, // Maximum number of bots allowed
-    DEFAULT_CHAT_FREQUENCY_MS: 30000, // Chat every 30 seconds
+    DEFAULT_CHAT_FREQUENCY_MS: 3000, // Chat every 3 seconds for very active rooms
     DEFAULT_MOVE_FREQUENCY_MS: 300000, // Move rooms every 5 minutes
-    MIN_CHAT_FREQUENCY_MS: 5000, // Minimum 5 seconds between chats
+    MIN_CHAT_FREQUENCY_MS: 1000, // Minimum 1 second between chats
     MAX_CHAT_FREQUENCY_MS: 300000, // Maximum 5 minutes between chats
     MIN_MOVE_FREQUENCY_MS: 60000, // Minimum 1 minute between moves
     MAX_MOVE_FREQUENCY_MS: 1800000, // Maximum 30 minutes between moves

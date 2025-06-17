@@ -1695,6 +1695,32 @@ class PacketProcessor {
     }
 
     /**
+     * Clean up old message history to prevent memory leaks
+     */
+    cleanupMessageHistory() {
+        const now = Date.now();
+        const cutoffTime = now - this.spamCheckWindow;
+        
+        for (const [userId, messages] of this.recentMessages.entries()) {
+            // Filter out old messages
+            const recentMessages = messages.filter(msg => msg.timestamp > cutoffTime);
+            
+            if (recentMessages.length === 0) {
+                // Remove user entirely if no recent messages
+                this.recentMessages.delete(userId);
+            } else if (recentMessages.length !== messages.length) {
+                // Update with filtered messages
+                this.recentMessages.set(userId, recentMessages);
+            }
+        }
+        
+        logger.debug('Cleaned up message history', {
+            totalUsers: this.recentMessages.size,
+            cutoffTime: new Date(cutoffTime).toISOString()
+        });
+    }
+
+    /**
      * Handle admin room join packet
      * @param {Socket} socket 
      * @param {Buffer} payload 
