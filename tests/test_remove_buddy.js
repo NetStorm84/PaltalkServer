@@ -5,7 +5,7 @@
  */
 
 const net = require('net');
-const { PACKET_TYPES } = require('./PacketHeaders');
+const { PACKET_TYPES } = require('../PacketHeaders');
 
 console.log('🧪 Testing Remove Buddy Functionality');
 console.log('=====================================\n');
