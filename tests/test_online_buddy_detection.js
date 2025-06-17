@@ -5,7 +5,7 @@
  */
 
 const net = require('net');
-const { PACKET_TYPES } = require('./PacketHeaders');
+const { PACKET_TYPES } = require('../PacketHeaders');
 
 console.log('🧪 Testing online buddy status detection...\n');
 

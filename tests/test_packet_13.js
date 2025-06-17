@@ -5,7 +5,7 @@
  */
 
 const net = require('net');
-const { PACKET_TYPES } = require('./PacketHeaders');
+const { PACKET_TYPES } = require('../PacketHeaders');
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5001;
