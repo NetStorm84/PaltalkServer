@@ -203,6 +203,10 @@ class PacketProcessor {
                 case PACKET_TYPES.PACKET_ROOM_ADMIN_INFO:
                     await this.handleRoomAdminInfo(socket, payload);
                     break;
+                
+                case PACKET_TYPES.INVITE_OUT:
+                    await this.handleInviteOut(socket, payload);
+                    break;
 
                 // Handle unknown packet types that might be causing reconnections
                 case -2121:
@@ -403,7 +407,7 @@ class PacketProcessor {
             const buddyList = this.createBuddyListBuffer(user);
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList, socket.id);
 
-            // Step 4: Send individual status updates for each buddy (only for non-offline buddies)
+            // Step 4: Send individual status updates for each buddy (required for UI to show correct status)
             this.sendBuddyStatusUpdatesOnLogin(socket, user);
 
             // Step 5: Login unknown packet (required for buddy list window)
@@ -413,7 +417,7 @@ class PacketProcessor {
             const categoryBuffer = await this.createCategoryBuffer();
             sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, categoryBuffer, socket.id);
 
-            // Step 6: Send offline messages
+            // Step 7: Send offline messages
             await this.sendOfflineMessages(socket, user);
 
             logger.logUserAction('login_success', user.uid, {
@@ -424,51 +428,6 @@ class PacketProcessor {
         } catch (error) {
             logger.error('Login failed', error, { socketId: socket.id });
         }
-    }
-
-    /**
-     * Send individual STATUS_CHANGE packets for each buddy during login
-     * Only send status updates for buddies who are actually online or away (skip offline buddies)
-     */
-    sendBuddyStatusUpdatesOnLogin(socket, user) {
-        user.buddies.forEach(buddy => {
-            // Check if buddy is online and get their status
-            const buddyUser = serverState.getUser(buddy.uid);
-            let statusCode = null; // Don't send status for offline buddies
-            
-            if (buddyUser && buddyUser.isOnline()) {
-                // Buddy is online - check their mode
-                if (buddyUser.mode === USER_MODES.AWAY) {
-                    statusCode = '00000046'; // Away status
-                } else {
-                    statusCode = '0000001E'; // Online status
-                }
-            } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
-                // Special case: Paltalk user should always appear online
-                statusCode = '0000001E';
-            }
-            
-            // Only send STATUS_CHANGE packet if buddy is not offline
-            if (statusCode !== null) {
-                const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + statusCode, 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
-                
-                logger.debug('Login buddy status sent', {
-                    userId: user.uid,
-                    buddyUid: buddy.uid,
-                    buddyNickname: buddy.nickname,
-                    statusCode,
-                    status: statusCode === '0000001E' ? 'online' : 'away'
-                });
-            } else {
-                logger.debug('Skipping offline buddy status', {
-                    userId: user.uid,
-                    buddyUid: buddy.uid,
-                    buddyNickname: buddy.nickname,
-                    reason: 'buddy is offline'
-                });
-            }
-        });
     }
 
     async handleRoomJoin(socket, payload) {
@@ -1303,6 +1262,42 @@ class PacketProcessor {
         return Buffer.concat(buffers);
     }
 
+    /**
+     * Send individual STATUS_CHANGE packets for each buddy during login
+     * This is required for the client's buddy list UI to show correct status
+     */
+    sendBuddyStatusUpdatesOnLogin(socket, user) {
+        user.buddies.forEach(buddy => {
+            // Check if buddy is online and get their status
+            const buddyUser = serverState.getUser(buddy.uid);
+            let statusCode = '00000000'; // Default to offline
+            
+            if (buddyUser && buddyUser.isOnline()) {
+                // Buddy is online - check their mode
+                if (buddyUser.mode === USER_MODES.AWAY) {
+                    statusCode = '00000046'; // Away status
+                } else {
+                    statusCode = '0000001E'; // Online status
+                }
+            } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
+                // Special case: Paltalk user should always appear online
+                statusCode = '0000001E';
+            }
+            
+            // Send STATUS_CHANGE packet for this buddy
+            const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + statusCode, 'hex');
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            
+            logger.debug('Login buddy status sent', {
+                userId: user.uid,
+                buddyUid: buddy.uid,
+                buddyNickname: buddy.nickname,
+                statusCode,
+                status: statusCode === '0000001E' ? 'online' : statusCode === '00000046' ? 'away' : 'offline'
+            });
+        });
+    }
+
     async createCategoryBuffer() {
         const categories = serverState.getAllCategories();
         const buffers = [];
@@ -1882,6 +1877,103 @@ class PacketProcessor {
         });
         
         sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, Buffer.from(adminInfo), socket.id);
+    }
+
+    /**
+     * Handle room invite packet
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleInviteOut(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        logger.debug('Invite packet received', {
+            userId: user.uid,
+            nickname: user.nickname,
+            payloadHex: payload.toString('hex'),
+            payloadLength: payload.length
+        });
+
+        // Parse the invite payload
+        // Based on Gaim implementation: room ID (4 bytes) + target user ID (4 bytes)
+        if (payload.length < 8) {
+            logger.warn('Invalid invite packet - insufficient payload length', {
+                userId: user.uid,
+                payloadLength: payload.length,
+                expectedMinLength: 8
+            });
+            return;
+        }
+
+        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        const targetUid = Utils.hexToDec(payload.slice(4, 8));
+
+        logger.info('Processing room invite', {
+            senderId: user.uid,
+            senderNickname: user.nickname,
+            roomId,
+            targetUid
+        });
+
+        // Verify the room exists
+        const room = serverState.getRoom(roomId);
+        if (!room) {
+            logger.warn('Invite sent for non-existent room', {
+                senderId: user.uid,
+                roomId,
+                targetUid
+            });
+            return;
+        }
+
+        // Verify the inviter is in the room
+        if (!room.hasUser(user.uid)) {
+            logger.warn('User trying to invite to room they are not in', {
+                senderId: user.uid,
+                roomId: room.id,
+                roomName: room.name,
+                targetUid
+            });
+            return;
+        }
+
+        // Find the target user
+        const targetUser = serverState.getUser(targetUid);
+        if (!targetUser || !targetUser.isOnline()) {
+            logger.warn('Invite sent to offline or non-existent user', {
+                senderId: user.uid,
+                roomId: room.id,
+                targetUid,
+                targetUserExists: !!targetUser,
+                targetUserOnline: targetUser ? targetUser.isOnline() : false
+            });
+            return;
+        }
+
+        // Create invite message to send to target user
+        // Format: sender ID (4 bytes) + room ID (4 bytes) + room name
+        const inviteBuffer = Buffer.concat([
+            Buffer.from(Utils.decToHex(user.uid), 'hex'),
+            Buffer.from(Utils.decToHex(roomId), 'hex'),
+            Buffer.from(room.name, 'utf8')
+        ]);
+
+        // Send invite to target user
+        sendPacket(targetUser.socket, PACKET_TYPES.INVITE_IN, inviteBuffer, targetUser.socket.id);
+
+        logger.info('Room invite sent successfully', {
+            senderId: user.uid,
+            senderNickname: user.nickname,
+            targetUid,
+            targetNickname: targetUser.nickname,
+            roomId: room.id,
+            roomName: room.name
+        });
+
+        // Optionally send confirmation back to sender
+        // const confirmationMessage = `Invite sent to ${targetUser.nickname} for room ${room.name}`;
+        // this.sendSystemMessage(socket, confirmationMessage);
     }
 }
 
