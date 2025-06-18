@@ -759,7 +759,7 @@ class BotManager {
             createdAt: Date.now(),
             lastChatTime: Date.now() - 30000, // Set to 30 seconds ago so they can chat soon
             lastMoveTime: Date.now(),
-            chatPersonality: this.assignBotPersonality(), // More sophisticated personality assignment
+            chatPersonality: this.assignBotPersonalityBalanced(room.id), // Balanced personality for better room distribution
             statusColor: this.assignBotStatusColor(), // Assign display color for room list
             textStyle: this.assignBotTextStyle(), // Assign consistent text formatting style
             distributionMode: distributionMode
@@ -1029,19 +1029,20 @@ class BotManager {
 
     /**
      * Assign a personality type to a bot for more varied behavior
+     * Ensures better distribution of chatty bots across rooms
      */
     assignBotPersonality() {
         const personalities = [
             'chatty',      // Initiates conversations frequently
             'responsive',  // Mainly responds to others
-            'lurker',      // Rarely talks, mostly observes
             'social',      // Asks questions and engages
             'casual',      // Makes light, casual comments
-            'friendly'     // Welcoming and positive
+            'friendly',    // Welcoming and positive
+            'lurker'       // Rarely talks, mostly observes
         ];
         
-        // Weighted distribution - more responsive and casual bots for realism
-        const weights = [15, 30, 10, 20, 20, 5]; // percentages
+        // Improved distribution - ensure more active talkers (60% active vs 40% passive)
+        const weights = [25, 25, 15, 15, 15, 5]; // percentages
         const random = Math.random() * 100;
         let cumulative = 0;
         
@@ -1053,6 +1054,46 @@ class BotManager {
         }
         
         return 'responsive'; // fallback
+    }
+
+    /**
+     * Assign personality with room balancing to ensure each room gets chatty bots
+     */
+    assignBotPersonalityBalanced(roomId) {
+        // Get current bots in this room
+        const roomBots = Array.from(this.bots.values()).filter(bot => bot.currentRoomId === roomId);
+        
+        // Count personalities in this room
+        const personalityCounts = {
+            'chatty': 0,
+            'responsive': 0,
+            'social': 0,
+            'casual': 0,
+            'friendly': 0,
+            'lurker': 0
+        };
+        
+        roomBots.forEach(bot => {
+            if (personalityCounts.hasOwnProperty(bot.chatPersonality)) {
+                personalityCounts[bot.chatPersonality]++;
+            }
+        });
+        
+        const totalRoomBots = roomBots.length;
+        
+        // If room has fewer than 3 chatty bots and this is one of the first 10 bots, make it chatty
+        if (personalityCounts.chatty < 3 && totalRoomBots < 10) {
+            return 'chatty';
+        }
+        
+        // If room has fewer than 5 active talkers (chatty + social) and less than 15 bots, prioritize active
+        const activeTalkers = personalityCounts.chatty + personalityCounts.social;
+        if (activeTalkers < 5 && totalRoomBots < 15) {
+            return Math.random() < 0.7 ? 'chatty' : 'social';
+        }
+        
+        // Otherwise use normal distribution
+        return this.assignBotPersonality();
     }
 
     /**
