@@ -776,6 +776,14 @@ class ServerState extends EventEmitter {
             logger.error('Failed to perform startup cleanup', error);
         }
     }
+
+    /**
+     * Set packet processor reference for broadcasting updates
+     * @param {PacketProcessor} packetProcessor 
+     */
+    setPacketProcessor(packetProcessor) {
+        this.packetProcessor = packetProcessor;
+    }
 }
 
 // Create singleton instance

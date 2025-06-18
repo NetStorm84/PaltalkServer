@@ -1468,10 +1468,45 @@ class PacketProcessor {
     }
 
     broadcastUserListUpdate(room) {
+        logger.info('Broadcasting user list update', {
+            roomId: room.id,
+            roomName: room.name,
+            userCount: room.getAllUsers().length,
+            usersWithSockets: room.getAllUsers().filter(u => {
+                const user = serverState.getUser(u.uid);
+                return user && user.socket;
+            }).length
+        });
+        
         room.getAllUsers().forEach(roomUserData => {
             const user = serverState.getUser(roomUserData.uid);
             if (user && user.socket) {
                 this.sendUserList(user.socket, room);
+            }
+        });
+    }
+
+    broadcastUserLeft(room, uid, nickname) {
+        logger.info('Broadcasting user left notification', {
+            roomId: room.id,
+            roomName: room.name,
+            leftUserUid: uid,
+            leftUserNickname: nickname
+        });
+        
+        // Create user left notification packet (0x0140)
+        // Use the same format as ROOM_USER_LEFT packet - just room ID and user ID
+        const userLeftBuffer = Buffer.alloc(8);
+        userLeftBuffer.writeUInt32BE(room.id, 0);  // Room ID as 4-byte big-endian
+        userLeftBuffer.writeUInt32BE(uid, 4);      // User ID as 4-byte big-endian
+        
+        // Send to all users in the room except the one who left
+        room.getAllUsers().forEach(roomUserData => {
+            if (roomUserData.uid !== uid) {
+                const user = serverState.getUser(roomUserData.uid);
+                if (user && user.socket) {
+                    sendPacket(user.socket, 0x0140, userLeftBuffer, user.socket.id);
+                }
             }
         });
     }

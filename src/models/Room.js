@@ -158,6 +158,18 @@ class Room {
                     isAdmin,
                     isVisible
                 });
+                
+                // Broadcast updated user list to everyone in the room
+                if (this.serverState.packetProcessor && typeof this.serverState.packetProcessor.broadcastUserListUpdate === 'function') {
+                    this.serverState.packetProcessor.broadcastUserListUpdate(this);
+                } else {
+                    logger.debug('PacketProcessor not available for broadcasting user list update on join', {
+                        roomId: this.id,
+                        roomName: this.name,
+                        userUid: user.uid,
+                        userNickname: user.nickname
+                    });
+                }
             }
 
             return true;
@@ -197,6 +209,16 @@ class Room {
 
         this.users.delete(uid);
 
+        logger.info('User removed from room', {
+            roomId: this.id,
+            roomName: this.name,
+            userId: uid,
+            nickname: user.nickname,
+            remainingUserCount: this.users.size,
+            hasServerState: !!this.serverState,
+            hasPacketProcessor: !!this.serverState?.packetProcessor
+        });
+
         logger.logRoomActivity('user_left', this.id, uid, {
             nickname: user.nickname,
             userCount: this.users.size
@@ -211,7 +233,31 @@ class Room {
             });
             
             // Broadcast updated user list to everyone in the room
-            this.serverState.packetProcessor.broadcastUserListUpdate(this);
+            if (this.serverState.packetProcessor && typeof this.serverState.packetProcessor.broadcastUserListUpdate === 'function') {
+                this.serverState.packetProcessor.broadcastUserListUpdate(this);
+                
+                // Also send a specific user left notification
+                logger.info('Calling broadcastUserLeft', {
+                    roomId: this.id,
+                    roomName: this.name,
+                    uid: uid,
+                    nickname: user.nickname,
+                    hasBroadcastUserLeft: typeof this.serverState.packetProcessor.broadcastUserLeft === 'function'
+                });
+                
+                if (typeof this.serverState.packetProcessor.broadcastUserLeft === 'function') {
+                    this.serverState.packetProcessor.broadcastUserLeft(this, uid, user.nickname);
+                } else {
+                    logger.warn('broadcastUserLeft method not found on packetProcessor');
+                }
+            } else {
+                logger.debug('PacketProcessor not available for broadcasting user list update', {
+                    roomId: this.id,
+                    roomName: this.name,
+                    hasServerState: !!this.serverState,
+                    hasPacketProcessor: !!this.serverState?.packetProcessor
+                });
+            }
         }
 
         return true;

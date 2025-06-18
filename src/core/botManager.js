@@ -385,7 +385,8 @@ class BotManager {
                         if (bot.currentRoomId) {
                             const room = serverState.getRoom(bot.currentRoomId);
                             if (room && room.hasUser(bot.uid)) {
-                                room.removeUser({ uid: bot.uid });
+                                // Pass the actual botUser object, not just UID
+                                room.removeUser(botUser || bot.uid);
                                 
                                 // Update room count cache
                                 this.updateBotRoomCount(bot.currentRoomId, -1);
@@ -401,7 +402,8 @@ class BotManager {
                             for (const roomId of roomIds) {
                                 const room = serverState.getRoom(roomId);
                                 if (room && room.hasUser(bot.uid)) {
-                                    room.removeUser({ uid: bot.uid });
+                                    // Pass the actual botUser object, not just UID
+                                    room.removeUser(botUser);
                                 }
                             }
                         }
@@ -437,11 +439,12 @@ class BotManager {
                 if (user.uid >= BOT_CONFIG.BOT_UID_START) {
                     // Try to remove any remaining bot users
                     try {
-                        if (user.rooms && user.rooms.size > 0) {
-                            for (const roomId of user.rooms) {
+                        if (user.currentRooms && user.currentRooms.size > 0) {
+                            for (const roomId of user.currentRooms) {
                                 const room = serverState.getRoom(roomId);
                                 if (room) {
-                                    room.removeUser({ uid: user.uid });
+                                    // Pass the actual user object, not just UID
+                                    room.removeUser(user);
                                 }
                             }
                         }

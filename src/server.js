@@ -53,6 +53,9 @@ class PaltalkServer {
 
             // Initialize packet processor
             this.packetProcessor = new PacketProcessor(this.databaseManager);
+            
+            // Inject packet processor reference into serverState for broadcasting
+            serverState.setPacketProcessor(this.packetProcessor);
 
             // Load initial data
             await this.loadInitialData();
