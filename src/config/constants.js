@@ -6,7 +6,7 @@ const SERVER_CONFIG = {
     CHAT_PORT: 5001,
     VOICE_PORT: 2090,
     WEB_UI_PORT: 3000,
-    SERVER_IP: '192.168.1.16', // Network IP address for external connections
+    SERVER_IP: '192.168.1.75', // Network IP address for external connections
     SERVER_KEY: 'XyF¦164473312518',
     DATABASE_PATH: 'database.db'
 };
@@ -63,9 +63,9 @@ const SECURITY_SETTINGS = {
 const BOT_CONFIG = {
     DEFAULT_BOT_COUNT: 10,
     MAX_BOT_COUNT: 5000, // Maximum number of bots allowed
-    DEFAULT_CHAT_FREQUENCY_MS: 3000, // Chat every 3 seconds for very active rooms
+    DEFAULT_CHAT_FREQUENCY_MS: 1500, // Check every 1.5 seconds for more responsive chatting
     DEFAULT_MOVE_FREQUENCY_MS: 300000, // Move rooms every 5 minutes
-    MIN_CHAT_FREQUENCY_MS: 1000, // Minimum 1 second between chats
+    MIN_CHAT_FREQUENCY_MS: 500, // Minimum 0.5 second between checks
     MAX_CHAT_FREQUENCY_MS: 300000, // Maximum 5 minutes between chats
     MIN_MOVE_FREQUENCY_MS: 60000, // Minimum 1 minute between moves
     MAX_MOVE_FREQUENCY_MS: 1800000, // Maximum 30 minutes between moves
@@ -82,6 +82,58 @@ const BOT_CONFIG = {
         BLACK: '000000000', // Most common - regular users
         GREEN: '000128000', // Some bots appear as premium/online
         BLUE: '000000255'   // Few bots appear as special status
+    },
+    // Bot text formatting styles - each bot gets assigned one of these and sticks to it
+    // Using correct Paltalk formatting with numeric color codes
+    TEXT_STYLES: {
+        REGULAR: {
+            name: 'regular',
+            format: (text) => text // No formatting
+        },
+        RED: {
+            name: 'red',
+            format: (text) => `<pfont color="#16711680">${text}</pfont>`
+        },
+        BLUE: {
+            name: 'blue',
+            format: (text) => `<pfont color="#255">${text}</pfont>`
+        },
+        GREEN: {
+            name: 'green',
+            format: (text) => `<pfont color="#65280">${text}</pfont>`
+        },
+        PURPLE: {
+            name: 'purple',
+            format: (text) => `<pfont color="#8388736">${text}</pfont>`
+        },
+        ORANGE: {
+            name: 'orange',
+            format: (text) => `<pfont color="#16744448">${text}</pfont>`
+        },
+        BOLD: {
+            name: 'bold',
+            format: (text) => `<pb>${text}</pb>`
+        },
+        ITALIC: {
+            name: 'italic',
+            format: (text) => `<pi>${text}</pi>`
+        },
+        RED_BOLD: {
+            name: 'red_bold',
+            format: (text) => `<pb><pfont color="#16711680">${text}</pfont></pb>`
+        },
+        BLUE_BOLD: {
+            name: 'blue_bold',
+            format: (text) => `<pb><pfont color="#255">${text}</pfont></pb>`
+        },
+        GREEN_ITALIC: {
+            name: 'green_italic',
+            format: (text) => `<pi><pfont color="#65280">${text}</pfont></pi>`
+        },
+        PURPLE_BOLD: {
+            name: 'purple_bold',
+            format: (text) => `<pb><pfont color="#8388736">${text}</pfont></pb>`
+        }
     }
 };
 

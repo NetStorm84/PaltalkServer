@@ -757,10 +757,11 @@ class BotManager {
             currentRoomId: room.id,
             isBot: true,
             createdAt: Date.now(),
-            lastChatTime: 0,
+            lastChatTime: Date.now() - 30000, // Set to 30 seconds ago so they can chat soon
             lastMoveTime: Date.now(),
             chatPersonality: this.assignBotPersonality(), // More sophisticated personality assignment
             statusColor: this.assignBotStatusColor(), // Assign display color for room list
+            textStyle: this.assignBotTextStyle(), // Assign consistent text formatting style
             distributionMode: distributionMode
         };
 
@@ -907,17 +908,17 @@ class BotManager {
      * Get minimum chat interval based on personality
      */
     getMinChatInterval(personality) {
-        const baseInterval = 20000; // 20 seconds base (reduced from 45 seconds)
-        const randomFactor = Math.random() * 15000; // 0-15 seconds random (reduced from 30 seconds)
+        const baseInterval = 8000; // 8 seconds base (much more responsive)
+        const randomFactor = Math.random() * 5000; // 0-5 seconds random
         
         switch (personality) {
-            case 'chatty': return baseInterval * 0.2 + randomFactor; // 4s - 19s
-            case 'social': return baseInterval * 0.3 + randomFactor; // 6s - 21s
-            case 'friendly': return baseInterval * 0.4 + randomFactor; // 8s - 23s
-            case 'casual': return baseInterval * 0.5 + randomFactor; // 10s - 25s
-            case 'responsive': return baseInterval * 0.6 + randomFactor; // 12s - 27s
-            case 'lurker': return baseInterval * 1.0 + randomFactor; // 20s - 35s
-            default: return baseInterval * 0.4 + randomFactor;
+            case 'chatty': return baseInterval * 0.1 + randomFactor; // 0.8s - 5.8s
+            case 'social': return baseInterval * 0.2 + randomFactor; // 1.6s - 6.6s
+            case 'friendly': return baseInterval * 0.3 + randomFactor; // 2.4s - 7.4s
+            case 'casual': return baseInterval * 0.4 + randomFactor; // 3.2s - 8.2s
+            case 'responsive': return baseInterval * 0.5 + randomFactor; // 4s - 9s
+            case 'lurker': return baseInterval * 1.0 + randomFactor; // 8s - 13s
+            default: return baseInterval * 0.3 + randomFactor;
         }
     }
 
@@ -925,26 +926,26 @@ class BotManager {
      * Get personality-based chat probability bonus
      */
     getPersonalityChatBonus(personality, userCount, recentMessageCount) {
-        let bonus = 0.7; // increased base to 70% chance
+        let bonus = 0.85; // increased base to 85% chance for more activity
         
         switch (personality) {
             case 'chatty':
-                bonus = 0.9; // Always eager to chat
+                bonus = 0.95; // Always very eager to chat
                 break;
             case 'social':
-                bonus = userCount > 2 ? 0.85 : 0.6; // Loves crowds
+                bonus = userCount > 2 ? 0.9 : 0.75; // Loves crowds
                 break;
             case 'friendly':
-                bonus = 0.8; // Consistently friendly
+                bonus = 0.85; // Consistently friendly
                 break;
             case 'casual':
-                bonus = recentMessageCount < 2 ? 0.75 : 0.5; // Prefers quieter moments
+                bonus = recentMessageCount < 2 ? 0.8 : 0.6; // Prefers quieter moments
                 break;
             case 'responsive':
-                bonus = recentMessageCount > 0 ? 0.8 : 0.4; // Responds to activity
+                bonus = recentMessageCount > 0 ? 0.85 : 0.5; // Responds to activity
                 break;
             case 'lurker':
-                bonus = 0.3; // Still rarely speaks but slightly more than before
+                bonus = 0.4; // Still rarely speaks but slightly more than before
                 break;
         }
         
@@ -1055,6 +1056,15 @@ class BotManager {
     }
 
     /**
+     * Assign a consistent text style to a bot - each bot will always use the same style
+     */
+    assignBotTextStyle() {
+        const styleNames = Object.keys(BOT_CONFIG.TEXT_STYLES);
+        const randomIndex = Math.floor(Math.random() * styleNames.length);
+        return styleNames[randomIndex];
+    }
+
+    /**
      * Get current bot configuration
      */
     getBotConfig() {
@@ -1086,6 +1096,7 @@ class BotManager {
                     roomId: bot.currentRoomId,
                     roomName: roomName,
                     chatPersonality: bot.chatPersonality,
+                    textStyle: bot.textStyle,
                     statusColor: bot.statusColor,
                     createdAt: bot.createdAt
                 });
@@ -1149,12 +1160,12 @@ class BotManager {
             
             // Much more active when no real users are present
             if (roomUsers.length === 0) {
-                // Chat 85% of the time when no real users are present
-                if (Math.random() > 0.85) continue;
+                // Chat 95% of the time when no real users are present (more active)
+                if (Math.random() > 0.95) continue;
             }
 
             // Less restrictive room activity check
-            if (recentMessages.length > 8 && Math.random() > 0.6) continue;
+            if (recentMessages.length > 8 && Math.random() > 0.7) continue;
 
             // Enhanced personality-based chat probability
             const personalityBonus = this.getPersonalityChatBonus(chattingBot.chatPersonality, roomUsers.length, recentMessages.length);
@@ -1377,6 +1388,32 @@ class BotManager {
             message = variations[Math.floor(Math.random() * variations.length)];
         }
 
+        // Apply the bot's consistent text style
+        if (bot.textStyle && BOT_CONFIG.TEXT_STYLES[bot.textStyle]) {
+            const styleFormatter = BOT_CONFIG.TEXT_STYLES[bot.textStyle].format;
+            const originalMessage = message;
+            message = styleFormatter(message);
+            
+            // Debug logging for text formatting
+            if (Math.random() < 0.1) { // Log 10% of messages for debugging
+                logger.debug('Applied text style', {
+                    botUid: bot.uid,
+                    textStyle: bot.textStyle,
+                    originalMessage: originalMessage.substring(0, 30),
+                    formattedMessage: message.substring(0, 50)
+                });
+            }
+        } else {
+            // Log when no text style is applied
+            if (Math.random() < 0.1) {
+                logger.debug('No text style applied', {
+                    botUid: bot.uid,
+                    textStyle: bot.textStyle,
+                    hasStyleInConfig: !!BOT_CONFIG.TEXT_STYLES[bot.textStyle]
+                });
+            }
+        }
+
         // Simulate the bot sending a message by broadcasting to the room
         try {
             const roomIdHex = Utils.decToHex(room.id);
@@ -1415,6 +1452,7 @@ class BotManager {
                     roomName: room.name,
                     message: message.substring(0, 50),
                     personality: bot.chatPersonality,
+                    textStyle: bot.textStyle,
                     timeContext: currentHour >= 6 && currentHour < 12 ? 'morning' : 
                                currentHour >= 12 && currentHour < 17 ? 'afternoon' : 
                                currentHour >= 17 && currentHour < 22 ? 'evening' : 'night'
@@ -1649,10 +1687,11 @@ class BotManager {
                 currentRoomId: assignedRoom.id,
                 isBot: true,
                 createdAt: Date.now(),
-                lastChatTime: 0,
+                lastChatTime: Date.now() - 30000, // Set to 30 seconds ago so they can chat soon
                 lastMoveTime: Date.now(),
                 chatPersonality: personality,
                 statusColor: statusColor,
+                textStyle: this.assignBotTextStyle(), // Assign consistent text formatting style
                 distributionMode: distributionMode
             };
 
