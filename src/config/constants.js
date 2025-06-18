@@ -6,7 +6,7 @@ const SERVER_CONFIG = {
     CHAT_PORT: 5001,
     VOICE_PORT: 2090,
     WEB_UI_PORT: 3000,
-    SERVER_IP: '192.168.1.75', // Network IP address for external connections
+    SERVER_IP: '192.168.1.16', // Network IP address for external connections
     SERVER_KEY: 'XyF¦164473312518',
     DATABASE_PATH: 'database.db'
 };
@@ -48,7 +48,16 @@ const SECURITY_SETTINGS = {
     SESSION_TIMEOUT: 24 * 60 * 60 * 1000, // 24 hours
     IDLE_TIMEOUT: 30 * 60 * 1000, // 30 minutes
     MAX_FAILED_LOGIN_ATTEMPTS: 5,
-    LOCKOUT_DURATION: 15 * 60 * 1000 // 15 minutes
+    LOCKOUT_DURATION: 15 * 60 * 1000, // 15 minutes
+    JWT_SECRET: process.env.JWT_SECRET || 'paltalk-server-secret-key-change-in-production',
+    JWT_EXPIRY: '24h',
+    DASHBOARD_COOKIE_NAME: 'dashboard_auth',
+    DASHBOARD_COOKIE_MAX_AGE: 24 * 60 * 60 * 1000, // 24 hours
+    DASHBOARD_ADMIN: {
+        USERNAME: 'admin',
+        PASSWORD: 'password123', // Change this in production!
+        ADMIN_LEVEL: 3 // Super admin
+    }
 };
 
 const BOT_CONFIG = {
@@ -70,9 +79,9 @@ const BOT_CONFIG = {
     },
     // Bot status colors for room list display
     STATUS_COLORS: {
-        BLACK: 0, // Most common - regular users
-        GREEN: 1, // Some bots appear as premium/online
-        BLUE: 2   // Few bots appear as special status
+        BLACK: '000000000', // Most common - regular users
+        GREEN: '000128000', // Some bots appear as premium/online
+        BLUE: '000000255'   // Few bots appear as special status
     }
 };
 

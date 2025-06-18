@@ -6,7 +6,7 @@
 
 const { BOT_CONFIG } = require('./src/config/constants');
 
-const SERVER_HOST = '192.168.1.75';
+const SERVER_HOST = '192.168.1.16';
 const SERVER_PORT = 3000;
 
 // Command line argument parsing

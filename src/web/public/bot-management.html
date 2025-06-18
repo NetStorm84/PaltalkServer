@@ -605,6 +605,34 @@
             console.log('Disconnected from server');
         });
 
+        // Listen for bot status updates from server
+        socket.on('botStatus', (data) => {
+            console.log('Bot status update received:', data);
+            // Update the UI with the received bot status
+            const statusEl = document.getElementById('botSystemStatus');
+            const iconEl = document.getElementById('botStatusIcon');
+            const textEl = document.getElementById('botStatusText');
+            
+            if (data.isRunning) {
+                statusEl.className = 'status-indicator status-running';
+                iconEl.textContent = '🟢';
+                textEl.textContent = 'Running';
+                document.getElementById('totalBots').textContent = data.activeBots || 0;
+            } else {
+                statusEl.className = 'status-indicator status-stopped';
+                iconEl.textContent = '🔴';
+                textEl.textContent = 'Stopped';
+                document.getElementById('totalBots').textContent = '0';
+                document.getElementById('roomsWithBots').textContent = '0';
+                document.getElementById('averageBotsPerRoom').textContent = '0';
+                document.getElementById('distributionCard').style.display = 'none';
+            }
+            
+            // Update button states
+            document.getElementById('startBotsBtn').disabled = data.isRunning;
+            document.getElementById('stopBotsBtn').disabled = !data.isRunning;
+        });
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', () => {
             setupEventListeners();
@@ -767,8 +795,31 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    showAlert('Successfully stopped all bots', 'success');
-                    refreshBotStats();
+                    const stoppedCount = data.data?.stoppedCount || 0;
+                    showAlert(`Successfully stopped ${stoppedCount} bots`, 'success');
+                    
+                    // Update UI immediately to show stopped state
+                    const statusEl = document.getElementById('botSystemStatus');
+                    const iconEl = document.getElementById('botStatusIcon');
+                    const textEl = document.getElementById('botStatusText');
+                    
+                    statusEl.className = 'status-indicator status-stopped';
+                    iconEl.textContent = '🔴';
+                    textEl.textContent = 'Stopped';
+                    
+                    document.getElementById('totalBots').textContent = '0';
+                    document.getElementById('roomsWithBots').textContent = '0';
+                    document.getElementById('averageBotsPerRoom').textContent = '0';
+                    
+                    // Hide the distribution chart
+                    document.getElementById('distributionCard').style.display = 'none';
+                    
+                    // Update buttons
+                    document.getElementById('startBotsBtn').disabled = false;
+                    document.getElementById('stopBotsBtn').disabled = true;
+                    
+                    // Also refresh stats after a short delay to ensure everything is updated
+                    setTimeout(refreshBotStats, 1000);
                 } else {
                     showAlert('Failed to stop bots: ' + data.error, 'error');
                 }

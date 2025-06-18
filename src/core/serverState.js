@@ -681,6 +681,57 @@ class ServerState extends EventEmitter {
     }
 
     /**
+     * Clean up any disconnected users or bot users that might remain in the system
+     * This is particularly useful after stopping bots
+     */
+    cleanupDisconnectedUsers() {
+        try {
+            let cleanedCount = 0;
+            
+            // Check all users and remove those without sockets or with disconnected sockets
+            for (const [uid, user] of this.users.entries()) {
+                // Check if user is a disconnected bot or has no socket
+                if (!user.socket || (user.socket && !this.sockets.has(user.socket.id))) {
+                    // Remove user from all rooms first
+                    if (user.currentRooms && user.currentRooms.size > 0) {
+                        const roomIds = [...user.currentRooms]; // Create a copy to prevent modification during iteration
+                        for (const roomId of roomIds) {
+                            const room = this.getRoom(roomId);
+                            if (room) {
+                                room.removeUser(user);
+                                
+                                // If room is temporary and now empty, consider removing it
+                                if (!room.isPermanent && room.getUserCount() === 0) {
+                                    this.deleteRoom(room.id);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Remove the user from the users map
+                    this.users.delete(uid);
+                    cleanedCount++;
+                }
+            }
+            
+            // Update statistics
+            this.stats.totalUniqueUsers = this.users.size;
+            
+            if (cleanedCount > 0) {
+                logger.info('Cleaned up disconnected users', { cleanedCount });
+                
+                // Emit event for any listeners
+                this.emit('usersCleanedUp', { count: cleanedCount });
+            }
+            
+            return cleanedCount;
+        } catch (error) {
+            logger.error('Failed to clean up disconnected users', error);
+            return 0;
+        }
+    }
+
+    /**
      * Perform startup cleanup to ensure clean server state
      * This fixes issues with stale user/room state from previous server runs
      */

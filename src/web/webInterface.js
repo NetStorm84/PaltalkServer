@@ -5,10 +5,14 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const logger = require('../utils/logger');
-const { SERVER_CONFIG } = require('../config/constants');
+const { SERVER_CONFIG, SECURITY_SETTINGS } = require('../config/constants');
 const { sendPacket } = require('../network/packetSender');
 const { PACKET_TYPES } = require('../../packetHeaders');
+const AuthController = require('./controllers/authController');
+const { requireAuth, requireAdmin, requireApiAuth } = require('./middleware/authMiddleware');
 
 class WebInterface {
     constructor(serverState, voiceServer, databaseManager) {
@@ -19,6 +23,9 @@ class WebInterface {
         this.voiceServer = voiceServer;
         this.db = databaseManager;
         this.isRunning = false;
+        
+        // Initialize auth controller
+        this.authController = new AuthController(databaseManager);
         
         this.setupMiddleware();
         this.setupRoutes();
@@ -31,23 +38,58 @@ class WebInterface {
         this.app.use(express.static(path.join(__dirname, 'public')));
         this.app.use(express.json());
         
+        // Add cookie parser and session middleware
+        this.app.use(cookieParser());
+        this.app.use(session({
+            secret: SECURITY_SETTINGS.JWT_SECRET,
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                secure: process.env.NODE_ENV === 'production',
+                httpOnly: true,
+                maxAge: SECURITY_SETTINGS.SESSION_TIMEOUT
+            }
+        }));
+        
         // CORS for development
         this.app.use((req, res, next) => {
             res.header('Access-Control-Allow-Origin', '*');
-            res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+            res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
             next();
         });
     }
 
     setupRoutes() {
-        // Main dashboard
-        this.app.get('/', (req, res) => {
+        // Authentication routes
+        this.app.get('/login', (req, res) => {
+            // If already authenticated, redirect to dashboard
+            if (req.session && req.session.isAuthenticated) {
+                return res.redirect('/');
+            }
+            res.sendFile(path.join(__dirname, 'public', 'login.html'));
+        });
+        
+        this.app.post('/auth/login', (req, res) => {
+            return this.authController.handleLogin(req, res);
+        });
+        
+        this.app.post('/auth/logout', (req, res) => {
+            return this.authController.handleLogout(req, res);
+        });
+        
+        // Main dashboard - protected by authentication
+        this.app.get('/', requireAuth, (req, res) => {
             res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
         });
 
-        // Voice dashboard
-        this.app.get('/voice-dashboard.html', (req, res) => {
+        // Voice dashboard - protected by authentication
+        this.app.get('/voice-dashboard.html', requireAuth, (req, res) => {
             res.sendFile(path.join(__dirname, 'public', 'voice-dashboard.html'));
+        });
+        
+        // Bot management - protected by authentication
+        this.app.get('/bot-management.html', requireAuth, (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'bot-management.html'));
         });
 
         // API Routes
@@ -196,7 +238,7 @@ class WebInterface {
         });
 
         // Room management
-        this.app.post('/api/admin/room/:roomId/close', (req, res) => {
+        this.app.post('/api/admin/room/:roomId/close', requireAdmin, (req, res) => {
             try {
                 const { roomId } = req.params;
                 const { reason } = req.body;
@@ -367,18 +409,27 @@ class WebInterface {
                 
                 botManager.stopBots().then(result => {
                     if (result.success) {
-                        logger.info('Bots stopped via web interface');
+                        logger.info('Bots stopped via web interface', { stoppedCount: result.stoppedCount });
+                        
+                        // Ensure server state is updated with removed bots
+                        // Trigger a manual clean-up of any remaining bot users
+                        this.serverState.cleanupDisconnectedUsers();
                         
                         const response = {
                             success: true,
                             data: {
-                                message: result.message
+                                message: result.message,
+                                stoppedCount: result.stoppedCount
                             }
                         };
                         res.json(response);
                         
                         // Broadcast update to all connected dashboards
-                        this.io.emit('botStatus', { isRunning: false, activeBots: 0 });
+                        this.io.emit('botStatus', { 
+                            isRunning: false, 
+                            activeBots: 0,
+                            timestamp: new Date().toISOString()
+                        });
                     } else {
                         res.status(400).json(result);
                     }
@@ -492,14 +543,66 @@ class WebInterface {
     }
 
     setupWebSocket() {
+        const jwt = require('jsonwebtoken');
+        
+        // Socket.io middleware to check for authentication
+        this.io.use((socket, next) => {
+            const req = socket.request;
+            
+            // If session is authenticated, allow connection
+            if (req.session && req.session.isAuthenticated) {
+                socket.user = {
+                    id: req.session.userId,
+                    username: req.session.username,
+                    isAdmin: req.session.isAdmin
+                };
+                return next();
+            }
+            
+            // Check for token in cookies or query
+            const cookieHeader = req.headers.cookie;
+            if (cookieHeader) {
+                const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+                    const [name, value] = cookie.trim().split('=');
+                    acc[name] = value;
+                    return acc;
+                }, {});
+                
+                const token = cookies[SECURITY_SETTINGS.DASHBOARD_COOKIE_NAME];
+                
+                if (token) {
+                    try {
+                        const decoded = jwt.verify(token, SECURITY_SETTINGS.JWT_SECRET);
+                        socket.user = {
+                            id: decoded.id,
+                            username: decoded.username,
+                            isAdmin: decoded.isAdmin
+                        };
+                        return next();
+                    } catch (error) {
+                        // Invalid token
+                    }
+                }
+            }
+            
+            // No authentication found
+            return next(new Error('Authentication required'));
+        });
+
         this.io.on('connection', (socket) => {
-            logger.info('Web client connected', { socketId: socket.id });
+            logger.info('Web client connected', { 
+                socketId: socket.id, 
+                user: socket.user
+            });
             
             // Send initial data
             this.sendServerState(socket);
             
             socket.on('disconnect', () => {
-                logger.debug('Web client disconnected', { socketId: socket.id });
+                logger.debug('Web client disconnected', { 
+                    socketId: socket.id, 
+                    user: socket.user 
+                });
             });
             
             socket.on('requestUpdate', () => {

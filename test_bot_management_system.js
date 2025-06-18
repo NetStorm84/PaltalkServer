@@ -7,7 +7,7 @@
 const net = require('net');
 const http = require('http');
 
-const SERVER_HOST = '192.168.1.75';
+const SERVER_HOST = '192.168.1.16';
 const WEB_PORT = 3000;
 const CHAT_PORT = 5001;
 

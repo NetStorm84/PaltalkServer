@@ -185,8 +185,14 @@ class Room {
 
         // Get the actual user object to call removeFromRoom
         const actualUser = typeof userOrUid === 'object' ? userOrUid : (this.serverState?.getUser(uid));
-        if (actualUser) {
+        if (actualUser && typeof actualUser.removeFromRoom === 'function') {
             actualUser.removeFromRoom(this.id);
+        } else {
+            logger.debug('User object does not have removeFromRoom method', {
+                userId: uid,
+                userType: actualUser ? typeof actualUser : 'undefined',
+                isBot: actualUser?.isBot || false
+            });
         }
 
         this.users.delete(uid);
@@ -203,6 +209,9 @@ class Room {
                 room: this,
                 nickname: user.nickname
             });
+            
+            // Broadcast updated user list to everyone in the room
+            this.serverState.packetProcessor.broadcastUserListUpdate(this);
         }
 
         return true;

@@ -378,6 +378,9 @@ class BotManager {
                 
                 for (const bot of batch) {
                     try {
+                        // Get the actual user data from server state
+                        const botUser = serverState.users.get(bot.uid);
+                        
                         // Leave current room if in one
                         if (bot.currentRoomId) {
                             const room = serverState.getRoom(bot.currentRoomId);
@@ -389,6 +392,17 @@ class BotManager {
                                 
                                 // Send disconnect notification to real users in the room
                                 this.sendBotDisconnectNotification(room, bot);
+                            }
+                        }
+                        
+                        // If botUser has currentRooms, clean those up too
+                        if (botUser && botUser.currentRooms && botUser.currentRooms.size > 0) {
+                            const roomIds = [...botUser.currentRooms]; // Copy to avoid modification during iteration
+                            for (const roomId of roomIds) {
+                                const room = serverState.getRoom(roomId);
+                                if (room && room.hasUser(bot.uid)) {
+                                    room.removeUser({ uid: bot.uid });
+                                }
                             }
                         }
                         
@@ -417,16 +431,39 @@ class BotManager {
             this.isRunning = false;
             this.currentConfig = null;
             
+            // Double check for any remaining bot users in server state
+            let remainingBots = 0;
+            for (const user of serverState.users.values()) {
+                if (user.uid >= BOT_CONFIG.BOT_UID_START) {
+                    // Try to remove any remaining bot users
+                    try {
+                        if (user.rooms && user.rooms.size > 0) {
+                            for (const roomId of user.rooms) {
+                                const room = serverState.getRoom(roomId);
+                                if (room) {
+                                    room.removeUser({ uid: user.uid });
+                                }
+                            }
+                        }
+                        serverState.users.delete(user.uid);
+                        remainingBots++;
+                    } catch (error) {
+                        logger.warn('Error removing remaining bot user', { uid: user.uid, error: error.message });
+                    }
+                }
+            }
+            
             logger.info('Bot system stopped successfully', { 
                 initialBotCount, 
                 processedCount,
-                remainingBots: this.bots.size 
+                remainingBotsRemoved: remainingBots,
+                finalRemainingBots: this.bots.size 
             });
             
             return { 
                 success: true, 
-                message: `Successfully stopped ${processedCount} bots`,
-                stoppedCount: processedCount
+                message: `Successfully stopped ${processedCount + remainingBots} bots`,
+                stoppedCount: processedCount + remainingBots
             };
             
         } catch (error) {
@@ -742,7 +779,30 @@ class BotManager {
         botUserData.mode = USER_MODES.ONLINE;
         botUserData.socket = null; // Bots don't have real sockets
         botUserData.isBot = true;
-        botUserData.statusColor = bot.statusColor; // Set the room list display color
+        botUserData.color = bot.statusColor; // Set the room list display color
+        
+        // Add basic room tracking methods for bots to ensure proper cleanup
+        if (!botUserData.currentRooms) {
+            botUserData.currentRooms = new Set();
+        }
+        
+        // Implement removeFromRoom method if it doesn't exist
+        if (typeof botUserData.removeFromRoom !== 'function') {
+            botUserData.removeFromRoom = function(roomId) {
+                if (this.currentRooms) {
+                    this.currentRooms.delete(roomId);
+                }
+            };
+        }
+        
+        // Implement addToRoom method if it doesn't exist
+        if (typeof botUserData.addToRoom !== 'function') {
+            botUserData.addToRoom = function(roomId) {
+                if (this.currentRooms) {
+                    this.currentRooms.add(roomId);
+                }
+            };
+        }
         
         serverState.users.set(bot.uid, botUserData);
         
@@ -1611,7 +1671,30 @@ class BotManager {
             botUserData.mode = USER_MODES.ONLINE;
             botUserData.socket = null;
             botUserData.isBot = true;
-            botUserData.statusColor = statusColor;
+            botUserData.color = statusColor;
+            
+            // Add basic room tracking methods for bots to ensure proper cleanup
+            if (!botUserData.currentRooms) {
+                botUserData.currentRooms = new Set();
+            }
+            
+            // Implement removeFromRoom method if it doesn't exist
+            if (typeof botUserData.removeFromRoom !== 'function') {
+                botUserData.removeFromRoom = function(roomId) {
+                    if (this.currentRooms) {
+                        this.currentRooms.delete(roomId);
+                    }
+                };
+            }
+            
+            // Implement addToRoom method if it doesn't exist
+            if (typeof botUserData.addToRoom !== 'function') {
+                botUserData.addToRoom = function(roomId) {
+                    if (this.currentRooms) {
+                        this.currentRooms.add(roomId);
+                    }
+                };
+            }
             
             // Add to server state and room in one operation
             serverState.users.set(botUid, botUserData);
