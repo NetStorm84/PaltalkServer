@@ -317,22 +317,37 @@ class PacketProcessor {
                     responseString: responseString
                 });
             } else {
-                // User not found - send error response or no response
+                // User not found - send uid=-1 response
                 logger.warn('UIN request for non-existent user', { 
                     socketId: socket.id, 
                     requestedNickname: nickname
                 });
                 
-                // Don't send any response for non-existent users
-                // This prevents clients from getting fake UIDs
-                return;
+                const responseString = `uid=-1`;
+                const response = Buffer.from(responseString);
+                
+                sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
+                
+                logger.info('UIN_RESPONSE sent for non-existent user with uid=-1', { 
+                    socketId: socket.id, 
+                    requestedNickname: nickname,
+                    responseString: responseString
+                });
             }
             
         } catch (error) {
             logger.error('Failed to process GET_UIN request', error, { socketId: socket.id });
             
-            // Don't send any fallback response to avoid fake user IDs
-            return;
+            // Send uid=-1 response for errors
+            const responseString = `uid=-1`;
+            const response = Buffer.from(responseString);
+            
+            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, response, socket.id);
+            
+            logger.info('UIN_RESPONSE sent for error case with uid=-1', { 
+                socketId: socket.id, 
+                responseString: responseString
+            });
         }
     }
 
