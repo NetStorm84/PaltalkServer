@@ -269,7 +269,20 @@ class PacketProcessor {
     }
 
     async handleLymerick(socket, payload) {
-        logger.info('Lymerick received', { socketId: socket.id });
+        // Extract the lymerick content from the payload
+        const lymerickContent = payload.toString('utf8');
+        
+        // Output the lymerick to console
+        console.log('📝 LYMERICK RECEIVED FROM CLIENT:');
+        console.log('================================');
+        console.log(lymerickContent);
+        console.log('================================');
+        
+        logger.info('Lymerick received', { 
+            socketId: socket.id,
+            content: lymerickContent,
+            payloadLength: payload.length 
+        });
         
         sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0), socket.id);
         
@@ -381,9 +394,8 @@ class PacketProcessor {
             // CRITICAL FIX: Set user mode to ONLINE when they successfully log in
             user.setMode(USER_MODES.ONLINE);
             
-            // CRITICAL FIX: Set socket.id to user.uid like the old implementation
-            // This makes socket.id equivalent to user ID for message broadcasting
-            socket.id = user.uid;
+            // FIXED: Do NOT override socket.id - this breaks socket management and causes session conflicts
+            // Keep the original socket.id and let the server state manage the mapping properly
             
             if (!serverState.addUserConnection(socket, user)) {
                 logger.error('Failed to add user connection', { uid, socketId: socket.id });
@@ -634,8 +646,9 @@ class PacketProcessor {
                 remainingUsers: room.getUserCount()
             });
             
-            // *** REAL-TIME BROADCAST: Send updated user lists to remaining users ***
-            this.broadcastUserListUpdate(room);
+            // NOTE: Removed broadcastUserListUpdate to prevent duplicate broadcasts
+            // that cause client disconnections. The ROOM_USER_LEFT packet is sufficient
+            // for clients to update their user lists automatically.
 
             // Auto-delete temporary rooms (NOT permanent database rooms)
             if (room.shouldAutoDelete()) {
@@ -733,14 +746,12 @@ class PacketProcessor {
         this.storeRecentMessage(user.uid, sanitizedMessage);
 
         // Broadcast message to all users in room except sender
-        // FIXED: Since socket.id = user.uid, we can use socket.id for sender identification
-        const roomIdHex = Utils.decToHex(roomId);
-        const senderIdHex = Utils.decToHex(socket.id); // socket.id is now user.uid
-        const messageHex = Buffer.from(sanitizedMessage, 'utf8').toString('hex');
-        
-        // Match old implementation: concatenate hex strings then convert to buffer
-        const combinedHex = roomIdHex + senderIdHex + messageHex;
-        const messageBuffer = Buffer.from(combinedHex, 'hex');
+        // Use proper buffer concatenation instead of hex string manipulation
+        const messageBuffer = Buffer.concat([
+            Buffer.from(Utils.decToHex(roomId), 'hex'),     // Room ID
+            Buffer.from(Utils.decToHex(user.uid), 'hex'),   // Sender ID 
+            Buffer.from(sanitizedMessage, 'utf8')           // Message content
+        ]);
 
         this.broadcastToRoom(room, PACKET_TYPES.ROOM_MESSAGE_IN, messageBuffer, user.socket);
 
@@ -1496,12 +1507,14 @@ class PacketProcessor {
             buffers.push(delimiter);
         });
 
-        // COMPATIBILITY FIX: The old implementation had Buffer.from('eof=1', 'hex') which creates an empty buffer
-        // since 'eof=1' is not valid hex. We need to match this exactly for client compatibility.
-        buffers.push(Buffer.from('eof=1', 'hex')); // This creates an empty buffer, matching old implementation
-        const userListBuffer = Buffer.concat(buffers);
-        
-        sendPacket(socket, 0x0154, userListBuffer, socket.id);
+        // Add proper end-of-list marker
+        if (buffers.length > 0) {
+            const userListBuffer = Buffer.concat(buffers);
+            sendPacket(socket, 0x0154, userListBuffer, socket.id);
+        } else {
+            // Send empty user list if no users
+            sendPacket(socket, 0x0154, Buffer.alloc(0), socket.id);
+        }
     }
 
     broadcastUserListUpdate(room) {
@@ -1515,11 +1528,39 @@ class PacketProcessor {
             }).length
         });
         
-        room.getAllUsers().forEach(roomUserData => {
+        const allUsers = room.getAllUsers();
+        let successCount = 0;
+        let failCount = 0;
+        
+        allUsers.forEach(roomUserData => {
             const user = serverState.getUser(roomUserData.uid);
             if (user && user.socket) {
-                this.sendUserList(user.socket, room);
+                try {
+                    this.sendUserList(user.socket, room);
+                    successCount++;
+                } catch (error) {
+                    logger.error('Failed to send user list to user', error, {
+                        userId: user.uid,
+                        nickname: user.nickname,
+                        roomId: room.id
+                    });
+                    failCount++;
+                }
+            } else {
+                failCount++;
+                logger.warn('User missing or no socket for user list update', {
+                    uid: roomUserData.uid,
+                    userExists: !!user,
+                    hasSocket: user ? !!user.socket : false
+                });
             }
+        });
+        
+        logger.info('User list update broadcast completed', {
+            roomId: room.id,
+            successCount,
+            failCount,
+            totalUsers: allUsers.length
         });
     }
 
