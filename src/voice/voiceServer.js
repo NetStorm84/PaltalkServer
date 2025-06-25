@@ -3,7 +3,7 @@
  */
 const net = require('net');
 const logger = require('../utils/logger');
-const { SERVER_CONFIG } = require('../config/constants');
+const { SERVER_CONFIG, LOGGING_CONFIG } = require('../config/constants');
 
 class VoiceServer {
     constructor() {
@@ -16,6 +16,20 @@ class VoiceServer {
             lastCleanup: Date.now(),
             totalPacketsRelayed: 0
         };
+        
+        // Rate limiting for log messages
+        this.logRateLimiter = new Map(); // messageKey -> { count, firstSeen, lastLogged }
+        
+        // Server state reference for room validation
+        this.serverState = null;
+    }
+
+    /**
+     * Set the server state reference for room validation
+     * @param {ServerState} serverState 
+     */
+    setServerState(serverState) {
+        this.serverState = serverState;
     }
 
     /**
@@ -61,6 +75,7 @@ class VoiceServer {
             roomId: null,
             userId: null,
             isAuthenticated: false,
+            awaitingUserAssociation: false,
             bytesReceived: 0,
             bytesSent: 0,
             connectTime: new Date(),
@@ -130,12 +145,26 @@ class VoiceServer {
 
             // Only process authenticated connections for audio data
             if (!connection.isAuthenticated || !connection.roomId) {
+                // Enhanced debugging to understand what packets we're receiving
                 logger.debug('Audio data from unauthenticated connection', { 
                     connectionId,
                     isAuthenticated: connection.isAuthenticated,
                     roomId: connection.roomId,
+                    dataLength: data.length,
+                    dataHexStart: dataHex.substring(0, 24), // First 12 bytes
+                    isControlPacket: this.isControlPacket(dataHex),
                     module: 'voice' 
                 });
+                
+                // Try to see if this looks like a control packet we're not recognizing
+                if (dataHex.startsWith('0000')) {
+                    logger.info('Potential unrecognized control packet', {
+                        connectionId,
+                        fullDataHex: dataHex,
+                        dataLength: data.length,
+                        module: 'voice'
+                    });
+                }
                 return;
             }
 
@@ -285,9 +314,24 @@ class VoiceServer {
      */
     isControlPacket(dataHex) {
         // Check for known control packet patterns
-        return dataHex === '0000c353000f4242' || 
-               dataHex === '0000c353000f4244' ||
-               dataHex.startsWith('0000c353'); // Room join pattern
+        if (dataHex === '0000c353000f4242' || 
+            dataHex === '0000c353000f4244' ||
+            dataHex.startsWith('0000c353') ||
+            dataHex.startsWith('0000c351')) { // Added c351 pattern from Wireshark
+            return true;
+        }
+        
+        // Additional patterns that might indicate control packets
+        if (dataHex.startsWith('0000') && dataHex.length <= 32) {
+            return true; // Short packets starting with 0000 are likely control
+        }
+        
+        // Check for other potential authentication patterns
+        if (dataHex.includes('000f42') || dataHex.includes('c353') || dataHex.includes('c351')) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**
@@ -297,9 +341,12 @@ class VoiceServer {
      */
     handleControlPacket(connectionId, data) {
         const connection = this.connections.get(connectionId);
-        const dataHex = data.toString('hex');            logger.debug('Control packet received', {
+        const dataHex = data.toString('hex');
+        
+        logger.info('Control packet received - analyzing', {
             connectionId,
-            dataHex: dataHex.substring(0, 32) + (dataHex.length > 32 ? '...' : ''),
+            dataLength: data.length,
+            dataHex: dataHex,
             module: 'voice'
         });
 
@@ -307,16 +354,166 @@ class VoiceServer {
         if (dataHex === '0000c353000f4242' || dataHex === '0000c353000f4244') {
             // Send acknowledgment
             connection.socket.write(Buffer.alloc(0));
-            logger.debug('Authentication packet acknowledged', { connectionId, module: 'voice' });
+            logger.info('Authentication packet acknowledged', { connectionId, dataHex, module: 'voice' });
             return;
+        }
+
+        // Handle voice room join packet where room ID is in the first 4 bytes
+        // Example: 0000c35100000000082a = roomId(0000c351=50001) + userId(0) + port(082a=2090)
+        if (data.length >= 8) {
+            try {
+                const roomId = data.readUInt32BE(0); // First 4 bytes = room ID
+                const userId = data.readUInt32BE(4); // Next 4 bytes = user ID (might be 0)
+                
+                logger.info('Voice room join packet detected', {
+                    connectionId,
+                    roomId,
+                    userId,
+                    dataHex,
+                    module: 'voice'
+                });
+                
+                // Validate that the room exists
+                if (this.serverState) {
+                    const room = this.serverState.getRoom(roomId);
+                    if (!room) {
+                        logger.warn('Voice connection attempt to non-existent room', {
+                            connectionId,
+                            roomId,
+                            userId,
+                            module: 'voice'
+                        });
+                        // Send error response and close connection
+                        const errorBuffer = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF]); // Error response
+                        connection.socket.write(errorBuffer);
+                        connection.socket.end();
+                        return;
+                    }
+                    
+                    logger.info('Room validation successful', {
+                        connectionId,
+                        roomId,
+                        roomName: room.name,
+                        module: 'voice'
+                    });
+                }
+                
+                // The userId field in the packet is typically 0 and not the actual user ID
+                // The real user ID association happens through the main server
+                logger.info('Room join packet - user ID will be associated separately', {
+                    connectionId,
+                    roomId,
+                    packetUserId: userId, // This is usually 0
+                    remoteAddress: connection.socket.remoteAddress,
+                    module: 'voice'
+                });
+                
+                // Authenticate with room but without user ID for now
+                connection.roomId = roomId;
+                connection.userId = null; // Will be set later by main server
+                connection.isAuthenticated = true;
+                connection.awaitingUserAssociation = true;
+                
+                // Add to room
+                if (!this.rooms.has(roomId)) {
+                    this.rooms.set(roomId, new Set());
+                }
+                this.rooms.get(roomId).add(connectionId);
+                
+                logger.info('Voice connection authenticated for room (awaiting user association)', {
+                    connectionId,
+                    roomId,
+                    roomMemberCount: this.rooms.get(roomId).size,
+                    module: 'voice'
+                });
+                
+                // Send join confirmation
+                const confirmationBuffer = Buffer.from([0x00, 0x00, 0x00, 0x00]);
+                connection.socket.write(confirmationBuffer);
+                return;
+                
+            } catch (error) {
+                logger.error('Error parsing voice room join packet', error, {
+                    connectionId,
+                    dataHex,
+                    module: 'voice'
+                });
+            }
         }
 
         // Handle room join packets (format: 0000c353 + roomId + userId)
         if (dataHex.startsWith('0000c353') && data.length >= 12) {
-            const roomId = data.readUInt32BE(4);
-            const userId = data.readUInt32BE(8);
+            try {
+                const roomId = data.readUInt32BE(4);
+                const userId = data.readUInt32BE(8);
+                
+                logger.info('Room join packet detected', {
+                    connectionId,
+                    roomId,
+                    userId,
+                    dataHex,
+                    module: 'voice'
+                });
+                
+                this.authenticateAndJoinRoom(connectionId, roomId, userId);
+                return;
+            } catch (error) {
+                logger.error('Error parsing room join packet', error, {
+                    connectionId,
+                    dataHex,
+                    module: 'voice'
+                });
+            }
+        }
+        
+        // Handle other potential control patterns
+        if (dataHex.startsWith('0000')) {
+            logger.info('Unknown control packet pattern', {
+                connectionId,
+                dataHex,
+                dataLength: data.length,
+                pattern: 'starts_with_0000',
+                module: 'voice'
+            });
             
-            this.authenticateAndJoinRoom(connectionId, roomId, userId);
+            // Try to extract potential room/user IDs from different positions
+            if (data.length >= 8) {
+                try {
+                    const possibleRoomId1 = data.readUInt32BE(0);
+                    const possibleUserId1 = data.readUInt32BE(4);
+                    logger.debug('Potential IDs at positions 0,4', {
+                        connectionId,
+                        possibleRoomId1,
+                        possibleUserId1,
+                        module: 'voice'
+                    });
+                } catch (e) {}
+            }
+            
+            if (data.length >= 12) {
+                try {
+                    const possibleRoomId2 = data.readUInt32BE(4);
+                    const possibleUserId2 = data.readUInt32BE(8);
+                    logger.debug('Potential IDs at positions 4,8', {
+                        connectionId,
+                        possibleRoomId2,
+                        possibleUserId2,
+                        module: 'voice'
+                    });
+                } catch (e) {}
+            }
+        }
+        
+        // Send generic acknowledgment for unrecognized control packets
+        try {
+            connection.socket.write(Buffer.from([0x00, 0x00, 0x00, 0x00]));
+            logger.debug('Generic acknowledgment sent for unrecognized control packet', {
+                connectionId,
+                dataHex,
+                module: 'voice'
+            });
+        } catch (error) {
+            logger.error('Failed to send acknowledgment', error, { connectionId, module: 'voice' });
         }
     }
 
@@ -709,8 +906,8 @@ class VoiceServer {
             }
 
             // Clean up empty rooms
-            for (const [roomId, room] of this.rooms) {
-                if (room.connections.size === 0 && !room.isPermanent) {
+            for (const [roomId, connectionSet] of this.rooms) {
+                if (connectionSet.size === 0) {
                     this.rooms.delete(roomId);
                     cleanedRooms++;
                 }
@@ -748,12 +945,12 @@ class VoiceServer {
         };
 
         // Add room statistics
-        for (const [roomId, room] of this.rooms) {
+        for (const [roomId, connectionSet] of this.rooms) {
             stats.rooms.push({
                 roomId,
-                connectionCount: room.connections.size,
-                isPermanent: room.isPermanent,
-                createdAt: room.createdAt
+                connectionCount: connectionSet.size,
+                isPermanent: false, // Voice server doesn't track room permanence
+                createdAt: null // Voice server doesn't track room creation time
             });
         }
 
@@ -879,6 +1076,135 @@ class VoiceServer {
             return { error: `Failed to parse RTP header: ${error.message}` };
         }
     }
+
+    /**
+     * Link authenticated voice connection to user's current room
+     * @param {string} connectionId 
+     */
+    linkToUserRoom(connectionId) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) return false;
+
+        // We need to get the user's current room from the main server
+        // For now, we'll need a way to communicate with the main server
+        // This is a temporary solution - we should add proper integration
+        
+        logger.info('Attempting to link voice connection to user room', {
+            connectionId,
+            remoteAddress: connection.socket.remoteAddress,
+            module: 'voice'
+        });
+        
+        return false; // Will implement proper linking
+    }
+
+    /**
+     * Manually associate voice connection with room and user
+     * This can be called from the main server when a user joins a voice room
+     * @param {string} remoteAddress 
+     * @param {number} roomId 
+     * @param {number} userId 
+     */
+    associateConnectionWithRoom(remoteAddress, roomId, userId) {
+        // Find connection by remote address
+        for (const [connectionId, connection] of this.connections) {
+            if (connection.socket.remoteAddress === remoteAddress && 
+                connection.isAuthenticated && 
+                !connection.roomId) {
+                
+                // Join room
+                connection.roomId = roomId;
+                connection.userId = userId;
+
+                // Add to room
+                if (!this.rooms.has(roomId)) {
+                    this.rooms.set(roomId, new Set());
+                }
+                this.rooms.get(roomId).add(connectionId);
+
+                logger.info('Voice connection associated with room', {
+                    connectionId,
+                    roomId,
+                    userId,
+                    remoteAddress,
+                    roomMemberCount: this.rooms.get(roomId).size,
+                    module: 'voice'
+                });
+                
+                return true;
+            }
+        }
+        
+        logger.warn('Could not find authenticated voice connection for room association', {
+            remoteAddress,
+            roomId,
+            userId,
+            module: 'voice'
+        });
+        
+        return false;
+    }
+
+    /**
+     * Associate a user ID with an existing voice connection
+     * Called by the main server when a user joins voice
+     * @param {string} connectionId 
+     * @param {number} userId 
+     */
+    associateUserWithConnection(connectionId, userId) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) {
+            logger.warn('Cannot associate user - connection not found', {
+                connectionId,
+                userId,
+                module: 'voice'
+            });
+            return false;
+        }
+
+        if (!connection.isAuthenticated || !connection.roomId) {
+            logger.warn('Cannot associate user - connection not authenticated', {
+                connectionId,
+                userId,
+                isAuthenticated: connection.isAuthenticated,
+                roomId: connection.roomId,
+                module: 'voice'
+            });
+            return false;
+        }
+
+        connection.userId = userId;
+        connection.awaitingUserAssociation = false;
+        
+        logger.info('User associated with voice connection', {
+            connectionId,
+            userId,
+            roomId: connection.roomId,
+            module: 'voice'
+        });
+
+        return true;
+    }
+
+    /**
+     * Find voice connection by room and remote address
+     * Useful for associating users when we only know the room and IP
+     * @param {number} roomId 
+     * @param {string} remoteAddress 
+     * @returns {string|null} connectionId
+     */
+    findConnectionByRoomAndAddress(roomId, remoteAddress) {
+        for (const [connectionId, connection] of this.connections.entries()) {
+            if (connection.roomId === roomId && 
+                connection.socket.remoteAddress === remoteAddress &&
+                connection.awaitingUserAssociation) {
+                return connectionId;
+            }
+        }
+        return null;
+    }
+
+    // ...existing methods...
 }
 
 module.exports = VoiceServer;

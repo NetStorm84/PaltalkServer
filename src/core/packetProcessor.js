@@ -12,8 +12,9 @@ const { USER_MODES, ROOM_TYPES, SERVER_CONFIG } = require('../config/constants')
 const AdminCommandSystem = require('./adminCommandSystem');
 
 class PacketProcessor {
-    constructor(databaseManager) {
+    constructor(databaseManager, voiceServer = null) {
         this.db = databaseManager;
+        this.voiceServer = voiceServer;
         this.isShuttingDown = false;
         this.setupEventListeners();
         
@@ -1435,6 +1436,27 @@ class PacketProcessor {
                 'hex'
             );
             sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, voiceBuffer, socket.id);
+            
+            // Notify voice server about user joining voice room
+            // This allows the voice server to associate the upcoming voice connection with this user
+            if (this.voiceServer) {
+                setTimeout(() => {
+                    // Look for a voice connection from this user's IP in this room
+                    const connectionId = this.voiceServer.findConnectionByRoomAndAddress(
+                        room.id, 
+                        socket.remoteAddress
+                    );
+                    if (connectionId) {
+                        this.voiceServer.associateUserWithConnection(connectionId, user.uid);
+                        logger.info('Associated voice connection with user', {
+                            connectionId,
+                            userId: user.uid,
+                            roomId: room.id,
+                            module: 'voice'
+                        });
+                    }
+                }, 1000); // Give the voice client time to connect
+            }
         }
 
         logger.info('Room join data sent successfully', {

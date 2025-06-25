@@ -52,7 +52,8 @@ class PaltalkServer {
             await this.initializeDatabase();
 
             // Initialize packet processor
-            this.packetProcessor = new PacketProcessor(this.databaseManager);
+            // Initialize packet processor with voice server reference
+            this.packetProcessor = new PacketProcessor(this.databaseManager, this.voiceServer);
             
             // Inject packet processor reference into serverState for broadcasting
             serverState.setPacketProcessor(this.packetProcessor);
@@ -63,6 +64,9 @@ class PaltalkServer {
             // CRITICAL FIX: Perform startup cleanup to clear stale user/room state
             // This prevents "User already in room" errors from previous server runs
             serverState.performStartupCleanup();
+
+            // Inject server state into voice server for room validation
+            this.voiceServer.setServerState(this.serverState);
 
             // Start voice server
             await this.voiceServer.start();

@@ -6,7 +6,7 @@ const SERVER_CONFIG = {
     CHAT_PORT: 5001,
     VOICE_PORT: 2090,
     WEB_UI_PORT: 3000,
-    SERVER_IP: process.env.SERVER_IP || 'localhost', // Use localhost by default, override with env var if needed
+    SERVER_IP: process.env.SERVER_IP || '192.168.1.16', // Use localhost by default, override with env var if needed
     SERVER_KEY: 'XyF¦164473312518',
     DATABASE_PATH: 'database.db'
 };
@@ -41,7 +41,11 @@ const RATE_LIMITS = {
     MESSAGES_PER_MINUTE: 30,
     PACKETS_PER_SECOND: 30,
     LOGIN_ATTEMPTS_PER_HOUR: 10,
-    ROOM_JOINS_PER_MINUTE: 5
+    ROOM_JOINS_PER_MINUTE: 5,
+    // Voice server specific rate limits
+    VOICE_AUTH_WARNINGS_PER_MINUTE: 5, // Limit unauthenticated connection warnings
+    VOICE_DEBUG_LOGS_PER_CONNECTION: 10, // Max debug logs per connection per minute
+    LOG_RATE_LIMIT_WINDOW_MS: 60000 // 1 minute window for rate limiting logs
 };
 
 const SECURITY_SETTINGS = {
@@ -137,6 +141,25 @@ const BOT_CONFIG = {
     }
 };
 
+const LOGGING_CONFIG = {
+    // Voice server logging levels and rate limiting
+    VOICE_SERVER: {
+        SUPPRESS_REPEATED_WARNINGS: true,
+        MAX_REPEATED_MESSAGES_PER_MINUTE: 3,
+        SUPPRESS_AUTH_WARNINGS_AFTER: 5, // After 5 warnings, reduce frequency
+        DEBUG_LEVEL: 'info', // 'debug', 'info', 'warn', 'error'
+        LOG_PACKET_DETAILS: false, // Set to true for detailed RTP packet logging
+        LOG_CONNECTION_DETAILS: true
+    },
+    // General logging rate limiting
+    RATE_LIMITING: {
+        ENABLED: true,
+        WINDOW_SIZE_MS: 60000, // 1 minute
+        MAX_DUPLICATE_MESSAGES: 5,
+        BURST_THRESHOLD: 10 // Allow bursts up to this many messages
+    }
+};
+
 module.exports = {
     SERVER_CONFIG,
     USER_PERMISSIONS,
@@ -145,5 +168,6 @@ module.exports = {
     MESSAGE_LIMITS,
     RATE_LIMITS,
     SECURITY_SETTINGS,
-    BOT_CONFIG
+    BOT_CONFIG,
+    LOGGING_CONFIG
 };
