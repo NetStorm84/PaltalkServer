@@ -105,7 +105,7 @@ class VoiceServer {
     }
 
     /**
-     * Handle incoming voice data
+     * Handle incoming voice data with enhanced Paltalk RTP protocol validation
      * @param {string} connectionId 
      * @param {Buffer} data 
      */
@@ -121,20 +121,51 @@ class VoiceServer {
             connection.lastActivity = Date.now();
             connection.bytesReceived += data.length;
 
-            // Parse RTP header for quality monitoring
-            const rtpInfo = this.parseRTPHeader(data);
-            if (rtpInfo.error) {
-                logger.debug('Invalid RTP packet', { connectionId, error: rtpInfo.error, module: 'voice' });
+            // Skip control packets
+            const dataHex = data.toString('hex');
+            if (this.isControlPacket(dataHex)) {
+                this.handleControlPacket(connectionId, data);
                 return;
             }
 
-            // Update audio quality metrics
+            // Only process authenticated connections for audio data
+            if (!connection.isAuthenticated || !connection.roomId) {
+                logger.debug('Audio data from unauthenticated connection', { 
+                    connectionId,
+                    isAuthenticated: connection.isAuthenticated,
+                    roomId: connection.roomId,
+                    module: 'voice' 
+                });
+                return;
+            }
+
+            // Validate RTP packet according to Paltalk protocol
+            const rtpInfo = this.parseRTPHeader(data.length >= 4 ? data.slice(4) : data);
+            if (rtpInfo.error) {
+                // Try direct parsing if length header parsing failed
+                const directRtpInfo = this.parseRTPHeader(data);
+                if (directRtpInfo.error) {
+                    logger.debug('Invalid RTP packet received', { 
+                        connectionId, 
+                        error: rtpInfo.error,
+                        directError: directRtpInfo.error,
+                        dataLength: data.length,
+                        module: 'voice' 
+                    });
+                    return;
+                }
+            }
+
+            // Update audio quality metrics with validated RTP info
             this.updateAudioQualityMetrics(connectionId, rtpInfo, data.length);
 
             // Apply audio quality filtering if needed
             const processedData = this.processAudioData(data, connection.audioSettings);
+            if (processedData.length === 0) {
+                return; // Packet was filtered out
+            }
 
-            // Relay to room members
+            // Relay to room members with proper Paltalk protocol formatting
             this.relayAudioData(connectionId, processedData);
 
         } catch (error) {
@@ -330,6 +361,7 @@ class VoiceServer {
 
     /**
      * Relay audio data to other connections in the same room
+     * Following Paltalk RTP Protocol specification
      * @param {string} senderConnectionId 
      * @param {Buffer} audioData 
      */
@@ -342,31 +374,20 @@ class VoiceServer {
         
         if (!roomConnections) return;
 
-        // Parse RTP packet if possible
-        let processedData = audioData;
-        try {
-            if (audioData.length >= 16) { // Minimum for length + RTP header
-                const expectedLength = audioData.readUInt32BE(0);
-                if (audioData.length >= expectedLength + 4) {
-                    processedData = audioData.slice(4, 4 + expectedLength);
-                    
-                    // Log RTP packet info periodically
-                    if (Math.random() < 0.01) { // 1% sampling for performance
-                        const rtpInfo = this.parseRTPHeader(processedData);
-                        logger.debug('RTP packet relayed', {
-                            senderConnectionId,
-                            roomId,
-                            packetLength: processedData.length,
-                            sequenceNumber: rtpInfo.sequenceNumber,
-                            timestamp: rtpInfo.timestamp,
-                            module: 'voice'
-                        });
-                    }
-                }
-            }
-        } catch (error) {
-            logger.debug('Error parsing RTP packet, relaying raw data', { error: error.message, module: 'voice' });
+        // Validate and process RTP packet according to Paltalk protocol
+        let processedData = this.validateAndProcessRTPPacket(audioData, senderConnection.userId);
+        if (!processedData) {
+            logger.debug('Invalid RTP packet dropped', {
+                senderConnectionId,
+                roomId,
+                dataLength: audioData.length,
+                module: 'voice'
+            });
+            return;
         }
+
+        // Update global stats
+        this.stats.totalPacketsRelayed++;
 
         // Relay to all other connections in the room
         let relayCount = 0;
@@ -377,8 +398,9 @@ class VoiceServer {
                 const targetConnection = this.connections.get(connectionId);
                 if (targetConnection && targetConnection.socket.writable) {
                     try {
-                        targetConnection.socket.write(processedData);
-                        targetConnection.bytesSent += processedData.length;
+                        // Send with proper Paltalk format: 4-byte length header + RTP packet
+                        this.sendRTPPacketToClient(targetConnection.socket, processedData);
+                        targetConnection.bytesSent += processedData.length + 4; // Include length header
                         relayCount++;
                     } catch (error) {
                         logger.debug('Failed to relay audio to connection', {
@@ -409,41 +431,117 @@ class VoiceServer {
     }
 
     /**
-     * Parse RTP header for debugging/logging
-     * @param {Buffer} packet 
-     * @returns {Object}
+     * Validate and process RTP packet according to Paltalk protocol
+     * @param {Buffer} audioData 
+     * @param {number} senderUserId 
+     * @returns {Buffer|null}
      */
-    parseRTPHeader(packet) {
-        if (packet.length < 12) return {};
-
+    validateAndProcessRTPPacket(audioData, senderUserId) {
         try {
-            const firstByte = packet.readUInt8(0);
-            const version = (firstByte >> 6) & 0x03;
-            const padding = (firstByte >> 5) & 0x01;
-            const extension = (firstByte >> 4) & 0x01;
-            const cc = firstByte & 0x0F;
+            // Extract RTP packet from received data
+            let rtpPacket;
+            if (audioData.length >= 4) {
+                const lengthHeader = audioData.readUInt32LE(0);
+                const packetLength = lengthHeader & 0xFF; // Only last byte matters per protocol
+                
+                if (packetLength > 0 && packetLength < 150 && audioData.length >= packetLength + 4) {
+                    rtpPacket = audioData.slice(4, 4 + packetLength);
+                } else {
+                    // Try without length header (direct RTP)
+                    rtpPacket = audioData;
+                }
+            } else {
+                rtpPacket = audioData;
+            }
 
-            const secondByte = packet.readUInt8(1);
-            const marker = (secondByte >> 7) & 0x01;
-            const payloadType = secondByte & 0x7F;
+            // Validate minimum RTP packet size
+            if (rtpPacket.length < 12) {
+                logger.debug('RTP packet too small', { 
+                    packetLength: rtpPacket.length,
+                    module: 'voice'
+                });
+                return null;
+            }
 
-            const sequenceNumber = packet.readUInt16BE(2);
-            const timestamp = packet.readUInt32BE(4);
-            const ssrc = packet.readUInt32BE(8);
+            // Parse and validate RTP header
+            const rtpInfo = this.parseRTPHeader(rtpPacket);
+            
+            // Critical validation: Payload type MUST be 3 for Paltalk
+            if (rtpInfo.payloadType !== 3) {
+                logger.debug('Invalid payload type for Paltalk protocol', {
+                    payloadType: rtpInfo.payloadType,
+                    expected: 3,
+                    module: 'voice'
+                });
+                return null;
+            }
 
-            return {
-                version,
-                padding,
-                extension,
-                cc,
-                marker,
-                payloadType,
-                sequenceNumber,
-                timestamp,
-                ssrc
-            };
+            // Validate audio payload size (minimum 136 bytes per protocol)
+            const headerSize = 12 + (rtpInfo.cc * 4); // Basic header + CSRC list
+            const payloadSize = rtpPacket.length - headerSize;
+            
+            if (payloadSize < 136) {
+                logger.debug('Audio payload too small for Paltalk protocol', {
+                    payloadSize,
+                    minimum: 136,
+                    module: 'voice'
+                });
+                return null;
+            }
+
+            // Update SSRC to match sender's user ID for proper speaker identification
+            if (senderUserId && rtpInfo.ssrc !== senderUserId) {
+                rtpPacket.writeUInt32BE(senderUserId, 8);
+                logger.debug('Updated SSRC for speaker identification', {
+                    originalSSRC: rtpInfo.ssrc,
+                    newSSRC: senderUserId,
+                    module: 'voice'
+                });
+            }
+
+            return rtpPacket;
+
         } catch (error) {
-            return {};
+            logger.error('Error validating RTP packet', error, { module: 'voice' });
+            return null;
+        }
+    }
+
+    /**
+     * Send RTP packet to client with proper Paltalk format
+     * @param {Socket} socket 
+     * @param {Buffer} rtpPacket 
+     */
+    sendRTPPacketToClient(socket, rtpPacket) {
+        // Create 4-byte length header (little-endian, only last byte used by client)
+        const lengthHeader = Buffer.alloc(4);
+        const packetLength = Math.min(rtpPacket.length, 149); // Max valid length per protocol
+        lengthHeader.writeUInt32LE(packetLength, 0);
+        
+        // Validate length is within Paltalk protocol limits
+        if (packetLength <= 0 || packetLength >= 150) {
+            logger.warn('RTP packet length outside valid range', {
+                length: packetLength,
+                validRange: '1-149',
+                module: 'voice'
+            });
+            return;
+        }
+
+        // Send complete packet: length header + RTP data
+        const completePacket = Buffer.concat([lengthHeader, rtpPacket]);
+        socket.write(completePacket);
+
+        // Log packet transmission periodically
+        if (Math.random() < 0.001) { // 0.1% sampling
+            const rtpInfo = this.parseRTPHeader(rtpPacket);
+            logger.debug('RTP packet sent to client', {
+                packetLength,
+                payloadType: rtpInfo.payloadType,
+                ssrc: rtpInfo.ssrc,
+                sequenceNumber: rtpInfo.sequenceNumber,
+                module: 'voice'
+            });
         }
     }
 
@@ -733,6 +831,53 @@ class VoiceServer {
                 resolve();
             });
         });
+    }
+
+    /**
+     * Parse RTP header for debugging/logging and validation
+     * @param {Buffer} packet 
+     * @returns {Object}
+     */
+    parseRTPHeader(packet) {
+        if (packet.length < 12) {
+            return { error: 'Packet too small for RTP header' };
+        }
+
+        try {
+            const firstByte = packet.readUInt8(0);
+            const version = (firstByte >> 6) & 0x03;
+            const padding = (firstByte >> 5) & 0x01;
+            const extension = (firstByte >> 4) & 0x01;
+            const cc = firstByte & 0x0F;
+
+            const secondByte = packet.readUInt8(1);
+            const marker = (secondByte >> 7) & 0x01;
+            const payloadType = secondByte & 0x7F;
+
+            const sequenceNumber = packet.readUInt16BE(2);
+            const timestamp = packet.readUInt32BE(4);
+            const ssrc = packet.readUInt32BE(8);
+
+            // Validate RTP version
+            if (version !== 2) {
+                return { error: `Invalid RTP version: ${version}, expected 2` };
+            }
+
+            return {
+                version,
+                padding,
+                extension,
+                cc,
+                marker,
+                payloadType,
+                sequenceNumber,
+                timestamp,
+                ssrc,
+                valid: true
+            };
+        } catch (error) {
+            return { error: `Failed to parse RTP header: ${error.message}` };
+        }
     }
 }
 

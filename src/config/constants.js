@@ -6,7 +6,7 @@ const SERVER_CONFIG = {
     CHAT_PORT: 5001,
     VOICE_PORT: 2090,
     WEB_UI_PORT: 3000,
-    SERVER_IP: '192.168.1.75', // Network IP address for external connections
+    SERVER_IP: process.env.SERVER_IP || 'localhost', // Use localhost by default, override with env var if needed
     SERVER_KEY: 'XyF¦164473312518',
     DATABASE_PATH: 'database.db'
 };

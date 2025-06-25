@@ -113,13 +113,19 @@
         }
 
         /* Enhanced responsive design */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
         @media (max-width: 992px) {
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
             
             .stats-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                grid-template-columns: repeat(2, 1fr);
             }
         }
         
@@ -309,7 +315,7 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(6, 1fr);
             grid-gap: 16px;
             margin-bottom: 24px;
         }
@@ -346,6 +352,12 @@
             font-weight: 700;
             color: #1e40af;
             margin: 12px 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        
+        .stat-value.updating {
+            opacity: 0.7;
+            transform: scale(0.98);
         }
 
         .stat-label {
@@ -354,6 +366,20 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-weight: 500;
+        }
+        
+        /* Smooth transitions for table updates */
+        table tbody tr {
+            transition: background-color 0.2s ease, opacity 0.2s ease;
+        }
+        
+        table tbody tr.updating {
+            opacity: 0.8;
+            background-color: #f8fafc;
+        }
+        
+        body.dark table tbody tr.updating {
+            background-color: var(--table-row-hover, #f1f5f9);
         }
 
         .refresh-button {
@@ -663,6 +689,18 @@
                 <div class="stat-value" id="voice-rooms">0</div>
             </div>
             <div class="stat-card">
+                <div class="stat-label">RTP Packets Relayed</div>
+                <div class="stat-value" id="packets-relayed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Protocol Compliance</div>
+                <div class="stat-value" id="protocol-compliance">0%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Audio Quality</div>
+                <div class="stat-value" id="avg-quality">Good</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-label">Server Uptime</div>
                 <div class="stat-value" id="uptime">0:00:00</div>
             </div>
@@ -681,14 +719,16 @@
                                 <th>Connection ID</th>
                                 <th>User ID</th>
                                 <th>Room</th>
-                                <th>Quality</th>
-                                <th>Packets</th>
+                                <th>RTP Status</th>
+                                <th>Audio Quality</th>
+                                <th>Data Transfer</th>
                                 <th>Duration</th>
+                                <th>Last Activity</th>
                             </tr>
                         </thead>
                         <tbody id="connections-table">
                             <tr>
-                                <td colspan="6" style="text-align: center;">Loading connection data...</td>
+                                <td colspan="8" style="text-align: center;">Loading connection data...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -706,12 +746,15 @@
                             <tr>
                                 <th>Room ID</th>
                                 <th>Connections</th>
-                                <th>Created At</th>
+                                <th>Speaking</th>
+                                <th>Data Rate</th>
+                                <th>Created</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="rooms-table">
                             <tr>
-                                <td colspan="3" style="text-align: center;">Loading room data...</td>
+                                <td colspan="6" style="text-align: center;">Loading room data...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -720,7 +763,33 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">Connection Quality</h2>
+                    <h2 class="card-title">Paltalk RTP Protocol Compliance</h2>
+                    <button class="refresh-button" id="refresh-protocol">Refresh</button>
+                </div>
+                <div class="card-content">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Connection</th>
+                                <th>Payload Type</th>
+                                <th>Packet Size</th>
+                                <th>Valid Packets</th>
+                                <th>Dropped Packets</th>
+                                <th>Compliance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="protocol-table">
+                            <tr>
+                                <td colspan="6" style="text-align: center;">Loading protocol compliance data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Connection Quality Metrics</h2>
                     <button class="refresh-button" id="refresh-quality">Refresh</button>
                 </div>
                 <div class="card-content">
@@ -730,12 +799,13 @@
                                 <th>Connection</th>
                                 <th>Packet Loss</th>
                                 <th>Jitter</th>
-                                <th>Quality</th>
+                                <th>Latency</th>
+                                <th>Quality Score</th>
                             </tr>
                         </thead>
                         <tbody id="quality-table">
                             <tr>
-                                <td colspan="4" style="text-align: center;">Loading quality data...</td>
+                                <td colspan="5" style="text-align: center;">Loading quality data...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -821,6 +891,7 @@
             // Set up button handlers
             document.getElementById('refresh-connections').addEventListener('click', fetchVoiceData);
             document.getElementById('refresh-rooms').addEventListener('click', fetchVoiceData);
+            document.getElementById('refresh-protocol').addEventListener('click', fetchVoiceData);
             document.getElementById('refresh-quality').addEventListener('click', fetchVoiceData);
             document.getElementById('refresh-logs').addEventListener('click', fetchVoiceLogs);
             document.getElementById('refresh-debug').addEventListener('click', fetchDebugData);
@@ -851,6 +922,7 @@
                 updateServerStats(voiceStats);
                 updateConnectionsTable(voiceStats);
                 updateRoomsTable(voiceStats);
+                updateProtocolTable(voiceStats);
                 updateQualityTable(voiceStats);
                 updateVoiceLogs(voiceLogs);
                 
@@ -876,6 +948,7 @@
                     updateServerStats(data);
                     updateConnectionsTable(data);
                     updateRoomsTable(data);
+                    updateProtocolTable(data);
                     updateQualityTable(data);
                 })
                 .catch(error => console.error('Error fetching voice data:', error));
@@ -911,25 +984,68 @@
         }
         
         function updateServerStats(data) {
-            document.getElementById('active-connections').textContent = data.currentConnections || 0;
-            document.getElementById('voice-rooms').textContent = data.activeRooms || 0;
+            // Use smooth transitions for stat updates
+            smoothUpdateValue('active-connections', data.currentConnections || 0);
+            smoothUpdateValue('voice-rooms', data.activeRooms || 0);
+            smoothUpdateValue('packets-relayed', data.totalPacketsRelayed || 0);
+            
+            // Calculate protocol compliance percentage
+            const compliance = calculateProtocolCompliance(data);
+            smoothUpdateValue('protocol-compliance', compliance + '%');
+            
+            // Calculate average quality
+            const avgQuality = calculateAverageQuality(data);
+            smoothUpdateValue('avg-quality', avgQuality);
             
             const serverStatus = document.getElementById('server-status');
-            serverStatus.textContent = data.isRunning 
-                ? `Voice Server Running - Port ${data.port || '?'}`
+            const newStatus = data.isRunning 
+                ? `Voice Server Running - Port ${data.port || SERVER_CONFIG?.VOICE_PORT || '?'} - Paltalk RTP Protocol Active`
                 : 'Voice Server Offline';
+            
+            if (serverStatus.textContent !== newStatus) {
+                serverStatus.textContent = newStatus;
+            }
+        }
+        
+        function smoothUpdateValue(elementId, newValue) {
+            const element = document.getElementById(elementId);
+            if (element && element.textContent !== String(newValue)) {
+                element.style.transition = 'opacity 0.2s ease';
+                element.style.opacity = '0.7';
+                setTimeout(() => {
+                    element.textContent = newValue;
+                    element.style.opacity = '1';
+                }, 100);
+            }
         }
         
         function updateConnectionsTable(data) {
             const tbody = document.getElementById('connections-table');
+            
             if (!data.connections || data.connections.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No active voice connections</td></tr>';
+                if (tbody.children.length !== 1 || !tbody.children[0].textContent.includes('No active voice connections')) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No active voice connections</td></tr>';
+                }
                 return;
             }
             
-            tbody.innerHTML = '';
-            data.connections.forEach(conn => {
-                const row = document.createElement('tr');
+            // Get existing rows
+            const existingRows = Array.from(tbody.children);
+            const newConnections = data.connections;
+            
+            // Create a map of existing connections by ID
+            const existingConnMap = new Map();
+            existingRows.forEach((row, index) => {
+                const connId = row.cells[0]?.textContent?.split('...')[0];
+                if (connId) {
+                    existingConnMap.set(connId, { row, index });
+                }
+            });
+            
+            // Update or create rows
+            newConnections.forEach((conn, index) => {
+                const connIdShort = conn.id.substring(0, 8);
+                const existingEntry = existingConnMap.get(connIdShort);
                 
                 // Format duration
                 const now = new Date();
@@ -937,74 +1053,267 @@
                 const duration = Math.floor((now - connTime) / 1000);
                 const durationStr = formatDuration(duration);
                 
-                // Quality indicator
+                // Last activity
+                const lastActivity = conn.lastActivity ? 
+                    Math.floor((now - new Date(conn.lastActivity)) / 1000) + 's ago' : 'Never';
+                
+                // Quality and RTP status
                 const qualityReport = data.qualityReports?.find(q => q.connectionId === conn.id);
                 const quality = qualityReport ? qualityReport.quality : 'Unknown';
                 const qualityClass = getQualityClass(quality);
                 
-                row.innerHTML = `
-                    <td>${conn.id.substring(0, 10)}...</td>
-                    <td>${conn.userId || 'Not authenticated'}</td>
+                // RTP Status
+                const rtpStatus = conn.isAuthenticated ? 
+                    (conn.roomId ? 'Active' : 'Authenticated') : 'Pending Auth';
+                const rtpStatusClass = conn.isAuthenticated && conn.roomId ? 'status-online' : 
+                                     conn.isAuthenticated ? 'status-away' : 'status-offline';
+                
+                const newRowHtml = `
+                    <td>${conn.id.substring(0, 8)}...</td>
+                    <td>${conn.userId || 'Not set'}</td>
                     <td>${conn.roomId || 'None'}</td>
+                    <td><span class="status-indicator ${rtpStatusClass}"></span>${rtpStatus}</td>
                     <td><span class="log-level ${qualityClass}">${quality}</span></td>
-                    <td>${formatBytes(conn.bytesReceived)} rcv / ${formatBytes(conn.bytesSent)} snt</td>
+                    <td>↓${formatBytes(conn.bytesReceived)} ↑${formatBytes(conn.bytesSent)}</td>
                     <td>${durationStr}</td>
+                    <td>${lastActivity}</td>
                 `;
-                tbody.appendChild(row);
+                
+                if (existingEntry) {
+                    // Update existing row only if content changed
+                    if (existingEntry.row.innerHTML !== newRowHtml) {
+                        existingEntry.row.innerHTML = newRowHtml;
+                    }
+                    existingConnMap.delete(connIdShort); // Mark as processed
+                } else {
+                    // Create new row
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = newRowHtml;
+                    tbody.appendChild(newRow);
+                }
+            });
+            
+            // Remove rows for connections that no longer exist
+            existingConnMap.forEach(({ row }) => {
+                row.remove();
             });
         }
         
         function updateRoomsTable(data) {
             const tbody = document.getElementById('rooms-table');
+            
             if (!data.rooms || data.rooms.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No active voice rooms</td></tr>';
+                if (tbody.children.length !== 1 || !tbody.children[0].textContent.includes('No active voice rooms')) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No active voice rooms</td></tr>';
+                }
                 return;
             }
             
-            tbody.innerHTML = '';
-            data.rooms.forEach(room => {
-                const row = document.createElement('tr');
+            // Get existing rows
+            const existingRows = Array.from(tbody.children);
+            const newRooms = data.rooms;
+            
+            // Create a map of existing rooms by ID
+            const existingRoomMap = new Map();
+            existingRows.forEach((row, index) => {
+                const roomId = row.cells[0]?.textContent;
+                if (roomId) {
+                    existingRoomMap.set(roomId, { row, index });
+                }
+            });
+            
+            // Update or create rows
+            newRooms.forEach((room, index) => {
+                const existingEntry = existingRoomMap.get(String(room.roomId));
                 
                 const createdAt = room.createdAt ? new Date(room.createdAt).toLocaleTimeString() : 'N/A';
                 
-                row.innerHTML = `
+                // Calculate speaking users and data rate
+                const speakingUsers = room.speakingUsers || 0;
+                const dataRate = room.dataRate || 0;
+                const status = room.connectionCount > 0 ? 'Active' : 'Empty';
+                const statusClass = room.connectionCount > 0 ? 'status-online' : 'status-offline';
+                
+                const newRowHtml = `
                     <td>${room.roomId}</td>
                     <td>${room.connectionCount}</td>
+                    <td>${speakingUsers}</td>
+                    <td>${formatBytes(dataRate)}/s</td>
                     <td>${createdAt}</td>
+                    <td><span class="status-indicator ${statusClass}"></span>${status}</td>
                 `;
-                tbody.appendChild(row);
+                
+                if (existingEntry) {
+                    // Update existing row only if content changed
+                    if (existingEntry.row.innerHTML !== newRowHtml) {
+                        existingEntry.row.innerHTML = newRowHtml;
+                    }
+                    existingRoomMap.delete(String(room.roomId)); // Mark as processed
+                } else {
+                    // Create new row
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = newRowHtml;
+                    tbody.appendChild(newRow);
+                }
+            });
+            
+            // Remove rows for rooms that no longer exist
+            existingRoomMap.forEach(({ row }) => {
+                row.remove();
             });
         }
         
         function updateQualityTable(data) {
             const tbody = document.getElementById('quality-table');
+            
             if (!data.qualityReports || data.qualityReports.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No quality data available</td></tr>';
+                if (tbody.children.length !== 1 || !tbody.children[0].textContent.includes('No quality data available')) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No quality data available</td></tr>';
+                }
                 return;
             }
             
-            tbody.innerHTML = '';
-            data.qualityReports.forEach(report => {
-                const row = document.createElement('tr');
+            // Get existing rows
+            const existingRows = Array.from(tbody.children);
+            const newReports = data.qualityReports;
+            
+            // Create a map of existing reports by connection ID
+            const existingReportMap = new Map();
+            existingRows.forEach((row, index) => {
+                const connId = row.cells[0]?.textContent?.split('...')[0];
+                if (connId) {
+                    existingReportMap.set(connId, { row, index });
+                }
+            });
+            
+            // Update or create rows
+            newReports.forEach((report, index) => {
+                const connIdShort = report.connectionId.substring(0, 8);
+                const existingEntry = existingReportMap.get(connIdShort);
+                
                 const qualityClass = getQualityClass(report.quality);
                 
-                row.innerHTML = `
-                    <td>${report.connectionId.substring(0, 10)}...</td>
+                // Calculate quality score (0-100)
+                const qualityScore = calculateQualityScore(report.packetLossRate, report.jitter);
+                
+                const newRowHtml = `
+                    <td>${report.connectionId.substring(0, 8)}...</td>
                     <td>${report.packetLossRate.toFixed(2)}%</td>
                     <td>${report.jitter.toFixed(2)} ms</td>
-                    <td><span class="log-level ${qualityClass}">${report.quality}</span></td>
+                    <td>${report.latency || 'N/A'} ms</td>
+                    <td><span class="log-level ${qualityClass}">${qualityScore}/100</span></td>
                 `;
-                tbody.appendChild(row);
+                
+                if (existingEntry) {
+                    // Update existing row only if content changed
+                    if (existingEntry.row.innerHTML !== newRowHtml) {
+                        existingEntry.row.innerHTML = newRowHtml;
+                    }
+                    existingReportMap.delete(connIdShort); // Mark as processed
+                } else {
+                    // Create new row
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = newRowHtml;
+                    tbody.appendChild(newRow);
+                }
+            });
+            
+            // Remove rows for reports that no longer exist
+            existingReportMap.forEach(({ row }) => {
+                row.remove();
+            });
+        }
+        
+        function updateProtocolTable(data) {
+            const tbody = document.getElementById('protocol-table');
+            
+            if (!data.protocolCompliance || data.protocolCompliance.length === 0) {
+                if (tbody.children.length !== 1 || !tbody.children[0].textContent.includes('No protocol compliance data available')) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No protocol compliance data available</td></tr>';
+                }
+                return;
+            }
+            
+            // Get existing rows
+            const existingRows = Array.from(tbody.children);
+            const newProtocols = data.protocolCompliance;
+            
+            // Create a map of existing protocols by connection ID
+            const existingProtocolMap = new Map();
+            existingRows.forEach((row, index) => {
+                const connId = row.cells[0]?.textContent?.split('...')[0];
+                if (connId) {
+                    existingProtocolMap.set(connId, { row, index });
+                }
+            });
+            
+            // Update or create rows
+            newProtocols.forEach((protocol, index) => {
+                const connIdShort = protocol.connectionId.substring(0, 8);
+                const existingEntry = existingProtocolMap.get(connIdShort);
+                
+                const compliancePercentage = protocol.compliance || 0;
+                const complianceClass = compliancePercentage >= 95 ? 'quality-excellent' :
+                                      compliancePercentage >= 80 ? 'quality-good' :
+                                      compliancePercentage >= 60 ? 'quality-fair' : 'quality-poor';
+                
+                const newRowHtml = `
+                    <td>${protocol.connectionId.substring(0, 8)}...</td>
+                    <td>${protocol.payloadType === 3 ? '✓ Valid (3)' : '✗ Invalid (' + protocol.payloadType + ')'}</td>
+                    <td>${protocol.avgPacketSize || 0} bytes</td>
+                    <td>${protocol.validPackets || 0}</td>
+                    <td>${protocol.droppedPackets || 0}</td>
+                    <td><span class="log-level ${complianceClass}">${compliancePercentage.toFixed(1)}%</span></td>
+                `;
+                
+                if (existingEntry) {
+                    // Update existing row only if content changed
+                    if (existingEntry.row.innerHTML !== newRowHtml) {
+                        existingEntry.row.innerHTML = newRowHtml;
+                    }
+                    existingProtocolMap.delete(connIdShort); // Mark as processed
+                } else {
+                    // Create new row
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = newRowHtml;
+                    tbody.appendChild(newRow);
+                }
+            });
+            
+            // Remove rows for protocols that no longer exist
+            existingProtocolMap.forEach(({ row }) => {
+                row.remove();
             });
         }
         
         function updateVoiceLogs(logs) {
             const container = document.getElementById('voice-logs');
             if (!logs || logs.length === 0) {
-                container.innerHTML = '<div class="log-entry"><span class="log-time">No logs available</span></div>';
+                if (!container.textContent.includes('No logs available')) {
+                    container.innerHTML = '<div class="log-entry"><span class="log-time">No logs available</span></div>';
+                }
                 return;
             }
             
+            // Only update if logs have actually changed
+            const currentLogCount = container.children.length;
+            if (currentLogCount === logs.length) {
+                // Check if the last log entry is the same
+                const lastLogElement = container.lastElementChild;
+                const lastLog = logs[logs.length - 1];
+                if (lastLogElement && lastLog) {
+                    const lastLogTime = lastLogElement.querySelector('.log-time')?.textContent;
+                    const newLogTime = new Date(lastLog.timestamp).toLocaleTimeString();
+                    if (lastLogTime === newLogTime) {
+                        return; // No changes needed
+                    }
+                }
+            }
+            
+            // Store scroll position
+            const shouldAutoScroll = container.scrollTop >= container.scrollHeight - container.clientHeight - 50;
+            
+            // Update logs
             container.innerHTML = '';
             logs.forEach(log => {
                 const entry = document.createElement('div');
@@ -1022,8 +1331,10 @@
                 container.appendChild(entry);
             });
             
-            // Auto scroll to bottom
-            container.scrollTop = container.scrollHeight;
+            // Auto scroll to bottom only if user was already at bottom
+            if (shouldAutoScroll) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
         
         function updateUptime() {
@@ -1061,29 +1372,50 @@
             }
         }
         
-        // Theme toggle
-        const themeSwitch = document.createElement('button');
-        themeSwitch.className = 'theme-switch';
-        themeSwitch.innerHTML = '🌙';
-        document.body.appendChild(themeSwitch);
-        
-        let darkMode = false;
-        themeSwitch.addEventListener('click', () => {
-            darkMode = !darkMode;
-            document.body.classList.toggle('dark', darkMode);
-            themeSwitch.innerHTML = darkMode ? '☀️' : '🌙';
+        function calculateProtocolCompliance(data) {
+            if (!data.protocolCompliance || data.protocolCompliance.length === 0) {
+                return 100; // Default to 100% if no data
+            }
             
-            // Save to localStorage
-            localStorage.setItem('darkMode', darkMode);
-        });
-        
-        // Load theme from localStorage
-        const savedMode = localStorage.getItem('darkMode');
-        if (savedMode === 'true') {
-            darkMode = true;
-            document.body.classList.add('dark');
-            themeSwitch.innerHTML = '☀️';
+            const totalCompliance = data.protocolCompliance.reduce((sum, protocol) => {
+                return sum + (protocol.compliance || 0);
+            }, 0);
+            
+            return Math.round(totalCompliance / data.protocolCompliance.length);
         }
+        
+        function calculateAverageQuality(data) {
+            if (!data.qualityReports || data.qualityReports.length === 0) {
+                return 'N/A';
+            }
+            
+            const qualityScores = data.qualityReports.map(report => {
+                return calculateQualityScore(report.packetLossRate, report.jitter);
+            });
+            
+            const avgScore = qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length;
+            
+            if (avgScore >= 90) return 'Excellent';
+            if (avgScore >= 75) return 'Good';
+            if (avgScore >= 50) return 'Fair';
+            return 'Poor';
+        }
+        
+        function calculateQualityScore(packetLossRate, jitter) {
+            // Calculate quality score from 0-100 based on packet loss and jitter
+            let score = 100;
+            
+            // Deduct points for packet loss (0-50 points penalty)
+            if (packetLossRate > 0) {
+                score -= Math.min(50, packetLossRate * 10);
+            }
+            
+            // Deduct points for jitter (0-30 points penalty)
+            if (jitter > 10) {
+                score -= Math.min(30, (jitter - 10) * 2);
+            }
+            
+            return Math.max(0, Math.round(score));        }
     </script>
 </body>
 </html>
