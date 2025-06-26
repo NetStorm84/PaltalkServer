@@ -460,6 +460,46 @@ class WebInterface {
             }
         });
 
+        // Get individual bots list
+        this.app.get('/api/bots', (req, res) => {
+            try {
+                const botManager = require('../core/botManager');
+                const stats = botManager.getBotStats();
+                
+                // Convert bot data to expected format
+                const bots = [];
+                if (stats.isRunning && stats.botDetails) {
+                    stats.botDetails.forEach(bot => {
+                        bots.push({
+                            id: bot.uid,
+                            name: bot.nickname,
+                            status: 'online',
+                            type: 'Chat Bot',
+                            room: bot.roomName,
+                            roomId: bot.roomId,
+                            uptime: Math.floor((Date.now() - bot.createdAt) / 1000),
+                            personality: bot.chatPersonality,
+                            textStyle: bot.textStyle
+                        });
+                    });
+                }
+                
+                res.json({
+                    success: true,
+                    bots: bots,
+                    stats: {
+                        total: stats.totalBots,
+                        active: stats.isRunning ? stats.totalBots : 0,
+                        paused: 0,
+                        error: 0
+                    }
+                });
+            } catch (error) {
+                logger.error('Failed to get bots list', error);
+                res.status(500).json({ success: false, error: 'Failed to get bots list' });
+            }
+        });
+
         this.app.post('/api/bots/start', (req, res) => {
             try {
                 const botManager = require('../core/botManager');

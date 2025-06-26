@@ -1113,41 +1113,6 @@ class BotManager {
     }
 
     /**
-     * Get bot statistics by room
-     */
-    getBotStats() {
-        const stats = {
-            totalBots: this.bots.size,
-            isRunning: this.isRunning,
-            config: this.currentConfig,
-            roomDistribution: new Map(),
-            botDetails: []
-        };
-
-        for (const bot of this.bots.values()) {
-            if (bot.currentRoomId) {
-                const room = serverState.getRoom(bot.currentRoomId);
-                const roomName = room ? room.name : `Unknown (${bot.currentRoomId})`;
-                const count = stats.roomDistribution.get(roomName) || 0;
-                stats.roomDistribution.set(roomName, count + 1);
-                
-                stats.botDetails.push({
-                    uid: bot.uid,
-                    nickname: bot.nickname,
-                    roomId: bot.currentRoomId,
-                    roomName: roomName,
-                    chatPersonality: bot.chatPersonality,
-                    textStyle: bot.textStyle,
-                    statusColor: bot.statusColor,
-                    createdAt: bot.createdAt
-                });
-            }
-        }
-
-        return stats;
-    }
-
-    /**
      * Start random chatting
      */
     startChatting(frequencyMs) {
@@ -1628,18 +1593,33 @@ class BotManager {
             botPersonalities: {
                 chatty: 0,
                 responsive: 0
-            }
+            },
+            botDetails: []
         };
 
-        // Count bots per room
+        // Count bots per room and collect details
         for (const bot of this.bots.values()) {
             if (bot.currentRoomId) {
                 const room = serverState.getRoom(bot.currentRoomId);
                 const roomName = room ? room.name : `Room ${bot.currentRoomId}`;
                 stats.botsPerRoom[roomName] = (stats.botsPerRoom[roomName] || 0) + 1;
+                
+                // Add bot details for dashboard
+                stats.botDetails.push({
+                    uid: bot.uid,
+                    nickname: bot.nickname,
+                    roomId: bot.currentRoomId,
+                    roomName: roomName,
+                    chatPersonality: bot.chatPersonality,
+                    textStyle: bot.textStyle,
+                    statusColor: bot.statusColor,
+                    createdAt: bot.createdAt
+                });
             }
             
-            stats.botPersonalities[bot.chatPersonality]++;
+            if (stats.botPersonalities[bot.chatPersonality] !== undefined) {
+                stats.botPersonalities[bot.chatPersonality]++;
+            }
         }
 
         return stats;

@@ -23,57 +23,69 @@
         .header {
             background: #1e293b;
             border-bottom: 2px solid #334155;
-            padding: 12px 20px;
+            padding: 16px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 60px;
             flex-shrink: 0;
         }
 
         .header h1 {
             color: #3b82f6;
-            font-size: 1.5rem;
+            font-size: 1.75rem;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .header-controls {
+        .logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            border-radius: 8px;
             display: flex;
-            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 12px;
             align-items: center;
         }
 
-        .btn {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85rem;
+        .nav-link {
+            background: #334155;
+            color: #e2e8f0;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
             font-weight: 500;
             transition: all 0.2s ease;
+            border: 1px solid #475569;
         }
 
-        .btn:hover {
-            background: #2563eb;
+        .nav-link:hover {
+            background: #475569;
+            color: #f8fafc;
             transform: translateY(-1px);
         }
 
-        .btn-secondary {
-            background: #64748b;
+        .nav-link.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
         }
 
-        .btn-secondary:hover {
-            background: #475569;
-        }
-
-        .btn-danger {
-            background: #ef4444;
-        }
-
-        .btn-danger:hover {
-            background: #dc2626;
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
         }
 
         .status-indicator {
@@ -433,19 +445,19 @@
 </head>
 <body>
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <h1>📊 Packet Logs</h1>
-            <a href="/dashboard.html" class="back-link">← Back to Dashboard</a>
+        <h1>
+            <div class="logo">P</div>
+            Packet Logs
+        </h1>
+        <div class="nav-links">
+            <a href="/" class="nav-link">📊 Dashboard</a>
+            <a href="/voice-dashboard.html" class="nav-link">🎙️ Voice</a>
+            <a href="/packet-logs.html" class="nav-link active">📦 Packets</a>
+            <a href="/bot-management.html" class="nav-link">🤖 Bots</a>
         </div>
-        <div class="header-controls">
-            <div class="status-indicator">
-                <div class="status-dot" id="connectionDot"></div>
-                <span id="connectionStatus">Connected</span>
-                <span id="autoRefreshStatus" style="margin-left: 10px; font-size: 0.75em; color: #64748b;"></span>
-            </div>
-            <button class="btn" onclick="refreshLogs()">🔄 Refresh</button>
-            <button class="btn btn-secondary" onclick="exportLogs()">📥 Export</button>
-            <button class="btn btn-danger" onclick="clearLogs()">🗑️ Clear</button>
+        <div class="connection-status">
+            <div class="status-dot" id="connectionDot"></div>
+            <span id="connectionStatus">Connected</span>
         </div>
     </div>
 
@@ -485,6 +497,12 @@
         <div class="control-group">
             <label>Max Entries:</label>
             <input type="number" id="maxEntries" value="1000" min="100" max="10000" step="100" onchange="applyFilters()">
+        </div>
+
+        <div class="control-group">
+            <button class="btn" onclick="refreshLogs()">🔄 Refresh</button>
+            <button class="btn btn-secondary" onclick="exportLogs()">📥 Export</button>
+            <button class="btn btn-danger" onclick="clearLogs()">🗑️ Clear</button>
         </div>
     </div>
 
@@ -881,20 +899,32 @@
 
         async function exportLogs() {
             try {
-                const response = await fetch('/api/logs/export-packets');
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `packet-logs-${new Date().toISOString().split('T')[0]}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                } else {
-                    alert('Failed to export logs');
+                // Export current filtered logs as JSON
+                if (filteredLogs.length === 0) {
+                    alert('No logs to export');
+                    return;
                 }
+
+                const exportData = {
+                    exportDate: new Date().toISOString(),
+                    totalLogs: filteredLogs.length,
+                    logs: filteredLogs
+                };
+
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                    type: 'application/json'
+                });
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `packet-logs-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                alert(`Exported ${filteredLogs.length} packet logs`);
             } catch (error) {
                 console.error('Export failed:', error);
                 alert('Export failed');
@@ -902,23 +932,17 @@
         }
 
         async function clearLogs() {
-            if (!confirm('Are you sure you want to clear all packet logs?')) {
+            if (!confirm('Are you sure you want to clear the displayed packet logs?')) {
                 return;
             }
 
             try {
-                const response = await fetch('/api/logs/clear-packets', {
-                    method: 'POST'
-                });
-
-                if (response.ok) {
-                    packetLogs = [];
-                    filteredLogs = [];
-                    renderLogs();
-                    updateFilterStats();
-                } else {
-                    alert('Failed to clear logs');
-                }
+                // Clear the client-side logs display
+                packetLogs = [];
+                filteredLogs = [];
+                renderLogs();
+                updateFilterStats();
+                alert('Displayed logs cleared');
             } catch (error) {
                 console.error('Clear failed:', error);
                 alert('Clear failed');

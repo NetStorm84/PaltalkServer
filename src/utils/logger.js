@@ -5,6 +5,7 @@ const winston = require('winston');
 const path = require('path');
 const EventEmitter = require('events');
 const { LOGGING_CONFIG } = require('../config/constants');
+const { PACKET_TYPES } = require('../../PacketHeaders');
 
 class Logger extends EventEmitter {
     constructor() {
