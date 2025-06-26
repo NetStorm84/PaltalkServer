@@ -151,6 +151,24 @@ const LOGGING_CONFIG = {
         LOG_PACKET_DETAILS: false, // Set to true for detailed RTP packet logging
         LOG_CONNECTION_DETAILS: true
     },
+    // Enhanced packet logging configuration
+    PACKET_LOGGING: {
+        ENABLED: true,
+        DETAILED_ANALYSIS: true, // Enable detailed header/payload analysis
+        MAX_PAYLOAD_DISPLAY: 512, // Maximum bytes to display in logs
+        LOG_DIRECTIONS: {
+            CLIENT_TO_SERVER: true,
+            SERVER_TO_CLIENT: true
+        },
+        FILTER_PACKET_TYPES: [], // Array of packet types to exclude from logging
+        INCLUDE_PACKET_TYPES: [], // If not empty, only log these packet types
+        LOG_LEVELS: {
+            PACKET_RECEIVED: 'info',
+            PACKET_SENT: 'info',
+            PACKET_ERROR: 'error'
+        },
+        PERFORMANCE_MONITORING: true // Track logging performance impact
+    },
     // General logging rate limiting
     RATE_LIMITING: {
         ENABLED: true,

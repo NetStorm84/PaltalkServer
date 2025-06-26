@@ -400,6 +400,71 @@
             grid-column: 1 / -1;
         }
 
+        /* Toggle Switch Styling */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            margin-right: 8px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .switch::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 44px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 24px;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .switch::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background-color: white;
+            border-radius: 50%;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .switch input:checked + .switch::before,
+        .switch input:checked::before {
+            background-color: #3b82f6;
+        }
+
+        .switch input:checked + .switch::after,
+        .switch input:checked::after {
+            transform: translateX(20px);
+        }
+
+        .switch input:checked::before {
+            background-color: #3b82f6;
+        }
+
+        .switch input:checked::after {
+            transform: translateX(20px);
+        }
+
         .admin-controls {
             display: flex;
             gap: 12px;
@@ -571,6 +636,144 @@
             color: #9f9f9f;
             font-weight: bold;
             margin-right: 8px;
+        }
+
+        /* Enhanced packet logging styles */
+        .packet-log-entry {
+            border-left: 4px solid #3b82f6;
+            background: #0a0e1a;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+
+        .packet-log-header {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .packet-log-header:hover {
+            background: #1e293b;
+        }
+
+        .packet-direction {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+
+        .direction-incoming {
+            background: #065f46;
+            color: #10b981;
+        }
+
+        .direction-outgoing {
+            background: #7c2d12;
+            color: #f97316;
+        }
+
+        .packet-type {
+            background: #1e40af;
+            color: #60a5fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .packet-meta {
+            color: #94a3b8;
+            font-size: 0.8em;
+            margin-left: auto;
+        }
+
+        .packet-toggle {
+            color: #64748b;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+
+        .packet-log-details {
+            border-top: 1px solid #334155;
+            background: #0f172a;
+        }
+
+        .packet-details-container {
+            padding: 12px;
+        }
+
+        .packet-section {
+            margin-bottom: 16px;
+        }
+
+        .packet-section h4 {
+            color: #e2e8f0;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 4px;
+        }
+
+        .packet-data {
+            background: #1e293b;
+            border-radius: 4px;
+            padding: 8px;
+        }
+
+        .packet-field {
+            margin-bottom: 6px;
+            color: #cbd5e1;
+            font-size: 0.85em;
+        }
+
+        .packet-field strong {
+            color: #f1f5f9;
+        }
+
+        .packet-subfield {
+            margin-left: 16px;
+            color: #94a3b8;
+            font-size: 0.8em;
+            margin-bottom: 4px;
+        }
+
+        .payload-data {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 3px;
+            padding: 6px;
+            margin-top: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            max-height: 120px;
+            overflow-y: auto;
+            word-break: break-all;
+        }
+
+        .hex-data {
+            color: #fbbf24;
+        }
+
+        .ascii-data {
+            color: #34d399;
+        }
+
+        .binary-data {
+            color: #60a5fa;
+        }
+
+        .decimal-data {
+            color: #f472b6;
+        }
+
+        .packet-error {
+            color: #f87171;
+            font-style: italic;
         }
 
         .connection-indicator {
@@ -896,6 +1099,7 @@
             <div class="navigation-links">
                 <a href="/" class="nav-link active">📊 Main Dashboard</a>
                 <a href="/voice-dashboard.html" class="nav-link">🎙️ Voice Dashboard</a>
+                <a href="/packet-logs.html" class="nav-link">📦 Packet Logs</a>
                 <a href="/bot-management.html" class="nav-link">🤖 Bot Management</a>
             </div>
         </header>
@@ -976,6 +1180,18 @@
                 </div>
             </div>
 
+            <!-- Packet Logs -->
+            <div class="card">
+                <h2>📊 Packet Logs 
+                    <button class="btn btn-primary" onclick="refreshPacketLogs()" style="float: right; font-size: 0.8rem; padding: 4px 8px;">🔄 Refresh</button>
+                </h2>
+                <div class="packet-logs-container" id="packetLogsContainer">
+                    <div class="packet-log-entry" style="text-align: center; color: #64748b; padding: 20px;">
+                        No packet logs available. Enable packet logging in the admin panel below.
+                    </div>
+                </div>
+            </div>
+
             <!-- Admin Panel -->
             <div class="card admin-panel">
                 <h2>⚙️ Administration</h2>
@@ -988,6 +1204,65 @@
                 <div class="input-group">
                     <input type="text" id="broadcastMessage" placeholder="Enter broadcast message..." maxlength="200">
                     <button class="btn btn-primary" onclick="sendBroadcast()">Send</button>
+                </div>
+
+                <!-- Packet Logging Controls -->
+                <div class="packet-logging-controls" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                    <h3>📦 Packet Logging & Analysis</h3>
+                    <p style="color: #64748b; margin: 8px 0;">Monitor and analyze all packet communications in real-time</p>
+                    
+                    <div style="margin-bottom: 15px; padding: 12px; background: #f8fafc; border-radius: 6px; border-left: 4px solid #3b82f6;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <span style="font-size: 1.2em;">📊</span>
+                            <strong style="color: #1e293b;">Live Packet Analysis</strong>
+                        </div>
+                        <p style="color: #64748b; font-size: 0.9em; margin: 0 0 10px 0;">
+                            View detailed packet headers, payloads in multiple formats (HEX, ASCII, Binary), 
+                            and real-time communication flow between clients and server.
+                        </p>
+                        <a href="/packet-logs.html" class="btn btn-primary" style="text-decoration: none; margin-right: 10px;">
+                            📦 Open Full Packet Logs Viewer
+                        </a>
+                        <button class="btn btn-secondary" onclick="clearPacketLogs()">🗑️ Clear Logs</button>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Enable Packet Logging</label>
+                            <label class="switch" style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="packetLoggingEnabled" onchange="updatePacketConfig()">
+                                <span style="margin-left: 8px; color: #64748b;">Enable detailed packet analysis</span>
+                            </label>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Show Detailed Analysis</label>
+                            <label class="switch" style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="detailedAnalysis" onchange="updatePacketConfig()">
+                                <span style="margin-left: 8px; color: #64748b;">Include hex, ASCII, binary data</span>
+                            </label>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Direction Filter</label>
+                            <select id="directionFilter" onchange="updatePacketConfig()" style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
+                                <option value="both">Both Directions</option>
+                                <option value="inbound">Client → Server Only</option>
+                                <option value="outbound">Server → Client Only</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Payload Limit (bytes)</label>
+                            <input type="number" id="payloadLimit" value="256" min="64" max="2048" onchange="updatePacketConfig()" 
+                                   style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="exportPacketLogs()">📥 Export Logs</button>
+                        <span id="packetConfigStatus" style="margin-left: 10px; color: #10b981; font-weight: 600;"></span>
+                    </div>
                 </div>
 
                 <!-- Bot Management Link -->
@@ -1213,29 +1488,183 @@
                 const timestamp = new Date(log.timestamp).toLocaleTimeString();
                 const levelClass = `log-level-${log.level}`;
                 
-                // Format message with meta info if available
-                let message = log.message;
-                if (log.meta && Object.keys(log.meta).length > 0) {
-                    const metaStr = Object.entries(log.meta)
-                        .filter(([key, value]) => key !== 'error' && key !== 'stack' && value !== undefined && key !== 'service' && key !== 'timestamp')
-                        .map(([key, value]) => `${key}=${value}`)
-                        .join(', ');
-                    if (metaStr) {
-                        message += ` (${metaStr})`;
-                    }
-                }
+                // Check if this is a packet log
+                const isPacketLog = log.message && (log.message.includes('📥 Packet Received') || log.message.includes('📤 Packet Sent'));
                 
-                return `
-                    <div class="log-entry">
-                        <span class="log-timestamp">[${timestamp}]</span>
-                        <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
-                        <span>${escapeHtml(message)}</span>
-                    </div>
-                `;
+                if (isPacketLog) {
+                    return createPacketLogEntry(log, timestamp, levelClass);
+                } else {
+                    return createStandardLogEntry(log, timestamp, levelClass);
+                }
             }).join('');
             
             // Auto-scroll to bottom for new logs
             container.scrollTop = container.scrollHeight;
+        }
+
+        function createPacketLogEntry(log, timestamp, levelClass) {
+            const details = log.details || {};
+            const direction = details.direction || 'UNKNOWN';
+            const packetId = details.packetId || 'N/A';
+            const sequence = details.sequence || 0;
+            const packetTypeName = details.packetTypeName || 'UNKNOWN';
+            const payloadLength = details.payloadLength || 0;
+            const socketId = details.socketId || 'unknown';
+            
+            // Direction arrow and styling
+            const directionClass = direction.includes('CLIENT→SERVER') ? 'direction-incoming' : 'direction-outgoing';
+            const directionIcon = direction.includes('CLIENT→SERVER') ? '📥' : '📤';
+            
+            return `
+                <div class="log-entry packet-log-entry" data-packet-id="${packetId}">
+                    <div class="packet-log-header" onclick="togglePacketDetails('${packetId}')">
+                        <span class="log-timestamp">[${timestamp}]</span>
+                        <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
+                        <span class="packet-direction ${directionClass}">${directionIcon} ${direction}</span>
+                        <span class="packet-type">${escapeHtml(packetTypeName)}</span>
+                        <span class="packet-meta">
+                            #${sequence} | Socket: ${socketId} | Size: ${payloadLength}B
+                        </span>
+                        <span class="packet-toggle">▼</span>
+                    </div>
+                    <div class="packet-log-details" id="packet-details-${packetId}" style="display: none;">
+                        ${createPacketDetailsHTML(details)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function createStandardLogEntry(log, timestamp, levelClass) {
+            // Format message with meta info if available
+            let message = log.message;
+            if (log.details && Object.keys(log.details).length > 0) {
+                const metaStr = Object.entries(log.details)
+                    .filter(([key, value]) => key !== 'error' && key !== 'stack' && value !== undefined && key !== 'service' && key !== 'timestamp')
+                    .map(([key, value]) => `${key}=${value}`)
+                    .join(', ');
+                if (metaStr) {
+                    message += ` (${metaStr})`;
+                }
+            }
+            
+            return `
+                <div class="log-entry">
+                    <span class="log-timestamp">[${timestamp}]</span>
+                    <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
+                    <span>${escapeHtml(message)}</span>
+                </div>
+            `;
+        }
+
+        function createPacketDetailsHTML(details) {
+            let html = '<div class="packet-details-container">';
+            
+            // Header Information
+            if (details.header) {
+                html += '<div class="packet-section">';
+                html += '<h4>📋 Header Information</h4>';
+                html += '<div class="packet-data">';
+                
+                if (details.header.error) {
+                    html += `<div class="packet-error">Error: ${details.header.error}</div>`;
+                } else {
+                    html += `<div class="packet-field"><strong>Length:</strong> ${details.header.length}</div>`;
+                    html += `<div class="packet-field"><strong>Type:</strong> ${details.header.type}</div>`;
+                    html += `<div class="packet-field"><strong>Raw Bytes:</strong> <code>${details.header.rawBytes}</code></div>`;
+                    
+                    if (details.header.fields && Object.keys(details.header.fields).length > 0) {
+                        html += '<div class="packet-field"><strong>Extended Fields:</strong></div>';
+                        for (const [key, value] of Object.entries(details.header.fields)) {
+                            html += `<div class="packet-subfield">${key}: ${value}</div>`;
+                        }
+                    }
+                }
+                
+                html += '</div></div>';
+            }
+
+            // Payload Information
+            if (details.payload) {
+                html += '<div class="packet-section">';
+                html += '<h4>📦 Payload Analysis</h4>';
+                html += '<div class="packet-data">';
+                
+                if (details.payload.isEmpty) {
+                    html += '<div class="packet-field">Empty payload</div>';
+                } else {
+                    html += `<div class="packet-field"><strong>Size:</strong> ${details.payload.size} bytes</div>`;
+                    
+                    if (details.payload.formats) {
+                        // Hex format
+                        if (details.payload.formats.hex) {
+                            html += `<div class="packet-field">
+                                <strong>Hex:</strong> 
+                                <div class="payload-data hex-data"><code>${details.payload.formats.hex}</code></div>
+                            </div>`;
+                        }
+                        
+                        // ASCII format
+                        if (details.payload.formats.ascii) {
+                            html += `<div class="packet-field">
+                                <strong>ASCII:</strong> 
+                                <div class="payload-data ascii-data"><code>${escapeHtml(details.payload.formats.ascii)}</code></div>
+                            </div>`;
+                        }
+                        
+                        // Binary format (if detailed analysis is enabled)
+                        if (details.payload.formats.binary) {
+                            html += `<div class="packet-field">
+                                <strong>Binary:</strong> 
+                                <div class="payload-data binary-data"><code>${details.payload.formats.binary}</code></div>
+                            </div>`;
+                        }
+                        
+                        // Decimal format (if detailed analysis is enabled)
+                        if (details.payload.formats.decimal) {
+                            html += `<div class="packet-field">
+                                <strong>Decimal:</strong> 
+                                <div class="payload-data decimal-data"><code>${details.payload.formats.decimal}</code></div>
+                            </div>`;
+                        }
+                        
+                        // Structured data (if detailed analysis is enabled)
+                        if (details.payload.formats.structured) {
+                            html += '<div class="packet-field"><strong>Structured Data:</strong></div>';
+                            if (details.payload.formats.structured.error) {
+                                html += `<div class="packet-error">Error: ${details.payload.formats.structured.error}</div>`;
+                            } else {
+                                if (details.payload.formats.structured.uint16_values && details.payload.formats.structured.uint16_values.length > 0) {
+                                    html += `<div class="packet-subfield">UInt16 values: [${details.payload.formats.structured.uint16_values.join(', ')}]</div>`;
+                                }
+                                if (details.payload.formats.structured.uint32_values && details.payload.formats.structured.uint32_values.length > 0) {
+                                    html += `<div class="packet-subfield">UInt32 values: [${details.payload.formats.structured.uint32_values.join(', ')}]</div>`;
+                                }
+                                if (details.payload.formats.structured.strings && details.payload.formats.structured.strings.length > 0) {
+                                    html += `<div class="packet-subfield">Strings: ${details.payload.formats.structured.strings.map(s => `"${escapeHtml(s)}"`).join(', ')}</div>`;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                html += '</div></div>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        function togglePacketDetails(packetId) {
+            const detailsEl = document.getElementById(`packet-details-${packetId}`);
+            const toggleEl = document.querySelector(`[data-packet-id="${packetId}"] .packet-toggle`);
+            
+            if (detailsEl.style.display === 'none') {
+                detailsEl.style.display = 'block';
+                toggleEl.textContent = '▲';
+            } else {
+                detailsEl.style.display = 'none';
+                toggleEl.textContent = '▼';
+            }
         }
 
         async function refreshLogs() {
@@ -1285,6 +1714,7 @@
         // Admin functions
         function refreshData() {
             socket.emit('requestUpdate');
+            refreshPacketLogs(); // Also refresh packet logs
             
             // Visual feedback
             const btn = event.target;
@@ -1379,10 +1809,16 @@
             }
         }, 30000);
 
+        // Auto-refresh packet logs every 10 seconds
+        setInterval(() => {
+            refreshPacketLogs();
+        }, 10000);
+
         // Initial data load
         window.addEventListener('load', () => {
             setTimeout(() => {
                 socket.emit('requestUpdate');
+                refreshPacketLogs(); // Load packet logs on startup
             }, 1000);
             
             // Apply saved theme preference
@@ -1596,7 +2032,148 @@
                 document.body.classList.add('dark');
             }
             updateTheme();
+            loadPacketConfig(); // Load packet logging configuration on startup
         })();
+
+        // Packet Logging Configuration Functions
+        async function loadPacketConfig() {
+            try {
+                const response = await fetch('/api/logs/packet-config');
+                if (response.ok) {
+                    const config = await response.json();
+                    
+                    // Update UI controls
+                    document.getElementById('packetLoggingEnabled').checked = config.enabled;
+                    document.getElementById('detailedAnalysis').checked = config.detailedAnalysis;
+                    document.getElementById('directionFilter').value = config.directionFilter || 'both';
+                    document.getElementById('payloadLimit').value = config.payloadDisplayLimit;
+                    
+                    updatePacketConfigStatus('Configuration loaded successfully');
+                }
+            } catch (error) {
+                console.error('Failed to load packet config:', error);
+                updatePacketConfigStatus('Failed to load configuration', 'error');
+            }
+        }
+
+        async function updatePacketConfig() {
+            const config = {
+                enabled: document.getElementById('packetLoggingEnabled').checked,
+                detailedAnalysis: document.getElementById('detailedAnalysis').checked,
+                directionFilter: document.getElementById('directionFilter').value,
+                payloadDisplayLimit: parseInt(document.getElementById('payloadLimit').value) || 256
+            };
+
+            try {
+                const response = await fetch('/api/logs/packet-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                if (response.ok) {
+                    updatePacketConfigStatus('Configuration updated successfully');
+                } else {
+                    throw new Error('Failed to update configuration');
+                }
+            } catch (error) {
+                console.error('Failed to update packet config:', error);
+                updatePacketConfigStatus('Failed to update configuration', 'error');
+            }
+        }
+
+        function updatePacketConfigStatus(message, type = 'success') {
+            const statusEl = document.getElementById('packetConfigStatus');
+            statusEl.textContent = message;
+            statusEl.style.color = type === 'error' ? '#ef4444' : '#10b981';
+            
+            // Clear status after 3 seconds
+            setTimeout(() => {
+                statusEl.textContent = '';
+            }, 3000);
+        }
+
+        async function clearPacketLogs() {
+            if (!confirm('Are you sure you want to clear all packet logs?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/logs/clear-packets', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    // Clear packet logs from the UI
+                    const packetLogsContainer = document.querySelector('.packet-logs-container');
+                    if (packetLogsContainer) {
+                        packetLogsContainer.innerHTML = '<div class="packet-log-entry"><span style="color: #64748b;">Packet logs cleared</span></div>';
+                    }
+                    updatePacketConfigStatus('Packet logs cleared successfully');
+                } else {
+                    throw new Error('Failed to clear packet logs');
+                }
+            } catch (error) {
+                console.error('Failed to clear packet logs:', error);
+                updatePacketConfigStatus('Failed to clear packet logs', 'error');
+            }
+        }
+
+        async function exportPacketLogs() {
+            try {
+                const response = await fetch('/api/logs/export-packets');
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `packet-logs-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    updatePacketConfigStatus('Packet logs exported successfully');
+                } else {
+                    throw new Error('Failed to export packet logs');
+                }
+            } catch (error) {
+                console.error('Failed to export packet logs:', error);
+                updatePacketConfigStatus('Failed to export packet logs', 'error');
+            }
+        }
+
+        // Refresh packet logs display
+        async function refreshPacketLogs() {
+            try {
+                const response = await fetch('/api/logs/packet-logs');
+                if (response.ok) {
+                    const { logs } = await response.json();
+                    displayPacketLogs(logs);
+                } else {
+                    throw new Error('Failed to fetch packet logs');
+                }
+            } catch (error) {
+                console.error('Failed to refresh packet logs:', error);
+                const container = document.getElementById('packetLogsContainer');
+                container.innerHTML = '<div class="packet-log-entry" style="color: #ef4444;">Failed to load packet logs</div>';
+            }
+        }
+
+        // Display packet logs in the dashboard
+        function displayPacketLogs(logs) {
+            const container = document.getElementById('packetLogsContainer');
+            
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="packet-log-entry" style="text-align: center; color: #64748b; padding: 20px;">No packet logs available</div>';
+                return;
+            }
+
+            // Show latest 50 logs (most recent first)
+            const recentLogs = logs.slice(-50).reverse();
+            container.innerHTML = recentLogs.map(log => createPacketLogEntry(log)).join('');
+        }
     </script>
 </body>
 </html>

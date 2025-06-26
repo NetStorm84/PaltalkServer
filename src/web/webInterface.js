@@ -10,7 +10,7 @@ const cookieParser = require('cookie-parser');
 const logger = require('../utils/logger');
 const { SERVER_CONFIG, SECURITY_SETTINGS } = require('../config/constants');
 const { sendPacket } = require('../network/packetSender');
-const { PACKET_TYPES } = require('../../packetHeaders');
+const { PACKET_TYPES } = require('../../PacketHeaders');
 const AuthController = require('./controllers/authController');
 const { requireAuth, requireAdmin, requireApiAuth } = require('./middleware/authMiddleware');
 
@@ -90,6 +90,11 @@ class WebInterface {
         // Bot management - protected by authentication
         this.app.get('/bot-management.html', requireAuth, (req, res) => {
             res.sendFile(path.join(__dirname, 'public', 'bot-management.html'));
+        });
+
+        // Packet logs - protected by authentication
+        this.app.get('/packet-logs.html', requireAuth, (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'packet-logs.html'));
         });
 
         // API Routes
@@ -183,6 +188,156 @@ class WebInterface {
             } catch (error) {
                 logger.error('Failed to get voice logs', error);
                 res.status(500).json({ error: 'Failed to get voice logs' });
+            }
+        });
+
+        // General server logs
+        this.app.get('/api/logs', (req, res) => {
+            try {
+                const limit = parseInt(req.query.limit) || 50;
+                const module = req.query.module || null;
+                const logs = logger.getRecentLogs(limit, module);
+                res.json({ 
+                    logs,
+                    total: logs.length,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get logs', error);
+                res.status(500).json({ error: 'Failed to get logs' });
+            }
+        });
+
+        // Packet logging configuration
+        this.app.get('/api/logs/packet-config', (req, res) => {
+            try {
+                const config = logger.getConfig();
+                const packetConfig = config.PACKET_LOGGING || {};
+                
+                res.json({
+                    enabled: packetConfig.ENABLED || false,
+                    detailedAnalysis: packetConfig.DETAILED_ANALYSIS || false,
+                    directionFilter: packetConfig.DIRECTION_FILTER || 'both',
+                    payloadDisplayLimit: packetConfig.PAYLOAD_DISPLAY_LIMIT || 256,
+                    filterPacketTypes: packetConfig.FILTER_PACKET_TYPES || [],
+                    includePacketTypes: packetConfig.INCLUDE_PACKET_TYPES || []
+                });
+            } catch (error) {
+                logger.error('Failed to get packet logging config', error);
+                res.status(500).json({ error: 'Failed to get packet logging config' });
+            }
+        });
+
+        this.app.post('/api/logs/packet-config', requireAdmin, (req, res) => {
+            try {
+                const { enabled, detailedAnalysis, filterPacketTypes, includePacketTypes, directionFilter, payloadDisplayLimit } = req.body;
+                
+                // Update the configuration (this would ideally persist to a config file)
+                const config = logger.getConfig();
+                if (typeof enabled === 'boolean') {
+                    config.PACKET_LOGGING.ENABLED = enabled;
+                }
+                if (typeof detailedAnalysis === 'boolean') {
+                    config.PACKET_LOGGING.DETAILED_ANALYSIS = detailedAnalysis;
+                }
+                if (Array.isArray(filterPacketTypes)) {
+                    config.PACKET_LOGGING.FILTER_PACKET_TYPES = filterPacketTypes;
+                }
+                if (Array.isArray(includePacketTypes)) {
+                    config.PACKET_LOGGING.INCLUDE_PACKET_TYPES = includePacketTypes;
+                }
+                if (directionFilter) {
+                    config.PACKET_LOGGING.DIRECTION_FILTER = directionFilter;
+                }
+                if (typeof payloadDisplayLimit === 'number') {
+                    config.PACKET_LOGGING.PAYLOAD_DISPLAY_LIMIT = payloadDisplayLimit;
+                }
+
+                logger.info('Packet logging configuration updated', config.PACKET_LOGGING);
+                res.json({ 
+                    success: true, 
+                    message: 'Packet logging configuration updated',
+                    config: config.PACKET_LOGGING
+                });
+            } catch (error) {
+                logger.error('Failed to update packet logging config', error);
+                res.status(500).json({ error: 'Failed to update packet logging config' });
+            }
+        });
+
+        // Clear packet logs
+        this.app.post('/api/logs/clear-packets', requireAdmin, (req, res) => {
+            try {
+                logger.clearPacketLogs();
+                logger.info('Packet logs cleared by admin');
+                res.json({ 
+                    success: true, 
+                    message: 'Packet logs cleared successfully',
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to clear packet logs', error);
+                res.status(500).json({ error: 'Failed to clear packet logs' });
+            }
+        });
+
+        // Export packet logs
+        this.app.get('/api/logs/export-packets', requireAdmin, (req, res) => {
+            try {
+                const packetLogs = logger.getPacketLogs();
+                
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Content-Disposition', `attachment; filename=packet-logs-${new Date().toISOString().split('T')[0]}.json`);
+                
+                res.json({
+                    exportDate: new Date().toISOString(),
+                    totalLogs: packetLogs.length,
+                    logs: packetLogs
+                });
+                
+                logger.info('Packet logs exported by admin');
+            } catch (error) {
+                logger.error('Failed to export packet logs', error);
+                res.status(500).json({ error: 'Failed to export packet logs' });
+            }
+        });
+
+        // Get packet logs for viewing
+        this.app.get('/api/logs/packets', (req, res) => {
+            try {
+                const packetLogs = logger.getPacketLogs();
+                const limit = parseInt(req.query.limit) || 1000;
+                const offset = parseInt(req.query.offset) || 0;
+                
+                const paginatedLogs = packetLogs.slice(offset, offset + limit);
+                
+                res.json({
+                    success: true,
+                    logs: paginatedLogs,
+                    total: packetLogs.length,
+                    limit,
+                    offset,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get packet logs', error);
+                res.status(500).json({ error: 'Failed to get packet logs' });
+            }
+        });
+
+        // Get packet logs for dashboard display
+        this.app.get('/api/logs/packet-logs', (req, res) => {
+            try {
+                const packetLogs = logger.getPacketLogs();
+                res.json({
+                    success: true,
+                    logs: packetLogs,
+                    total: packetLogs.length,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get packet logs', error);
+                res.status(500).json({ error: 'Failed to get packet logs' });
             }
         });
 
@@ -627,6 +782,11 @@ class WebInterface {
 
         this.serverState.on('roomDeleted', () => {
             this.broadcastUpdate('roomDeleted');
+        });
+
+        // Listen for packet logging events
+        logger.on('packetLogged', (packetData) => {
+            this.io.emit('packetLogged', packetData);
         });
 
         // New events for real-time room updates
