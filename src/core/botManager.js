@@ -1638,10 +1638,23 @@ class BotManager {
                 return;
             }
             
-            // Create user joined notification packet
-            const userJoinedBuffer = Buffer.alloc(8);
-            userJoinedBuffer.writeUInt32BE(room.id, 0);  // Room ID as 4-byte big-endian
-            userJoinedBuffer.writeUInt32BE(bot.uid, 4);  // Bot UID as 4-byte big-endian
+            // Get bot's room data to include in notification
+            const botRoomData = room.getUser(bot.uid);
+            if (!botRoomData) {
+                logger.warn('Bot not found in room data for join notification', {
+                    botUid: bot.uid,
+                    roomId: room.id
+                });
+                return;
+            }
+            
+            // Create user joined notification packet using the same format as regular users
+            // Format: group_id=X\nuid=Y\nnickname=Z\nadmin=W\ncolor=V\nmic=U\npub=T\naway=S + delimiter
+            const userJoinedString = `group_id=${room.id}\nuid=${bot.uid}\nnickname=${bot.nickname}\nadmin=${botRoomData.admin}\ncolor=${botRoomData.color}\nmic=${botRoomData.mic}\npub=${botRoomData.pub}\naway=${botRoomData.away}`;
+            const userJoinedBuffer = Buffer.concat([
+                Buffer.from(userJoinedString),
+                Buffer.from([0xC8]) // Delimiter
+            ]);
 
             let notificationsSent = 0;
             room.getAllUsers().forEach(roomUserData => {
@@ -1667,13 +1680,23 @@ class BotManager {
             });
             
             if (notificationsSent > 0) {
-                logger.debug('Bot join notifications sent', {
+                logger.info('Bot join notifications sent with detailed format', {
                     botUid: bot.uid,
                     botNickname: bot.nickname,
                     roomId: room.id,
                     roomName: room.name,
-                    notificationsSent
+                    notificationsSent,
+                    userJoinedString
                 });
+                
+                // Also send updated user list to refresh the room display (like regular user joins)
+                if (this.serverState && this.serverState.packetProcessor) {
+                    this.serverState.packetProcessor.broadcastUserListUpdate(room);
+                    logger.debug('Bot join triggered user list update', {
+                        botUid: bot.uid,
+                        roomId: room.id
+                    });
+                }
             }
         } catch (error) {
             logger.warn('Failed to send bot join notifications', {
