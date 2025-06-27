@@ -784,6 +784,43 @@ class DatabaseManager {
     isConnectionActive() {
         return this.isConnected && this.db !== null;
     }
+
+    /**
+     * Get users who have a specific user on their buddy list
+     * @param {number} targetUid - The user ID to check for in buddy lists
+     * @returns {Promise<Array>} - Array of users who have targetUid on their buddy list
+     */
+    async getUsersWithBuddy(targetUid) {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                `SELECT uid, nickname, buddies FROM users WHERE buddies LIKE ? AND uid != ?`,
+                [`%"uid": ${targetUid}%`, targetUid],
+                (err, rows) => {
+                    if (err) {
+                        logger.error('Failed to get users with buddy', err, { targetUid });
+                        reject(err);
+                    } else {
+                        // Filter results by parsing JSON to ensure accurate matches
+                        const usersWithBuddy = rows.filter(row => {
+                            try {
+                                const buddies = JSON.parse(row.buddies || '[]');
+                                return buddies.some(buddy => buddy.uid === targetUid);
+                            } catch (parseError) {
+                                logger.warn('Invalid buddy list JSON', { uid: row.uid, buddies: row.buddies });
+                                return false;
+                            }
+                        });
+                        
+                        logger.debug('Found users with buddy', { 
+                            targetUid, 
+                            count: usersWithBuddy.length 
+                        });
+                        resolve(usersWithBuddy);
+                    }
+                }
+            );
+        });
+    }
 }
 
 module.exports = DatabaseManager;

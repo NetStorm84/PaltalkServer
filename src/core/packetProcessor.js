@@ -120,6 +120,10 @@ class PacketProcessor {
                     await this.handleLogin(socket, payload);
                     break;
                 
+                case PACKET_TYPES.LOGOUT:
+                    await this.handleLogout(socket, payload);
+                    break;
+                
                 case PACKET_TYPES.ROOM_JOIN:
                     await this.handleRoomJoin(socket, payload);
                     break;
@@ -448,6 +452,9 @@ class PacketProcessor {
             // Step 7: Send offline messages
             await this.sendOfflineMessages(socket, user);
 
+            // Step 8: Notify buddies that this user is now online
+            await this.sendBuddyStatusNotification(user, true);
+
             logger.logUserAction('login_success', user.uid, {
                 nickname: user.nickname,
                 sessionId: user.sessionId
@@ -455,6 +462,59 @@ class PacketProcessor {
 
         } catch (error) {
             logger.error('Login failed', error, { socketId: socket.id });
+        }
+    }
+
+    /**
+     * Handle user logout
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleLogout(socket, payload) {
+        try {
+            const user = serverState.getUserBySocketId(socket.id);
+            if (!user) {
+                logger.debug('Logout request from unAuthenticated socket', { socketId: socket.id });
+                return;
+            }
+
+            logger.info('User logout request', {
+                uid: user.uid,
+                nickname: user.nickname,
+                socketId: socket.id
+            });
+
+            // IMPORTANT: Send buddy offline notifications BEFORE removing user from server state
+            // This ensures we still have access to user data when notifying buddies
+            await this.sendBuddyStatusNotification(user, false);
+
+            // Remove user from server state (this will handle room cleanup etc.)
+            const removed = serverState.removeUserConnection(socket, 'User logged out');
+            
+            if (removed) {
+                // Send logout acknowledgment if needed
+                try {
+                    const logoutResponse = Buffer.alloc(4);
+                    logoutResponse.writeUInt32BE(1, 0); // Success
+                    sendPacket(socket, PACKET_TYPES.LOGOUT, logoutResponse, socket.id);
+                } catch (sendError) {
+                    // Don't fail if we can't send response (socket might be closing)
+                    logger.debug('Could not send logout response', { error: sendError.message });
+                }
+
+                logger.info('User logout completed', {
+                    uid: user.uid,
+                    nickname: user.nickname
+                });
+            } else {
+                logger.warn('Failed to remove user during logout', {
+                    uid: user.uid,
+                    nickname: user.nickname
+                });
+            }
+
+        } catch (error) {
+            logger.error('Error handling logout', error, { socketId: socket.id });
         }
     }
 
@@ -2112,6 +2172,85 @@ class PacketProcessor {
         // Optionally send confirmation back to sender
         // const confirmationMessage = `Invite sent to ${targetUser.nickname} for room ${room.name}`;
         // this.sendSystemMessage(socket, confirmationMessage);
+    }
+
+    /**
+     * Send buddy status notification to all users who have this user on their buddy list
+     * @param {Object} user - The user whose status changed
+     * @param {boolean} isOnline - Whether the user is going online (true) or offline (false)
+     */
+    async sendBuddyStatusNotification(user, isOnline) {
+        try {
+            // Get all users who have this user on their buddy list
+            const usersWithBuddy = await this.databaseManager.getUsersWithBuddy(user.uid);
+            
+            if (usersWithBuddy.length === 0) {
+                logger.debug('No users have this user on their buddy list', { 
+                    uid: user.uid, 
+                    nickname: user.nickname 
+                });
+                return;
+            }
+
+            logger.info(`Notifying ${usersWithBuddy.length} users about buddy status change`, {
+                buddyUid: user.uid,
+                buddyNickname: user.nickname,
+                isOnline,
+                notifyingUsers: usersWithBuddy.map(u => u.nickname)
+            });
+
+            // Create the status notification packet
+            const statusPacketType = isOnline ? PACKET_TYPES.BUDDY_ONLINE : PACKET_TYPES.BUDDY_OFFLINE;
+            const statusBuffer = Buffer.alloc(12 + user.nickname.length);
+            
+            // Write buddy UID (4 bytes)
+            statusBuffer.writeUInt32BE(user.uid, 0);
+            
+            // Write status (4 bytes) - 1 = online, 0 = offline
+            statusBuffer.writeUInt32BE(isOnline ? 1 : 0, 4);
+            
+            // Write nickname length (4 bytes)
+            statusBuffer.writeUInt32BE(user.nickname.length, 8);
+            
+            // Write nickname
+            statusBuffer.write(user.nickname, 12, 'utf8');
+
+            // Send notification to each user who has this buddy
+            for (const userWithBuddy of usersWithBuddy) {
+                const onlineBuddy = serverState.getUser(userWithBuddy.uid);
+                if (onlineBuddy && onlineBuddy.socket) {
+                    try {
+                        sendPacket(onlineBuddy.socket, statusPacketType, statusBuffer, onlineBuddy.socket.id);
+                        logger.debug('Sent buddy status notification', {
+                            to: userWithBuddy.nickname,
+                            toUid: userWithBuddy.uid,
+                            buddy: user.nickname,
+                            buddyUid: user.uid,
+                            isOnline
+                        });
+                    } catch (sendError) {
+                        logger.error('Failed to send buddy status notification', sendError, {
+                            to: userWithBuddy.nickname,
+                            buddy: user.nickname,
+                            isOnline
+                        });
+                    }
+                } else {
+                    logger.debug('User not online to receive buddy notification', {
+                        userUid: userWithBuddy.uid,
+                        userNickname: userWithBuddy.nickname,
+                        buddy: user.nickname
+                    });
+                }
+            }
+
+        } catch (error) {
+            logger.error('Error sending buddy status notifications', error, {
+                userUid: user.uid,
+                userNickname: user.nickname,
+                isOnline
+            });
+        }
     }
 }
 

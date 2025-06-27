@@ -849,25 +849,35 @@ class WebInterface {
 
     setupEventListeners() {
         // Listen for server state changes and broadcast to web clients
-        this.serverState.on('userConnected', () => {
+        this.serverState.on('userConnected', (data) => {
+            logger.info('🟢 User connected event received', { uid: data.user?.uid, nickname: data.user?.nickname });
             this.broadcastUpdate('userConnected');
         });
 
-        this.serverState.on('userDisconnected', () => {
+        this.serverState.on('userDisconnected', (data) => {
+            logger.info('🔴 User disconnected event received', { uid: data.user?.uid, nickname: data.user?.nickname, reason: data.reason });
             this.broadcastUpdate('userDisconnected');
         });
 
-        this.serverState.on('roomCreated', () => {
+        this.serverState.on('roomCreated', (data) => {
+            logger.info('🏠 Room created event received', { roomId: data.room?.id, roomName: data.room?.name });
             this.broadcastUpdate('roomCreated');
         });
 
-        this.serverState.on('roomDeleted', () => {
+        this.serverState.on('roomDeleted', (data) => {
+            logger.info('🗑️ Room deleted event received', { roomId: data.room?.id, roomName: data.room?.name });
             this.broadcastUpdate('roomDeleted');
         });
 
         // Listen for packet logging events
         logger.on('packetLogged', (packetData) => {
             this.io.emit('packetLogged', packetData);
+        });
+
+        // Listen for general log events to update dashboard logs
+        logger.on('logged', () => {
+            // Broadcast updated logs to all connected dashboards
+            this.broadcastLogs();
         });
 
         // New events for real-time room updates
@@ -884,6 +894,16 @@ class WebInterface {
         setInterval(() => {
             this.broadcastVoiceMetrics();
         }, 3000); // Update every 3 seconds
+
+        // Start periodic logs broadcasting for dashboard
+        setInterval(() => {
+            this.broadcastLogs();
+        }, 10000); // Update logs every 10 seconds
+
+        // Start periodic server state broadcasting for real-time updates
+        setInterval(() => {
+            this.broadcastUpdate('periodic');
+        }, 2000); // Update every 2 seconds for more responsive UI
     }
 
     async sendServerState(socket) {
@@ -894,61 +914,62 @@ class WebInterface {
                 return;
             }
             
-            const stats = this.serverState.getStats();
+            const serverStats = this.serverState.getStats();
             const voiceStats = this.voiceServer.getStats();
             
-            // Get detailed user and room data for the dashboard
-            const users = this.serverState.getOnlineUsers().map(user => {
-                // Get all room names user is currently in
-                let currentRoomNames = [];
-                if (user.getRoomCount() > 0) {
-                    const roomIds = user.getRoomIds();
-                    currentRoomNames = roomIds.map(roomId => {
-                        const room = this.serverState.getRoom(roomId);
-                        return room ? room.name : `Room ${roomId}`;
-                    }).filter(Boolean);
-                }
-                
+            // Get user data in the same format as the API endpoint
+            const users = this.serverState.getAllUsers().map(user => {
+                const roomIds = user.getRoomIds();
                 return {
-                    uid: user.uid,
+                    id: user.uid,  // Use 'id' to match dashboard expectation
                     nickname: user.nickname,
-                    mode: user.mode,
-                    isAdmin: user.isAdmin(),
-                    currentRoom: currentRoomNames.length > 0 ? currentRoomNames.join(', ') : null,
-                    currentRooms: currentRoomNames, // Array of all room names
-                    roomCount: user.getRoomCount(),
-                    loginTime: user.loginTime,
-                    lastActivity: user.lastActivity,
-                    paid1: user.paid1, // Include paid status for badge display
-                    email: user.email,
-                    firstName: user.firstName,
-                    lastName: user.lastName
+                    currentRoom: roomIds.length > 0 ? roomIds[0] : null // Show first room ID
                 };
             });
             
-            const rooms = this.serverState.getAllRooms().map(room => ({
-                id: room.id,
-                name: room.name,
-                userCount: room.getUserCount(),
-                maxUsers: room.maxUsers,
-                isVoice: room.isVoice,
-                isPrivate: room.isPrivate,
-                isPermanent: room.isPermanent,
-                category: room.category,
-                rating: room.rating,
-                createdAt: room.createdAt
-            }));
+            // Only include rooms that have users in them - same as API endpoint
+            const allRooms = this.serverState.getAllRooms();
+            const activeRooms = allRooms
+                .filter(room => room.getUserCount() > 0)
+                .map(room => ({
+                    id: room.id,
+                    name: room.name,
+                    userCount: room.getUserCount(),
+                    category: room.category
+                }));
             
-            socket.emit('serverState', {
-                stats,
-                voice: voiceStats,
-                users,
-                rooms,
+            // Send data in the same format as API endpoint
+            const data = {
+                stats: {
+                    onlineUsers: serverStats.currentUsers || 0,
+                    activeRooms: activeRooms.length, // Count of rooms with users
+                    totalConnections: serverStats.totalConnections || serverStats.currentUsers || 0,
+                    uptime: Math.floor((serverStats.uptime || 0) / 1000) // Convert to seconds
+                },
+                users: users,
+                rooms: activeRooms, // Only rooms with users
                 logs: logger.getRecentLogs(25), // Include recent logs
+                timestamp: new Date().toISOString()
+            };
+            
+            socket.emit('serverUpdate', data); // Use 'serverUpdate' to match dashboard listener
+        } catch (error) {
+            logger.error('Failed to send server state', error);
+        }
+    }
+
+    /**
+     * Broadcast logs to all connected clients
+     */
+    broadcastLogs() {
+        try {
+            const logs = logger.getRecentLogs(25);
+            this.io.emit('logsUpdate', {
+                logs: logs,
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
-            logger.error('Failed to send server state', error);
+            logger.error('Failed to broadcast logs', error);
         }
     }
 
@@ -974,16 +995,60 @@ class WebInterface {
         }
     }
 
-    broadcastUpdate(eventType) {
-        this.io.emit('serverUpdate', {
-            eventType,
-            timestamp: new Date().toISOString()
-        });
-        
-        // Send full state update to all connected clients
-        this.io.sockets.sockets.forEach((socket) => {
-            this.sendServerState(socket);
-        });
+    async broadcastUpdate(eventType) {
+        try {
+            logger.debug('📡 Broadcasting update', { eventType });
+            
+            // Send full state update to all connected clients immediately
+            const serverStats = this.serverState.getStats();
+            
+            // Get user data in the same format as the API endpoint
+            const users = this.serverState.getAllUsers().map(user => {
+                const roomIds = user.getRoomIds();
+                return {
+                    id: user.uid,
+                    nickname: user.nickname,
+                    currentRoom: roomIds.length > 0 ? roomIds[0] : null
+                };
+            });
+            
+            // Only include rooms that have users in them
+            const allRooms = this.serverState.getAllRooms();
+            const activeRooms = allRooms
+                .filter(room => room.getUserCount() > 0)
+                .map(room => ({
+                    id: room.id,
+                    name: room.name,
+                    userCount: room.getUserCount(),
+                    category: room.category
+                }));
+            
+            // Send complete data in the same format as API endpoint
+            const data = {
+                stats: {
+                    onlineUsers: serverStats.currentUsers || 0,
+                    activeRooms: activeRooms.length,
+                    totalConnections: serverStats.totalConnections || serverStats.currentUsers || 0,
+                    uptime: Math.floor((serverStats.uptime || 0) / 1000)
+                },
+                users: users,
+                rooms: activeRooms,
+                eventType,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Broadcast to all connected web clients
+            this.io.emit('serverUpdate', data);
+            
+            logger.debug('✅ Broadcasted server update', { 
+                eventType, 
+                onlineUsers: data.stats.onlineUsers, 
+                activeRooms: data.stats.activeRooms,
+                connectedClients: this.io.engine.clientsCount || 0
+            });
+        } catch (error) {
+            logger.error('❌ Failed to broadcast update', error, { eventType });
+        }
     }
 
     start() {

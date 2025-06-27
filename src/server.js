@@ -548,6 +548,7 @@ class PaltalkServer {
             
             // Set connection properties
             socket.connectionId = connectionId;
+            socket.id = connectionId; // CRITICAL: Set socket.id for serverState compatibility
             socket.remoteIP = remoteIP;
             socket.connectedAt = new Date();
             
@@ -573,22 +574,28 @@ class PaltalkServer {
             });
 
             socket.on('error', (error) => {
-                logger.error('Chat socket error', error, { connectionId, 
-                    userConnected: socket.id && serverState.getUserBySocketId(socket.id) ? true : false 
+                logger.error('Chat socket error', error, { 
+                    connectionId, 
+                    socketId: socket.id,
+                    userFound: serverState.getUserBySocketId(socket.id) ? true : false 
                 });
                 this.cleanupConnection(socket);
             });
 
             socket.on('close', () => {
-                logger.debug('Chat connection closed', { connectionId,
-                    userConnected: socket.id && serverState.getUserBySocketId(socket.id) ? true : false 
+                logger.debug('Chat connection closed', { 
+                    connectionId,
+                    socketId: socket.id,
+                    userFound: serverState.getUserBySocketId(socket.id) ? true : false 
                 });
                 this.cleanupConnection(socket);
             });
 
             socket.on('end', () => {
-                logger.debug('Chat connection ended', { connectionId,
-                    userConnected: socket.id && serverState.getUserBySocketId(socket.id) ? true : false 
+                logger.debug('Chat connection ended', { 
+                    connectionId,
+                    socketId: socket.id,
+                    userFound: serverState.getUserBySocketId(socket.id) ? true : false 
                 });
                 this.cleanupConnection(socket);
             });
@@ -633,6 +640,12 @@ class PaltalkServer {
             const connectionId = socket.connectionId;
             const remoteIP = socket.remoteIP;
             
+            logger.debug('🧹 Cleaning up connection', { 
+                connectionId, 
+                remoteIP,
+                hasConnectionId: !!connectionId 
+            });
+            
             if (connectionId) {
                 // Remove connection buffers
                 this.connectionBuffers.delete(connectionId);
@@ -649,12 +662,17 @@ class PaltalkServer {
                 }
             }
             
-            // Remove user connection from server state (only if user exists)
-            if (socket.id) {
-                const user = serverState.getUserBySocketId(socket.id);
-                if (user) {
-                    serverState.removeUserConnection(socket, 'Connection closed');
+            // FIXED: Remove user connection from server state using the socket directly
+            // The serverState.removeUserConnection method can handle socket objects
+            try {
+                const removed = serverState.removeUserConnection(socket, 'Connection closed');
+                if (removed) {
+                    logger.info('✅ User connection cleaned up from server state', { connectionId });
+                } else {
+                    logger.debug('No user found to clean up for this socket', { connectionId });
                 }
+            } catch (userCleanupError) {
+                logger.error('Error removing user from server state', userCleanupError, { connectionId });
             }
             
         } catch (error) {

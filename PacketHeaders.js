@@ -10,8 +10,12 @@ const PACKET_TYPES = {
     REDIRECT: -1143,
     SERVER_KEY: 0x0474,
     LOGIN: -1148,
+    LOGOUT: -3000,  // User logout packet
     USER_DATA: 0x019A,
     BUDDY_LIST: 0x0043,
+    BUDDY_STATUS: 0x0044,  // Notify buddy status change (online/offline)
+    BUDDY_ONLINE: 0x0045,  // Notify buddy came online
+    BUDDY_OFFLINE: 0x0046, // Notify buddy went offline
     LOOKAHEAD: 0x0064,
     KEEP_ALIVE: 13, // 0x000D - Keep-alive or status packet sent by real clients
     STATUS_CHANGE: 0x0190,
