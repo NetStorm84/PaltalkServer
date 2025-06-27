@@ -405,6 +405,28 @@ class DatabaseManager {
     }
 
     /**
+     * Get room by ID
+     * @param {number} roomId 
+     * @returns {Promise<Object|null>}
+     */
+    async getRoomById(roomId) {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                'SELECT * FROM groups WHERE id = ?',
+                [roomId],
+                (err, row) => {
+                    if (err) {
+                        logger.error('Failed to get room by ID', err, { roomId });
+                        reject(err);
+                    } else {
+                        resolve(row || null);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
      * Update room information
      * @param {number} roomId 
      * @param {Object} updateData 

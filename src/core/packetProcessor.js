@@ -1416,9 +1416,131 @@ class PacketProcessor {
         const room = serverState.getRoom(roomId);
         const message = payload.slice(4).toString('utf8');
         
-        if (!room || !room.hasUser(user.uid) || !user.isAdmin()) return;
+        // Check if user has admin privileges (global admin OR room admin)
+        const userInRoom = room ? room.hasUser(user.uid) : false;
+        const isGlobalAdmin = user.isAdmin();
+        const roomUser = room ? room.getUser(user.uid) : null;
+        const isRoomAdmin = roomUser && roomUser.isRoomAdmin;
+        const hasAdminPrivileges = isGlobalAdmin || isRoomAdmin;
+        
+        logger.info('ROOM_BANNER_MESSAGE handler called', {
+            userId: user.uid,
+            userNickname: user.nickname,
+            roomId: roomId,
+            roomExists: !!room,
+            messageLength: message.length,
+            message: message.substring(0, 100),
+            userInRoom: userInRoom,
+            isGlobalAdmin: isGlobalAdmin,
+            isRoomAdmin: isRoomAdmin,
+            hasAdminPrivileges: hasAdminPrivileges,
+            userCurrentRoom: user.currentRoom
+        });
+        
+        if (!room || !userInRoom || !hasAdminPrivileges) {
+            logger.warn('ROOM_BANNER_MESSAGE validation failed', {
+                roomExists: !!room,
+                userInRoom: userInRoom,
+                isGlobalAdmin: isGlobalAdmin,
+                isRoomAdmin: isRoomAdmin,
+                hasAdminPrivileges: hasAdminPrivileges,
+                userId: user.uid,
+                roomId: roomId,
+                reason: !room ? 'room_not_found' : 
+                        !userInRoom ? 'user_not_in_room' : 
+                        !hasAdminPrivileges ? 'insufficient_privileges' : 'unknown'
+            });
+            return;
+        }
 
-        room.setStatusMessage(message, user.uid);
+        // FIXED: Update room topic instead of status message
+        const oldTopicBeforeSet = room.topic;
+        room.setTopic(message, user.uid);
+        const newTopicAfterSet = room.topic;
+        
+        logger.info('Room topic updated in memory', {
+            roomId: room.id,
+            roomName: room.name,
+            oldTopic: oldTopicBeforeSet.substring(0, 50),
+            newTopic: newTopicAfterSet.substring(0, 50),
+            topicChanged: oldTopicBeforeSet !== newTopicAfterSet,
+            isPermanent: room.isPermanent,
+            hasServerState: !!room.serverState,
+            hasDatabaseManager: !!(room.serverState && room.serverState.databaseManager)
+        });
+        
+        // CRITICAL: Persist topic to database for permanent rooms
+        if (room.isPermanent && room.serverState && room.serverState.databaseManager) {
+            try {
+                logger.info('Attempting to persist topic to database', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    topicToPersist: message,
+                    updateData: { topic: message }
+                });
+                
+                const updateResult = await room.serverState.databaseManager.updateRoom(room.id, { topic: message });
+                
+                logger.info('Database update result', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    updateResult: updateResult,
+                    topicPersisted: message.substring(0, 100),
+                    setBy: user.uid,
+                    setByNickname: user.nickname
+                });
+                
+                // CRITICAL FIX: Reload room from database to ensure in-memory object stays in sync
+                // This prevents topic persistence issues when users re-enter rooms
+                const updatedRoomData = await room.serverState.databaseManager.getRoomById(room.id);
+                logger.info('Database reload result', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    dataReloaded: !!updatedRoomData,
+                    reloadedTopic: updatedRoomData ? updatedRoomData.topic : 'NO_DATA',
+                    currentRoomTopic: room.topic.substring(0, 50)
+                });
+                
+                if (updatedRoomData && updatedRoomData.topic !== undefined) {
+                    const oldTopic = room.topic;
+                    room.topic = updatedRoomData.topic;
+                    logger.info('Room topic reloaded from database to ensure persistence', {
+                        roomId: room.id,
+                        roomName: room.name,
+                        oldTopic: oldTopic.substring(0, 50),
+                        newTopic: room.topic.substring(0, 50),
+                        reloadedFromDb: true
+                    });
+                } else {
+                    logger.warn('Failed to reload topic from database', {
+                        roomId: room.id,
+                        roomName: room.name,
+                        updatedRoomDataExists: !!updatedRoomData,
+                        topicField: updatedRoomData ? updatedRoomData.topic : 'NO_ROOM_DATA'
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to persist room topic to database', error, {
+                    roomId: room.id,
+                    roomName: room.name,
+                    topic: message.substring(0, 100),
+                    setBy: user.uid,
+                    errorMessage: error.message,
+                    errorStack: error.stack
+                });
+            }
+        } else {
+            logger.warn('Skipping database persistence', {
+                roomId: room.id,
+                roomName: room.name,
+                isPermanent: room.isPermanent,
+                hasServerState: !!room.serverState,
+                hasDatabaseManager: !!(room.serverState && room.serverState.databaseManager),
+                reason: !room.isPermanent ? 'not_permanent' : 
+                        !room.serverState ? 'no_server_state' : 
+                        'no_database_manager'
+            });
+        }
         
         // FIXED: Use proper buffer concatenation instead of hex encoding to prevent reconnections
         const bannerBuffer = Buffer.concat([
@@ -1428,6 +1550,15 @@ class PacketProcessor {
         ]);
         
         this.broadcastToRoom(room, PACKET_TYPES.ROOM_TOPIC, bannerBuffer);
+        
+        logger.info('Room topic updated and broadcast', {
+            roomId: room.id,
+            roomName: room.name,
+            newTopic: message.substring(0, 100), // Truncate for logs
+            setBy: user.uid,
+            setByNickname: user.nickname,
+            isPermanent: room.isPermanent
+        });
     }
 
     async handleVersions(socket, payload) {
@@ -1613,6 +1744,75 @@ class PacketProcessor {
         else if (!isAdmin && room.isVoice) roomType = '00030000';
         else if (!isAdmin && !room.isVoice) roomType = '00000000';
 
+        // CRITICAL FIX: Always reload topic from database before sending room join data
+        // This ensures users always get the most current topic, not the stale in-memory version
+        if (room.isPermanent && room.serverState && room.serverState.databaseManager) {
+            try {
+                logger.info('Reloading room topic from database before join', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    currentInMemoryTopic: room.topic,
+                    userId: user.uid,
+                    userNickname: user.nickname
+                });
+                
+                const updatedRoomData = await room.serverState.databaseManager.getRoomById(room.id);
+                
+                logger.info('Database room data retrieved', {
+                    roomId: room.id,
+                    foundRoomData: !!updatedRoomData,
+                    databaseTopic: updatedRoomData ? updatedRoomData.topic : 'NO_DATA',
+                    databaseTopicHex: updatedRoomData && updatedRoomData.topic ? Buffer.from(updatedRoomData.topic).toString('hex') : 'NO_DATA',
+                    topicType: updatedRoomData ? typeof updatedRoomData.topic : 'undefined'
+                });
+                
+                if (updatedRoomData && updatedRoomData.topic !== undefined && updatedRoomData.topic !== null) {
+                    const oldTopic = room.topic;
+                    room.topic = updatedRoomData.topic;
+                    
+                    logger.info('Room topic successfully reloaded from database', {
+                        roomId: room.id,
+                        roomName: room.name,
+                        oldTopic: oldTopic.substring(0, 100),
+                        newTopic: room.topic.substring(0, 100),
+                        oldTopicHex: Buffer.from(oldTopic).toString('hex'),
+                        newTopicHex: Buffer.from(room.topic).toString('hex'),
+                        topicsMatch: oldTopic === room.topic,
+                        userId: user.uid,
+                        userNickname: user.nickname
+                    });
+                } else {
+                    logger.warn('Database topic reload failed - using in-memory topic', {
+                        roomId: room.id,
+                        roomName: room.name,
+                        hasRoomData: !!updatedRoomData,
+                        databaseTopic: updatedRoomData ? updatedRoomData.topic : 'NO_ROOM_DATA',
+                        inMemoryTopic: room.topic.substring(0, 100),
+                        userId: user.uid
+                    });
+                }
+            } catch (error) {
+                logger.error('Critical error reloading room topic from database', error, {
+                    roomId: room.id,
+                    roomName: room.name,
+                    userId: user.uid,
+                    errorMessage: error.message,
+                    errorStack: error.stack
+                });
+                // Continue with existing topic if reload fails
+            }
+        } else {
+            logger.info('Skipping database topic reload', {
+                roomId: room.id,
+                roomName: room.name,
+                isPermanent: room.isPermanent,
+                hasServerState: !!room.serverState,
+                hasDatabaseManager: !!(room.serverState && room.serverState.databaseManager),
+                currentTopic: room.topic.substring(0, 100),
+                userId: user.uid
+            });
+        }
+
         logger.debug('Room join data preparation', {
             roomId: room.id,
             roomName: room.name,
@@ -1620,7 +1820,8 @@ class PacketProcessor {
             isAdmin,
             roomType,
             userId: user.uid,
-            nickname: user.nickname
+            nickname: user.nickname,
+            finalTopic: room.topic.substring(0, 50)
         });
 
         const roomDetails = Utils.objectToKeyValueString(room.getRoomDetails());
@@ -1636,12 +1837,32 @@ class PacketProcessor {
         this.sendRoomMessage(socket, room.id, room.getWelcomeMessage());
         this.sendRoomMessage(socket, room.id, `${user.nickname}, welcome to the room ${room.name}.`);
         
-        // Send topic
+        // Send topic (now guaranteed to be the latest from database)
+        logger.info('Sending room topic to user', {
+            roomId: room.id,
+            roomName: room.name,
+            userId: user.uid,
+            userNickname: user.nickname,
+            topicBeingSent: room.topic,
+            topicLength: room.topic.length,
+            topicHex: Buffer.from(room.topic).toString('hex'),
+            roomIdHex: roomIdHex
+        });
+        
         const topicBuffer = Buffer.concat([
             Buffer.from(roomIdHex, 'hex'),
             Buffer.from('00000000', 'hex'),
             Buffer.from(room.topic, 'utf8')
         ]);
+        
+        logger.info('Topic buffer created', {
+            roomId: room.id,
+            userId: user.uid,
+            bufferHex: topicBuffer.toString('hex'),
+            bufferLength: topicBuffer.length,
+            expectedHex: roomIdHex + '00000000' + Buffer.from(room.topic).toString('hex')
+        });
+        
         sendPacket(socket, PACKET_TYPES.ROOM_TOPIC, topicBuffer, socket.id);
 
         // Send status message if it exists (this is what admins can change)
