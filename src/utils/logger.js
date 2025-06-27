@@ -303,19 +303,15 @@ class Logger extends EventEmitter {
     }
 
     getPacketTypeName(packetType) {
-        // You can expand this with actual packet type mappings
-        const typeNames = {
-            0x01: 'CONNECT',
-            0x02: 'DISCONNECT',
-            0x03: 'CHAT_MESSAGE',
-            0x04: 'ROOM_JOIN',
-            0x05: 'ROOM_LEAVE',
-            0x06: 'USER_LIST',
-            0x07: 'PING',
-            0x08: 'PONG'
-        };
+        // Use the actual PACKET_TYPES from PacketHeaders
+        for (const [name, value] of Object.entries(PACKET_TYPES)) {
+            if (value === packetType) {
+                return name;
+            }
+        }
         
-        return typeNames[packetType] || `UNKNOWN_${packetType}`;
+        // If not found, return formatted unknown type
+        return `UNKNOWN_0x${packetType.toString(16).toUpperCase().padStart(4, '0')}`;
     }
 
     shouldFilterPacket(packetType, direction) {

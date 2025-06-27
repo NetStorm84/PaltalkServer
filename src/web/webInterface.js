@@ -99,6 +99,47 @@ class WebInterface {
 
         // API Routes
         
+        // Server state for main dashboard
+        this.app.get('/api/server-state', async (req, res) => {
+            try {
+                const serverStats = this.serverState.getStats();
+                const users = this.serverState.getAllUsers().map(user => {
+                    const roomIds = user.getRoomIds();
+                    return {
+                        id: user.uid,
+                        nickname: user.nickname,
+                        currentRoom: roomIds.length > 0 ? roomIds[0] : null // Show first room
+                    };
+                });
+                
+                // Only include rooms that have users in them
+                const allRooms = this.serverState.getAllRooms();
+                const activeRooms = allRooms
+                    .filter(room => room.getUserCount() > 0)
+                    .map(room => ({
+                        id: room.id,
+                        name: room.name,
+                        userCount: room.getUserCount(),
+                        category: room.category
+                    }));
+                
+                res.json({
+                    stats: {
+                        onlineUsers: serverStats.currentUsers || 0,
+                        activeRooms: activeRooms.length, // Count of rooms with users
+                        totalConnections: serverStats.totalConnections || serverStats.currentUsers || 0,
+                        uptime: Math.floor((serverStats.uptime || 0) / 1000) // Convert to seconds
+                    },
+                    users: users,
+                    rooms: activeRooms, // Only rooms with users
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get server state', error);
+                res.status(500).json({ error: 'Failed to get server state' });
+            }
+        });
+
         // Server statistics
         this.app.get('/api/stats', async (req, res) => {
             try {

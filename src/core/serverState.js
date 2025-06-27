@@ -365,9 +365,10 @@ class ServerState extends EventEmitter {
      */
     getRoomsByCategory(categoryCode) {
         // Special handling for Top Rooms category (30001)
-        // Return top 20 rooms by user count regardless of their original category
+        // Return top 20 rooms by user count, but only include rooms with users
         if (categoryCode === 30001) {
             return Array.from(this.rooms.values())
+                .filter(room => room.getUserCount() > 0) // Only include rooms with users
                 .sort((a, b) => b.getUserCount() - a.getUserCount()) // Sort by user count descending
                 .slice(0, 20); // Take top 20
         }
