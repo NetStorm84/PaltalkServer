@@ -103,12 +103,44 @@ class WebInterface {
         this.app.get('/api/server-state', async (req, res) => {
             try {
                 const serverStats = this.serverState.getStats();
+                
+                // Get categories and groups for name lookup
+                const categories = await this.db.getCategories();
+                const categoryMap = new Map();
+                categories.forEach(cat => {
+                    categoryMap.set(cat.code, cat.value);
+                });
+                
+                // Get groups (rooms) from database for name lookup
+                const groups = await this.db.getGroups();
+                const groupMap = new Map();
+                groups.forEach(group => {
+                    groupMap.set(group.id, {
+                        name: group.nm || `Room ${group.id}`,
+                        categoryName: group.category_name || categoryMap.get(group.catg) || `Category ${group.catg}`
+                    });
+                });
+                
                 const users = this.serverState.getAllUsers().map(user => {
                     const roomIds = user.getRoomIds();
+                    let currentRoomName = null;
+                    
+                    // Get room name from database first, fallback to serverState
+                    if (roomIds.length > 0) {
+                        const roomId = roomIds[0];
+                        const dbRoom = groupMap.get(roomId);
+                        if (dbRoom) {
+                            currentRoomName = dbRoom.name;
+                        } else {
+                            const room = this.serverState.getRoom(roomId);
+                            currentRoomName = room ? room.name : `Room ${roomId}`;
+                        }
+                    }
+                    
                     return {
                         id: user.uid,
                         nickname: user.nickname,
-                        currentRoom: roomIds.length > 0 ? roomIds[0] : null // Show first room
+                        currentRoom: currentRoomName // Show room name instead of ID
                     };
                 });
                 
@@ -116,12 +148,19 @@ class WebInterface {
                 const allRooms = this.serverState.getAllRooms();
                 const activeRooms = allRooms
                     .filter(room => room.getUserCount() > 0)
-                    .map(room => ({
-                        id: room.id,
-                        name: room.name,
-                        userCount: room.getUserCount(),
-                        category: room.category
-                    }));
+                    .map(room => {
+                        // Get room and category names from database
+                        const dbRoom = groupMap.get(room.id);
+                        const roomName = dbRoom ? dbRoom.name : (room.name || `Room ${room.id}`);
+                        const categoryName = dbRoom ? dbRoom.categoryName : (categoryMap.get(room.category) || `Category ${room.category}`);
+                        
+                        return {
+                            id: room.id,
+                            name: roomName,
+                            userCount: room.getUserCount(),
+                            category: categoryName // Show category name instead of ID
+                        };
+                    });
                 
                 res.json({
                     stats: {
@@ -776,6 +815,93 @@ class WebInterface {
                 res.status(500).json({ error: 'Failed to delete user' });
             }
         });
+
+        // Kick user from server
+        this.app.post('/api/admin/users/:userId/kick', requireAdmin, (req, res) => {
+            try {
+                const userId = parseInt(req.params.userId);
+                const { reason } = req.body;
+                const kickReason = reason || 'Kicked by administrator';
+                
+                // Find the online user
+                const onlineUser = this.serverState.getUser(userId);
+                if (!onlineUser) {
+                    return res.status(404).json({ 
+                        success: false, 
+                        error: 'User not found or not online' 
+                    });
+                }
+                
+                // Send MAINTENANCE_KICK packet to notify the user they are being kicked
+                try {
+                    // Create kick packet with reason
+                    const kickBuffer = Buffer.alloc(4 + kickReason.length);
+                    kickBuffer.writeUInt32BE(kickReason.length, 0);
+                    kickBuffer.write(kickReason, 4, 'utf8');
+                    
+                    // Send the kick packet first
+                    sendPacket(onlineUser.socket, PACKET_TYPES.MAINTENANCE_KICK, kickBuffer, onlineUser.socket.id);
+                    
+                    logger.info('Sent MAINTENANCE_KICK packet to user', {
+                        userId,
+                        nickname: onlineUser.nickname,
+                        reason: kickReason
+                    });
+                    
+                    // Wait a brief moment for the packet to be sent before disconnecting
+                    setTimeout(() => {
+                        // Then disconnect the user
+                        const kicked = this.serverState.removeUserConnection(onlineUser.socket, kickReason);
+                        
+                        if (kicked) {
+                            logger.info('User kicked by admin', { 
+                                userId, 
+                                nickname: onlineUser.nickname,
+                                reason: kickReason,
+                                adminUser: req.session?.username
+                            });
+                        }
+                    }, 100); // 100ms delay to ensure packet is sent
+                    
+                    res.json({ 
+                        success: true, 
+                        message: `User ${onlineUser.nickname} kicked successfully`,
+                        reason: kickReason
+                    });
+                    
+                } catch (sendError) {
+                    logger.error('Failed to send kick packet, disconnecting anyway', sendError, {
+                        userId,
+                        nickname: onlineUser.nickname
+                    });
+                    
+                    // If sending the packet fails, still disconnect the user
+                    const kicked = this.serverState.removeUserConnection(onlineUser.socket, kickReason);
+                    
+                    if (kicked) {
+                        res.json({ 
+                            success: true, 
+                            message: `User ${onlineUser.nickname} kicked successfully (packet send failed)`,
+                            reason: kickReason
+                        });
+                    } else {
+                        res.status(500).json({ 
+                            success: false, 
+                            error: 'Failed to kick user' 
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                logger.error('Failed to kick user', error);
+                res.status(500).json({ 
+                    success: false, 
+                    error: 'Failed to kick user' 
+                });
+            }
+        });
+
+        // ...existing code...
     }
 
     setupWebSocket() {
@@ -915,28 +1041,47 @@ class WebInterface {
             }
             
             const serverStats = this.serverState.getStats();
-            const voiceStats = this.voiceServer.getStats();
             
-            // Get user data in the same format as the API endpoint
+            // Get categories for name lookup - same as API endpoint
+            const categories = await this.db.getCategories();
+            const categoryMap = new Map();
+            categories.forEach(cat => {
+                categoryMap.set(cat.code, cat.value);
+            });
+            
+            // Get user data with room names instead of IDs - same as API endpoint
             const users = this.serverState.getAllUsers().map(user => {
                 const roomIds = user.getRoomIds();
+                let currentRoomName = null;
+                
+                // Get room name instead of ID
+                if (roomIds.length > 0) {
+                    const room = this.serverState.getRoom(roomIds[0]);
+                    currentRoomName = room ? room.name : `Room ${roomIds[0]}`;
+                }
+                
                 return {
-                    id: user.uid,  // Use 'id' to match dashboard expectation
+                    id: user.uid,
                     nickname: user.nickname,
-                    currentRoom: roomIds.length > 0 ? roomIds[0] : null // Show first room ID
+                    currentRoom: currentRoomName // Show room name instead of ID
                 };
             });
             
-            // Only include rooms that have users in them - same as API endpoint
+            // Only include rooms that have users in them with category names - same as API endpoint
             const allRooms = this.serverState.getAllRooms();
             const activeRooms = allRooms
                 .filter(room => room.getUserCount() > 0)
-                .map(room => ({
-                    id: room.id,
-                    name: room.name,
-                    userCount: room.getUserCount(),
-                    category: room.category
-                }));
+                .map(room => {
+                    // Get category name instead of ID
+                    const categoryName = categoryMap.get(room.category) || `Category ${room.category}`;
+                    
+                    return {
+                        id: room.id,
+                        name: room.name,
+                        userCount: room.getUserCount(),
+                        category: categoryName // Show category name instead of ID
+                    };
+                });
             
             // Send data in the same format as API endpoint
             const data = {
@@ -1002,26 +1147,46 @@ class WebInterface {
             // Send full state update to all connected clients immediately
             const serverStats = this.serverState.getStats();
             
-            // Get user data in the same format as the API endpoint
+            // Get categories for name lookup - same as API endpoint
+            const categories = await this.db.getCategories();
+            const categoryMap = new Map();
+            categories.forEach(cat => {
+                categoryMap.set(cat.code, cat.value);
+            });
+            
+            // Get user data with room names instead of IDs - same as API endpoint
             const users = this.serverState.getAllUsers().map(user => {
                 const roomIds = user.getRoomIds();
+                let currentRoomName = null;
+                
+                // Get room name instead of ID
+                if (roomIds.length > 0) {
+                    const room = this.serverState.getRoom(roomIds[0]);
+                    currentRoomName = room ? room.name : `Room ${roomIds[0]}`;
+                }
+                
                 return {
                     id: user.uid,
                     nickname: user.nickname,
-                    currentRoom: roomIds.length > 0 ? roomIds[0] : null
+                    currentRoom: currentRoomName // Show room name instead of ID
                 };
             });
             
-            // Only include rooms that have users in them
+            // Only include rooms that have users in them with category names - same as API endpoint
             const allRooms = this.serverState.getAllRooms();
             const activeRooms = allRooms
                 .filter(room => room.getUserCount() > 0)
-                .map(room => ({
-                    id: room.id,
-                    name: room.name,
-                    userCount: room.getUserCount(),
-                    category: room.category
-                }));
+                .map(room => {
+                    // Get category name instead of ID
+                    const categoryName = categoryMap.get(room.category) || `Category ${room.category}`;
+                    
+                    return {
+                        id: room.id,
+                        name: room.name,
+                        userCount: room.getUserCount(),
+                        category: categoryName // Show category name instead of ID
+                    };
+                });
             
             // Send complete data in the same format as API endpoint
             const data = {

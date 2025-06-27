@@ -363,6 +363,27 @@ class DatabaseManager {
     }
 
     /**
+     * Get all groups (rooms) with their category information
+     * @returns {Promise<Array>}
+     */
+    async getGroups() {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                'SELECT g.*, c.value as category_name FROM groups g LEFT JOIN categories c ON g.catg = c.code ORDER BY g.id',
+                [],
+                (err, rows) => {
+                    if (err) {
+                        logger.error('Failed to get groups', err);
+                        reject(err);
+                    } else {
+                        resolve(rows || []);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
      * Get all permanent rooms
      * @returns {Promise<Array>}
      */

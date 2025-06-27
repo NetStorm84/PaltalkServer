@@ -250,6 +250,17 @@
             font-size: 0.8rem;
         }
 
+        .btn-kick {
+            background: #ef4444 !important;
+            font-size: 0.75rem;
+            padding: 6px 10px;
+        }
+
+        .btn-kick:hover {
+            background: #dc2626 !important;
+            transform: translateY(-1px);
+        }
+
         .empty-state {
             text-align: center;
             color: #64748b;
@@ -459,6 +470,13 @@
                         <div class="item-name">${user.nickname || user.id}</div>
                         <div class="item-details">ID: ${user.id} | Room: ${user.currentRoom || 'None'}</div>
                     </div>
+                    <div>
+                        <button class="btn btn-small btn-kick" style="margin-left: 8px;" 
+                                onclick="kickUser(${user.id}, '${user.nickname || user.id}')" 
+                                title="Kick user from server">
+                            🚫 Kick
+                        </button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -551,6 +569,48 @@
                 return `${minutes}m ${secs}s`;
             } else {
                 return `${secs}s`;
+            }
+        }
+
+        // User management functions
+        async function kickUser(userId, nickname) {
+            if (!confirm(`Are you sure you want to kick user "${nickname}" from the server?`)) {
+                return;
+            }
+
+            const reason = prompt('Enter kick reason (optional):', 'Kicked by administrator');
+            if (reason === null) {
+                return; // User cancelled
+            }
+
+            try {
+                console.log(`Kicking user ${nickname} (${userId}) with reason: ${reason}`);
+                
+                const response = await fetch(`/api/admin/users/${userId}/kick`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ reason: reason || 'Kicked by administrator' })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    console.log('User kicked successfully:', result);
+                    
+                    // Show success message
+                    alert(`User "${nickname}" has been kicked from the server.\nReason: ${result.reason}`);
+                    
+                    // Refresh data immediately to update the user list
+                    refreshData();
+                } else {
+                    console.error('Failed to kick user:', result);
+                    alert(`Failed to kick user: ${result.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error kicking user:', error);
+                alert('Error kicking user. Please try again.');
             }
         }
 
