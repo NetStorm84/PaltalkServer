@@ -1270,7 +1270,7 @@ class PacketProcessor {
             payload.slice(4)
         ]);
         
-        this.broadcastToRoom(room, 0x015f, bannerBuffer);
+        this.broadcastToRoom(room, PACKET_TYPES.ROOM_TOPIC, bannerBuffer);
     }
 
     async handleVersions(socket, payload) {
@@ -1484,7 +1484,7 @@ class PacketProcessor {
             Buffer.from('00000000', 'hex'),
             Buffer.from(room.topic, 'utf8')
         ]);
-        sendPacket(socket, 0x015f, topicBuffer, socket.id);
+        sendPacket(socket, PACKET_TYPES.ROOM_TOPIC, topicBuffer, socket.id);
 
         // Send status message if it exists (this is what admins can change)
         if (room.statusMessage && room.statusMessage.trim()) {
@@ -1493,7 +1493,7 @@ class PacketProcessor {
                 Buffer.from('00000000', 'hex'),
                 Buffer.from(room.statusMessage, 'utf8')
             ]);
-            sendPacket(socket, 0x015f, statusBuffer, socket.id);
+            sendPacket(socket, PACKET_TYPES.ROOM_TOPIC, statusBuffer, socket.id);
         }
 
         // Send user list

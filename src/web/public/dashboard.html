@@ -531,6 +531,10 @@
             }
         }
 
+        // Track last log update to prevent duplicate rapid updates
+        let lastLogUpdate = 0;
+        let lastLogCount = 0;
+
         function updateLogs(logs) {
             const container = document.getElementById('logContainer');
             
@@ -539,12 +543,36 @@
                 return;
             }
 
-            container.innerHTML = logs.slice(-50).map(log => {
+            // Prevent rapid successive updates (debounce)
+            const now = Date.now();
+            if (now - lastLogUpdate < 1000 && logs.length === lastLogCount) {
+                console.log('Skipping duplicate log update');
+                return;
+            }
+            
+            lastLogUpdate = now;
+            lastLogCount = logs.length;
+
+            // Take the 50 most recent logs and create unique entries
+            const recentLogs = logs.slice(-50);
+            const uniqueLogs = [];
+            const seenIds = new Set();
+            
+            // Deduplicate logs by ID if available, otherwise by timestamp + message
+            for (const log of recentLogs) {
+                const logId = log.id || `${log.timestamp}-${log.message}`;
+                if (!seenIds.has(logId)) {
+                    seenIds.add(logId);
+                    uniqueLogs.push(log);
+                }
+            }
+
+            container.innerHTML = uniqueLogs.map(log => {
                 const timestamp = new Date(log.timestamp).toLocaleTimeString();
                 const levelClass = `log-level-${log.level}`;
                 
                 return `
-                    <div class="log-entry">
+                    <div class="log-entry" data-log-id="${log.id || ''}">
                         <span class="log-timestamp">[${timestamp}]</span>
                         <span class="${levelClass}">[${log.level.toUpperCase()}]</span>
                         <span>${log.message}</span>
@@ -554,6 +582,8 @@
 
             // Auto-scroll to bottom
             container.scrollTop = container.scrollHeight;
+            
+            console.log(`📋 Updated logs display: ${uniqueLogs.length} unique logs`);
         }
 
         function formatUptime(seconds) {
@@ -625,12 +655,8 @@
             }
         }, 3000);
 
-        // Auto-refresh logs every 30 seconds (since we have real-time updates)
-        setInterval(() => {
-            if (isConnected) {
-                refreshLogs();
-            }
-        }, 30000);
+        // Note: Log refresh is handled via real-time Socket.IO updates
+        // No need for periodic API calls since we have live log streaming
     </script>
 </body>
 </html>

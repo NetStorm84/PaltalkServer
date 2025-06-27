@@ -23,6 +23,7 @@ class WebInterface {
         this.voiceServer = voiceServer;
         this.db = databaseManager;
         this.isRunning = false;
+        this.lastLogBroadcast = 0; // Initialize throttling for log broadcasts
         
         // Initialize auth controller
         this.authController = new AuthController(databaseManager);
@@ -1001,9 +1002,12 @@ class WebInterface {
         });
 
         // Listen for general log events to update dashboard logs
-        logger.on('logged', () => {
-            // Broadcast updated logs to all connected dashboards
-            this.broadcastLogs();
+        logger.on('logged', (logEntry) => {
+            // Throttle log broadcasts to prevent spam - only broadcast every 2 seconds max
+            if (!this.lastLogBroadcast || Date.now() - this.lastLogBroadcast > 2000) {
+                this.broadcastLogs();
+                this.lastLogBroadcast = Date.now();
+            }
         });
 
         // New events for real-time room updates
@@ -1021,10 +1025,10 @@ class WebInterface {
             this.broadcastVoiceMetrics();
         }, 3000); // Update every 3 seconds
 
-        // Start periodic logs broadcasting for dashboard
+        // Fallback log broadcasting for edge cases (less frequent)
         setInterval(() => {
             this.broadcastLogs();
-        }, 10000); // Update logs every 10 seconds
+        }, 30000); // Update logs every 30 seconds as backup
 
         // Start periodic server state broadcasting for real-time updates
         setInterval(() => {
@@ -1109,12 +1113,21 @@ class WebInterface {
     broadcastLogs() {
         try {
             const logs = logger.getRecentLogs(25);
-            this.io.emit('logsUpdate', {
-                logs: logs,
-                timestamp: new Date().toISOString()
-            });
+            
+            // Only broadcast if there are connected clients
+            if (this.io.engine.clientsCount > 0) {
+                this.io.emit('logsUpdate', {
+                    logs: logs,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // REMOVED: logger.debug call to prevent recursive loop
+                // The debug log was causing infinite recursion:
+                // broadcastLogs -> logger.debug -> 'logged' event -> broadcastLogs
+            }
         } catch (error) {
-            logger.error('Failed to broadcast logs', error);
+            // Use console.error instead of logger.error to prevent recursion
+            console.error('Failed to broadcast logs:', error);
         }
     }
 
@@ -1136,13 +1149,15 @@ class WebInterface {
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
-            logger.error('Failed to broadcast voice metrics', error);
+            // Use console.error instead of logger.error to prevent recursion
+            console.error('Failed to broadcast voice metrics:', error);
         }
     }
 
     async broadcastUpdate(eventType) {
         try {
-            logger.debug('📡 Broadcasting update', { eventType });
+            // REMOVED: debug log to prevent recursive loop during periodic updates
+            // The periodic broadcasts (every 2 seconds) were creating too many log entries
             
             // Send full state update to all connected clients immediately
             const serverStats = this.serverState.getStats();
@@ -1205,14 +1220,14 @@ class WebInterface {
             // Broadcast to all connected web clients
             this.io.emit('serverUpdate', data);
             
-            logger.debug('✅ Broadcasted server update', { 
-                eventType, 
-                onlineUsers: data.stats.onlineUsers, 
-                activeRooms: data.stats.activeRooms,
-                connectedClients: this.io.engine.clientsCount || 0
-            });
+            // REMOVED: debug log to prevent recursive loops and log spam
+            // Only log non-periodic events to avoid clutter
+            if (eventType !== 'periodic') {
+                console.log(`✅ Broadcasted server update: ${eventType}`);
+            }
         } catch (error) {
-            logger.error('❌ Failed to broadcast update', error, { eventType });
+            // Use console.error instead of logger.error to prevent recursion
+            console.error('❌ Failed to broadcast update:', error);
         }
     }
 

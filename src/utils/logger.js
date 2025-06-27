@@ -59,6 +59,9 @@ class Logger extends EventEmitter {
             this.recentLogs = this.recentLogs.slice(0, this.maxRecentLogs);
         }
         
+        // Emit event for real-time log broadcasting
+        this.emit('logged', logEntry);
+        
         return logEntry;
     }
 
