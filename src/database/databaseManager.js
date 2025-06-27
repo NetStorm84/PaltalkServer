@@ -405,6 +405,78 @@ class DatabaseManager {
     }
 
     /**
+     * Update room information
+     * @param {number} roomId 
+     * @param {Object} updateData 
+     * @returns {Promise<boolean>}
+     */
+    async updateRoom(roomId, updateData) {
+        return new Promise((resolve, reject) => {
+            const {
+                nm,
+                catg,
+                r,
+                v,
+                p,
+                l,
+                password,
+                c,
+                topic,
+                mike,
+                text,
+                video,
+                owner,
+                cr,
+                isClosed
+            } = updateData;
+
+            // Build dynamic SQL based on which fields are provided
+            const fields = [];
+            const values = [];
+
+            if (nm !== undefined) { fields.push('nm = ?'); values.push(nm); }
+            if (catg !== undefined) { fields.push('catg = ?'); values.push(catg); }
+            if (r !== undefined) { fields.push('r = ?'); values.push(r); }
+            if (v !== undefined) { fields.push('v = ?'); values.push(v); }
+            if (p !== undefined) { fields.push('p = ?'); values.push(p); }
+            if (l !== undefined) { fields.push('l = ?'); values.push(l); }
+            if (password !== undefined) { fields.push('password = ?'); values.push(password); }
+            if (c !== undefined) { fields.push('c = ?'); values.push(c); }
+            if (topic !== undefined) { fields.push('topic = ?'); values.push(topic); }
+            if (mike !== undefined) { fields.push('mike = ?'); values.push(mike); }
+            if (text !== undefined) { fields.push('text = ?'); values.push(text); }
+            if (video !== undefined) { fields.push('video = ?'); values.push(video); }
+            if (owner !== undefined) { fields.push('owner = ?'); values.push(owner); }
+            if (cr !== undefined) { fields.push('cr = ?'); values.push(cr); }
+            if (isClosed !== undefined) { fields.push('isClosed = ?'); values.push(isClosed ? 1 : 0); }
+
+            if (fields.length === 0) {
+                logger.warn('No fields to update in room', { roomId });
+                resolve(false);
+                return;
+            }
+
+            values.push(roomId); // Add roomId for WHERE clause
+
+            const sql = `UPDATE groups SET ${fields.join(', ')} WHERE id = ?`;
+
+            this.db.run(sql, values, function(err) {
+                if (err) {
+                    logger.error('Failed to update room', err, { roomId, updateData });
+                    reject(err);
+                } else {
+                    logger.info('Room updated successfully', { 
+                        roomId, 
+                        changes: this.changes,
+                        fieldsUpdated: fields.length 
+                    });
+                    resolve(this.changes > 0);
+                }
+            });
+        });
+    }
+
+    /**
      * Store offline message
      * @param {number} sender 
      * @param {number} receiver 

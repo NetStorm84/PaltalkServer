@@ -132,6 +132,10 @@ class PacketProcessor {
                     await this.handleRoomLeave(socket, payload);
                     break;
                 
+                case PACKET_TYPES.ROOM_CLOSE:
+                    await this.handleRoomClose(socket, payload);
+                    break;
+                
                 case PACKET_TYPES.ROOM_CREATE:
                     await this.handleRoomCreate(socket, payload);
                     break;
@@ -598,6 +602,65 @@ class PacketProcessor {
         // - Regular users join as normal users (can still use "Join as Admin" separately)
         const isAdmin = user.isAdmin() || (room.createdBy === user.uid);
 
+        // Check if room is closed and user has permission to access it
+        if (room.isClosed && !room.isAccessibleTo(user)) {
+            logger.warn('User attempted to join closed room without permission', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName: room.name,
+                isGlobalAdmin: user.isAdmin(),
+                isRoomOwner: room.createdBy === user.uid
+            });
+            
+            // Send error response - room appears to not exist to regular users
+            const errorMessage = `Room ${roomId} does not exist.`;
+            const errorPayload = Buffer.from(errorMessage, 'utf8');
+            socket.write(Buffer.concat([
+                Buffer.from([0x01, 0x37, 0x00, 0x1D]), // Error packet header
+                Buffer.from([errorPayload.length & 0xFF, (errorPayload.length >> 8) & 0xFF]), // Length
+                errorPayload
+            ]));
+            return;
+        }
+
+        // If room is closed but user is admin/owner, reopen the room automatically
+        if (room.isClosed && room.isAccessibleTo(user)) {
+            logger.info('Admin/Owner joining closed room - reopening automatically', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName: room.name,
+                isGlobalAdmin: user.isAdmin(),
+                isRoomOwner: room.createdBy === user.uid,
+                roomClosedStateBefore: room.isClosed
+            });
+            
+            await room.reopenRoom(user.uid);
+            
+            // Verify the room was actually reopened by checking BOTH the room object AND the serverState reference
+            const roomFromServerState = serverState.getRoom(room.id);
+            logger.info('Room reopening completed - verification', {
+                roomId: room.id,
+                roomName: room.name,
+                closedStateAfter: room.isClosed,
+                serverStateRoomClosed: roomFromServerState ? roomFromServerState.isClosed : 'ROOM_NOT_FOUND',
+                reopenSuccessful: !room.isClosed,
+                roomObjectsMatch: room === roomFromServerState,
+                objectReference: room.constructor.name + '_' + room.id
+            });
+            
+            // CRITICAL: If there's a mismatch, log it as an error
+            if (roomFromServerState && room.isClosed !== roomFromServerState.isClosed) {
+                logger.error('ROOM STATE MISMATCH: Room object and ServerState room have different closed states!', {
+                    roomId: room.id,
+                    roomObjectClosed: room.isClosed,
+                    serverStateRoomClosed: roomFromServerState.isClosed,
+                    roomObjectsAreSame: room === roomFromServerState
+                });
+            }
+        }
+
         logger.info('Attempting to add user to room', {
             userId: user.uid,
             nickname: user.nickname,
@@ -734,6 +797,97 @@ class PacketProcessor {
                 }
             }
         }
+    }
+
+    /**
+     * Handle room close packet - when a room is being closed
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleRoomClose(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        // Extract room ID from payload (first 4 bytes)
+        const roomId = Utils.hexToDec(payload.slice(0, 4));
+        const room = serverState.getRoom(roomId);
+        
+        if (!room) {
+            logger.warn('Room close requested for non-existent room', { 
+                roomId, 
+                userId: user.uid,
+                nickname: user.nickname
+            });
+            return;
+        }
+
+        // Check if user has permission to close the room
+        // Only room owner, global admins, or room admins can close rooms
+        const userInRoom = room.getUser(user.uid);
+        const isRoomAdmin = userInRoom && userInRoom.isRoomAdmin;
+        const isGlobalAdmin = user.isAdmin();
+        const isRoomOwner = room.createdBy === user.uid;
+        
+        if (!isRoomAdmin && !isGlobalAdmin && !isRoomOwner) {
+            logger.warn('User without admin privileges attempted to close room', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName: room.name,
+                isRoomAdmin,
+                isGlobalAdmin,
+                isRoomOwner
+            });
+            return;
+        }
+
+        logger.info('Room close initiated', {
+            userId: user.uid,
+            nickname: user.nickname,
+            roomId: room.id,
+            roomName: room.name,
+            userCount: room.getUserCount(),
+            adminType: isGlobalAdmin ? 'global_admin' : isRoomOwner ? 'room_owner' : 'room_admin'
+        });
+
+        // Create ROOM_CLOSED packet with room ID and close message
+        // Format: Room ID (4 bytes) + Close message text
+        const closeMessage = `Room ${room.name} has been closed.`;
+        const roomClosedBuffer = Buffer.concat([
+            Buffer.from(Utils.decToHex(roomId), 'hex'),  // Room ID as 4-byte hex
+            Buffer.from(closeMessage, 'utf8')            // Close message text
+        ]);
+
+        // Send ROOM_CLOSED notification to all users currently in the room
+        this.broadcastToRoom(room, PACKET_TYPES.ROOM_CLOSED, roomClosedBuffer);
+
+        logger.info('ROOM_CLOSED packets sent to all users in room', {
+            roomId: room.id,
+            roomName: room.name,
+            userCount: room.getUserCount(),
+            packetType: `0x${PACKET_TYPES.ROOM_CLOSED.toString(16)}`,
+            bufferFormat: 'binary 8-byte (room_id + padding)'
+        });
+
+        // Remove all users from the room
+        const userIds = Array.from(room.users.keys());
+        userIds.forEach(uid => {
+            const roomUser = serverState.getUser(uid);
+            if (roomUser) {
+                room.removeUser(roomUser);
+            }
+        });
+
+        // Close the room instead of removing it - this hides it from room lists
+        // but allows admins to rejoin and reopen it later
+        await room.closeRoom(user.uid);
+
+        logger.info('Room closed and hidden from public lists', { 
+            roomId: room.id, 
+            roomName: room.name,
+            closedBy: user.uid,
+            closedByNickname: user.nickname
+        });
     }
 
     async handleRoomCreate(socket, payload) {
@@ -1006,6 +1160,9 @@ class PacketProcessor {
     }
 
     async handleRefreshCategories(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+        
         const categoryId = Utils.hexToDec(payload.slice(8, 12));
         
         if (categoryId === 0) {
@@ -1013,8 +1170,8 @@ class PacketProcessor {
             const countsBuffer = this.createCategoryCountsBuffer();
             sendPacket(socket, PACKET_TYPES.CATEGORY_COUNT, countsBuffer, socket.id);
         } else {
-            // Send room list for category
-            const roomsBuffer = this.createRoomListBuffer(categoryId);
+            // Send room list for category (pass user context to filter closed rooms)
+            const roomsBuffer = this.createRoomListBuffer(categoryId, user);
             sendPacket(socket, PACKET_TYPES.ROOM_LIST, roomsBuffer, socket.id);
         }
     }
@@ -1414,14 +1571,15 @@ class PacketProcessor {
         return Buffer.concat(buffers);
     }
 
-    createRoomListBuffer(categoryId) {
+    createRoomListBuffer(categoryId, user = null) {
         const buffers = [];
         const delimiter = Buffer.from([0xC8]);
         
         buffers.push(Buffer.from(`catg=${categoryId}\n`));
         buffers.push(delimiter);
 
-        const rooms = serverState.getRoomsByCategory(categoryId);
+        // Pass user context to getRoomsByCategory to filter out closed rooms
+        const rooms = serverState.getRoomsByCategory(categoryId, user);
         rooms.forEach(room => {
             // l=1 means locked (password required), l=0 means not locked
             const isLocked = room.password ? 1 : 0;
@@ -1950,6 +2108,7 @@ class PacketProcessor {
         // Find the user by UID
         const targetUser = await this.db.getUserByUid(targetUid);
         if (!targetUser) {
+
             logger.warn('Target user not found for admin room join', {
                 requestingUserId: user.uid,
                 targetUid: targetUid
@@ -1976,8 +2135,32 @@ class PacketProcessor {
             targetUid: targetUid,
             targetNickname: targetUser.nickname,
             roomId: targetRoom.id,
-            roomName: targetRoom.name
+            roomName: targetRoom.name,
+            roomIsClosed: targetRoom.isClosed
         });
+
+        // CRITICAL FIX: If room is closed, reopen it when admin joins
+        if (targetRoom.isClosed) {
+            logger.info('Admin joining closed room via "Join as Admin" - reopening automatically', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                targetUid: targetUid,
+                targetNickname: targetUser.nickname,
+                roomClosedStateBefore: targetRoom.isClosed
+            });
+            
+            await targetRoom.reopenRoom(user.uid);
+            
+            // Verify the room was actually reopened
+            logger.info('Room reopening completed via "Join as Admin" - verification', {
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                closedStateAfter: targetRoom.isClosed,
+                reopenSuccessful: !targetRoom.isClosed
+            });
+        }
 
         // For multiple room support, users can join additional rooms as admin
         // without leaving their current rooms (unless they choose to)        // Join the target room as admin (4th parameter = true, like original joinRoom call)

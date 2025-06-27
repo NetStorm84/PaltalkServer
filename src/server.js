@@ -98,6 +98,10 @@ class PaltalkServer {
     async initializeDatabase() {
         logger.info('📊 Initializing database...');
         await this.databaseManager.initialize();
+        
+        // Inject database manager into serverState for room operations
+        serverState.setDatabaseManager(this.databaseManager);
+        
         logger.info('✅ Database initialized');
     }
 

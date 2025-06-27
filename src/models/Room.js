@@ -31,6 +31,7 @@ class Room {
         this.createdAt = new Date();
         this.createdBy = roomData.createdBy || roomData.owner || null;
         this.statusMessage = '';
+        this.isClosed = Boolean(roomData.isClosed); // Room closed status - hidden from lists but admins can join
         
         // Voice server info
         this.voiceServerIP = roomData.voiceServerIP || '127.0.0.1';
@@ -240,6 +241,156 @@ class Room {
         }
 
         return true;
+    }
+
+    /**
+     * Close the room - hides it from room lists but keeps it accessible to admins
+     * @param {number} closedByUid - UID of user who closed the room
+     */
+    async closeRoom(closedByUid) {
+        this.isClosed = true;
+        
+        // Persist to database if this is a permanent room
+        if (this.isPermanent && this.serverState && this.serverState.databaseManager) {
+            try {
+                await this.serverState.databaseManager.updateRoom(this.id, { isClosed: true });
+                logger.info('Room closed status persisted to database', {
+                    roomId: this.id,
+                    roomName: this.name
+                });
+            } catch (error) {
+                logger.error('Failed to persist room closed status to database', error, {
+                    roomId: this.id,
+                    roomName: this.name,
+                    closedBy: closedByUid
+                });
+            }
+        }
+        
+        logger.logRoomActivity('room_closed', this.id, closedByUid, {
+            roomName: this.name
+        });
+        
+        logger.info('Room closed', {
+            roomId: this.id,
+            roomName: this.name,
+            closedBy: closedByUid
+        });
+    }    /**
+     * Reopen the room - makes it visible in room lists again
+     * @param {number} reopenedByUid - UID of user who reopened the room
+     */
+    async reopenRoom(reopenedByUid) {
+        logger.info('Room reopening initiated', {
+            roomId: this.id,
+            roomName: this.name,
+            currentlyClosedState: this.isClosed,
+            reopenedBy: reopenedByUid,
+            thisReference: typeof this,
+            objectId: this.constructor.name + '_' + this.id
+        });
+
+        // CRITICAL DEBUG: Check the room state before modification
+        const stateBeforeUpdate = this.isClosed;
+        
+        this.isClosed = false;
+        
+        // CRITICAL DEBUG: Verify state was actually changed
+        const stateAfterUpdate = this.isClosed;
+        logger.info('Room state update verification', {
+            roomId: this.id,
+            roomName: this.name,
+            stateBeforeUpdate,
+            stateAfterUpdate,
+            updateSuccessful: stateAfterUpdate === false,
+            reopenedBy: reopenedByUid
+        });
+        
+        // Persist to database if this is a permanent room
+        if (this.isPermanent && this.serverState && this.serverState.databaseManager) {
+            try {
+                await this.serverState.databaseManager.updateRoom(this.id, { isClosed: false });
+                logger.info('Room reopened status persisted to database', {
+                    roomId: this.id,
+                    roomName: this.name
+                });
+            } catch (error) {
+                logger.error('Failed to persist room reopened status to database', error, {
+                    roomId: this.id,
+                    roomName: this.name,
+                    reopenedBy: reopenedByUid
+                });
+                // CRITICAL: If database update fails, should we revert the in-memory state?
+                // For now, we'll keep the in-memory state as reopened even if DB fails
+            }
+        }
+        
+        logger.logRoomActivity('room_reopened', this.id, reopenedByUid, {
+            roomName: this.name
+        });
+
+        // FINAL VERIFICATION: Check state one more time after everything
+        logger.info('Room reopened successfully - final verification', {
+            roomId: this.id,
+            roomName: this.name,
+            finalClosedState: this.isClosed,
+            reopenSuccessful: !this.isClosed,
+            reopenedBy: reopenedByUid,
+            isPermanent: this.isPermanent,
+            hasServerState: !!this.serverState,
+            hasDatabaseManager: !!(this.serverState && this.serverState.databaseManager)
+        });
+    }
+
+    /**
+     * Check if room is accessible to a user
+     * @param {Object} user - User object
+     * @returns {boolean}
+     */
+    isAccessibleTo(user) {
+        // If room is not closed, it's accessible to everyone
+        if (!this.isClosed) {
+            return true;
+        }
+        
+        // Debug logging for closed room access checks
+        const isGlobalAdmin = user && user.isAdmin && user.isAdmin();
+        const isRoomOwner = user && this.createdBy === user.uid;
+        
+        // Enhanced debugging for room 50001
+        if (this.id === 50001) {
+            logger.info('DEBUG: Room 50001 accessibility check', {
+                roomId: this.id,
+                roomName: this.name,
+                isClosed: this.isClosed,
+                userId: user?.uid,
+                userNickname: user?.nickname,
+                isGlobalAdmin,
+                isRoomOwner,
+                roomCreatedBy: this.createdBy,
+                userHasIsAdminMethod: user && typeof user.isAdmin === 'function',
+                rawUserObject: user ? {
+                    uid: user.uid,
+                    nickname: user.nickname,
+                    admin: user.admin,
+                    isAdminResult: user.isAdmin ? user.isAdmin() : 'method_not_available'
+                } : null,
+                finalResult: isGlobalAdmin || isRoomOwner
+            });
+        }
+        
+        logger.debug('Room accessibility check', {
+            roomId: this.id,
+            roomName: this.name,
+            isClosed: this.isClosed,
+            userId: user?.uid,
+            isGlobalAdmin,
+            isRoomOwner,
+            accessible: isGlobalAdmin || isRoomOwner
+        });
+        
+        // If room is closed, only admins and room owners can access it
+        return isGlobalAdmin || isRoomOwner;
     }
 
     /**

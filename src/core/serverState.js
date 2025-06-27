@@ -347,7 +347,22 @@ class ServerState extends EventEmitter {
      * @returns {Room|null}
      */
     getRoom(roomId) {
-        return this.rooms.get(roomId) || null;
+        const room = this.rooms.get(roomId) || null;
+        
+        // Enhanced debugging for room 50001
+        if (roomId === 50001 && room) {
+            logger.info('DEBUG: ServerState.getRoom() called for room 50001', {
+                roomId: roomId,
+                roomFound: !!room,
+                roomName: room.name,
+                roomIsClosed: room.isClosed,
+                mapSize: this.rooms.size,
+                roomReference: room.constructor.name + '_' + room.id,
+                memoryAddress: typeof room
+            });
+        }
+        
+        return room;
     }
 
     /**
@@ -361,22 +376,119 @@ class ServerState extends EventEmitter {
     /**
      * Get rooms by category code - with special handling for Top Rooms
      * @param {number} categoryCode 
+     * @param {Object} user - Optional user object to check room accessibility
      * @returns {Array<Room>}
      */
-    getRoomsByCategory(categoryCode) {
+    getRoomsByCategory(categoryCode, user = null) {
+        logger.debug('getRoomsByCategory called', {
+            categoryCode,
+            userId: user?.uid,
+            userNickname: user?.nickname,
+            isAdmin: user ? user.isAdmin() : null,
+            totalRoomsInMemory: this.rooms.size
+        });
+
         // Special handling for Top Rooms category (30001)
         // Return top 20 rooms by user count, but only include rooms with users
         if (categoryCode === 30001) {
-            return Array.from(this.rooms.values())
-                .filter(room => room.getUserCount() > 0) // Only include rooms with users
+            const filteredRooms = Array.from(this.rooms.values())
+                .filter(room => {
+                    // Filter out closed rooms unless user is admin/owner
+                    if (room.isClosed && !room.isAccessibleTo(user)) {
+                        logger.debug('Top room filtered out - closed and not accessible', {
+                            roomId: room.id,
+                            roomName: room.name,
+                            isClosed: room.isClosed,
+                            isAccessible: room.isAccessibleTo(user),
+                            userId: user?.uid
+                        });
+                        return false;
+                    }
+                    const hasUsers = room.getUserCount() > 0;
+                    if (!hasUsers) {
+                        logger.debug('Top room filtered out - no users', {
+                            roomId: room.id,
+                            roomName: room.name,
+                            userCount: room.getUserCount()
+                        });
+                    }
+                    return hasUsers; // Only include rooms with users
+                })
                 .sort((a, b) => b.getUserCount() - a.getUserCount()) // Sort by user count descending
                 .slice(0, 20); // Take top 20
+            
+            logger.debug('Top rooms category results', {
+                categoryCode: 30001,
+                originalRoomCount: this.rooms.size,
+                filteredRoomCount: filteredRooms.length,
+                rooms: filteredRooms.map(r => ({ id: r.id, name: r.name, users: r.getUserCount(), isClosed: r.isClosed }))
+            });
+            
+            return filteredRooms;
         }
         
-        // For all other categories, filter by category code as usual
-        return Array.from(this.rooms.values()).filter(room => 
-            room.category === categoryCode
-        );
+        // For all other categories, filter by category code and accessibility
+        const allRooms = Array.from(this.rooms.values());
+        const categoryRooms = allRooms.filter(room => room.category === categoryCode);
+        
+        logger.debug('Category rooms before filtering', {
+            categoryCode,
+            totalRooms: allRooms.length,
+            categoryRooms: categoryRooms.length,
+            categoryRoomDetails: categoryRooms.map(r => ({ 
+                id: r.id, 
+                name: r.name, 
+                isClosed: r.isClosed, 
+                category: r.category,
+                isAccessible: r.isAccessibleTo(user),
+                userCount: r.getUserCount()
+            }))
+        });
+
+        const filteredRooms = categoryRooms.filter(room => {
+            if (room.category !== categoryCode) {
+                return false;
+            }
+            
+            // Check room 50001 specifically for debugging
+            if (room.id === 50001) {
+                logger.info('DEBUG: Room 50001 filtering check', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    category: room.category,
+                    targetCategory: categoryCode,
+                    isClosed: room.isClosed,
+                    isAccessible: room.isAccessibleTo(user),
+                    userId: user?.uid,
+                    userIsAdmin: user ? user.isAdmin() : null,
+                    roomCreatedBy: room.createdBy,
+                    willBeIncluded: !room.isClosed || room.isAccessibleTo(user),
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
+            // Filter out closed rooms unless user is admin/owner
+            if (room.isClosed && !room.isAccessibleTo(user)) {
+                logger.debug('Room filtered out - closed and not accessible', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    isClosed: room.isClosed,
+                    isAccessible: room.isAccessibleTo(user),
+                    userId: user?.uid
+                });
+                return false;
+            }
+            return true;
+        });
+
+        logger.debug('Category filtering results', {
+            categoryCode,
+            originalCount: categoryRooms.length,
+            filteredCount: filteredRooms.length,
+            filteredRooms: filteredRooms.map(r => ({ id: r.id, name: r.name, isClosed: r.isClosed, users: r.getUserCount() }))
+        });
+
+        return filteredRooms;
     }
 
     /**
@@ -784,6 +896,14 @@ class ServerState extends EventEmitter {
      */
     setPacketProcessor(packetProcessor) {
         this.packetProcessor = packetProcessor;
+    }
+
+    /**
+     * Set database manager reference for room database operations
+     * @param {DatabaseManager} databaseManager 
+     */
+    setDatabaseManager(databaseManager) {
+        this.databaseManager = databaseManager;
     }
 }
 

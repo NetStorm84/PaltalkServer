@@ -73,7 +73,8 @@ const db = new sqlite3.Database("database.db", (err) => {
       created               TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       owner                 INTEGER REFERENCES users(uid) DEFAULT 0,
       cr                    TEXT NOT NULL DEFAULT '', -- creator UID
-      topic                 TEXT DEFAULT 'Please support our sponsors.'
+      topic                 TEXT DEFAULT 'Please support our sponsors.',
+      isClosed              INTEGER NOT NULL DEFAULT 0 -- room closed status: 0=open, 1=closed
     )
     `,
   ];
