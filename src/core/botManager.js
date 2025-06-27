@@ -7,6 +7,8 @@ const logger = require('../utils/logger');
 const { USER_MODES, BOT_CONFIG } = require('../config/constants');
 const Utils = require('../utils/utils');
 const User = require('../models/User');
+const { sendPacket } = require('../network/packetSender');
+const { PACKET_TYPES } = require('../../PacketHeaders');
 
 class BotManager {
     constructor() {
@@ -385,14 +387,14 @@ class BotManager {
                         if (bot.currentRoomId) {
                             const room = serverState.getRoom(bot.currentRoomId);
                             if (room && room.hasUser(bot.uid)) {
-                                // Pass the actual botUser object, not just UID
+                                // Send disconnect notification to real users BEFORE removing bot
+                                this.sendBotDisconnectNotification(room, bot);
+                                
+                                // Now remove the bot from the room
                                 room.removeUser(botUser || bot.uid);
                                 
                                 // Update room count cache
                                 this.updateBotRoomCount(bot.currentRoomId, -1);
-                                
-                                // Send disconnect notification to real users in the room
-                                this.sendBotDisconnectNotification(room, bot);
                             }
                         }
                         
@@ -402,7 +404,10 @@ class BotManager {
                             for (const roomId of roomIds) {
                                 const room = serverState.getRoom(roomId);
                                 if (room && room.hasUser(bot.uid)) {
-                                    // Pass the actual botUser object, not just UID
+                                    // Send disconnect notification BEFORE removing bot
+                                    this.sendBotDisconnectNotification(room, bot);
+                                    
+                                    // Now remove the bot from the room
                                     room.removeUser(botUser);
                                 }
                             }
@@ -814,6 +819,9 @@ class BotManager {
         if (!room.addUser(botUserData, true, false)) { // visible, not admin
             throw new Error(`Failed to add bot ${botName} to room ${room.name}`);
         }
+
+        // Send join notification to real users in the room
+        this.sendBotJoinNotification(room, bot);
 
         logger.debug('Created bot', {
             uid: bot.uid,
@@ -1506,6 +1514,10 @@ class BotManager {
         try {
             // Leave current room
             if (currentRoom && currentRoom.hasUser(bot.uid)) {
+                // Send disconnect notification to real users BEFORE removing bot
+                this.sendBotDisconnectNotification(currentRoom, bot);
+                
+                // Now remove the bot from current room
                 currentRoom.removeUser({ uid: bot.uid });
                 // Update room count cache
                 this.updateBotRoomCount(bot.currentRoomId, -1);
@@ -1518,6 +1530,9 @@ class BotManager {
                 bot.lastMoveTime = Date.now();
                 // Update room count cache
                 this.updateBotRoomCount(newRoom.id, 1);
+                
+                // Send join notification to real users in the new room
+                this.sendBotJoinNotification(newRoom, bot);
                 
                 logger.debug('Bot moved rooms', {
                     botUid: bot.uid,
@@ -1542,31 +1557,128 @@ class BotManager {
      */
     sendBotDisconnectNotification(room, bot) {
         try {
-            // Send user left notification to all real users in the room
-            const userLeftBuffer = Buffer.from([
-                ...Utils.decToHex(room.id, 4),
-                ...Utils.decToHex(bot.uid, 4)
-            ].join(''), 'hex');
+            // Validate packet type first
+            if (!PACKET_TYPES.ROOM_USER_LEFT) {
+                logger.error('PACKET_TYPES.ROOM_USER_LEFT is undefined', { 
+                    packetTypes: Object.keys(PACKET_TYPES || {}),
+                    roomUserLeft: PACKET_TYPES.ROOM_USER_LEFT 
+                });
+                return;
+            }
+            
+            // Create user left notification packet (same format as in packetProcessor.js)
+            const userLeftBuffer = Buffer.alloc(8);
+            userLeftBuffer.writeUInt32BE(room.id, 0);  // Room ID as 4-byte big-endian
+            userLeftBuffer.writeUInt32BE(bot.uid, 4);  // Bot UID as 4-byte big-endian
 
+            let notificationsSent = 0;
             room.getAllUsers().forEach(roomUserData => {
-                const user = serverState.getUser(roomUserData.uid);
-                if (user && user.socket && !user.isBot) {
-                    try {
-                        const { sendPacket } = require('../network/packetSender');
-                        const { PACKET_TYPES } = require('../../PacketHeaders');
-                        sendPacket(user.socket, PACKET_TYPES.USER_LEFT_ROOM, userLeftBuffer, user.socket.id);
-                    } catch (error) {
-                        logger.warn('Failed to send bot disconnect notification', { 
-                            botUid: bot.uid, 
-                            userUid: user.uid,
-                            error: error.message 
-                        });
+                // Only send to real users (not other bots)
+                if (roomUserData.uid < BOT_CONFIG.BOT_UID_START) {
+                    const user = serverState.getUser(roomUserData.uid);
+                    if (user && user.socket && !user.isBot) {
+                        try {
+                            sendPacket(user.socket, PACKET_TYPES.ROOM_USER_LEFT, userLeftBuffer, user.socket.id);
+                            notificationsSent++;
+                        } catch (error) {
+                            logger.warn('Failed to send bot disconnect notification', { 
+                                botUid: bot.uid, 
+                                botNickname: bot.nickname,
+                                userUid: user.uid,
+                                userNickname: user.nickname,
+                                roomId: room.id,
+                                error: error.message 
+                            });
+                        }
                     }
                 }
             });
+            
+            // CRITICAL: Send updated user list to refresh the room display
+            // Note: User list will be updated automatically when clients process the disconnect notifications
+            setTimeout(() => {
+                // Allow time for disconnect notifications to be processed
+                logger.debug('Bot disconnect notifications completed for room', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    notificationsSent
+                });
+            }, 100); // Small delay to ensure the user left packet is processed first
+            
+            if (notificationsSent > 0) {
+                logger.debug('Bot disconnect notifications sent', {
+                    botUid: bot.uid,
+                    botNickname: bot.nickname,
+                    roomId: room.id,
+                    roomName: room.name,
+                    notificationsSent
+                });
+            }
         } catch (error) {
             logger.warn('Failed to send bot disconnect notifications', {
                 botUid: bot.uid,
+                botNickname: bot.nickname,
+                roomId: room.id,
+                error: error.message
+            });
+        }
+    }
+
+    /**
+     * Send join notification to real users when a bot joins a room
+     */
+    sendBotJoinNotification(room, bot) {
+        try {
+            // Validate packet type first
+            if (!PACKET_TYPES.ROOM_USER_JOINED) {
+                logger.error('PACKET_TYPES.ROOM_USER_JOINED is undefined', { 
+                    packetTypes: Object.keys(PACKET_TYPES || {}),
+                    roomUserJoined: PACKET_TYPES.ROOM_USER_JOINED 
+                });
+                return;
+            }
+            
+            // Create user joined notification packet
+            const userJoinedBuffer = Buffer.alloc(8);
+            userJoinedBuffer.writeUInt32BE(room.id, 0);  // Room ID as 4-byte big-endian
+            userJoinedBuffer.writeUInt32BE(bot.uid, 4);  // Bot UID as 4-byte big-endian
+
+            let notificationsSent = 0;
+            room.getAllUsers().forEach(roomUserData => {
+                // Only send to real users (not other bots)
+                if (roomUserData.uid < BOT_CONFIG.BOT_UID_START) {
+                    const user = serverState.getUser(roomUserData.uid);
+                    if (user && user.socket && !user.isBot) {
+                        try {
+                            sendPacket(user.socket, PACKET_TYPES.ROOM_USER_JOINED, userJoinedBuffer, user.socket.id);
+                            notificationsSent++;
+                        } catch (error) {
+                            logger.warn('Failed to send bot join notification', { 
+                                botUid: bot.uid, 
+                                botNickname: bot.nickname,
+                                userUid: user.uid,
+                                userNickname: user.nickname,
+                                roomId: room.id,
+                                error: error.message 
+                            });
+                        }
+                    }
+                }
+            });
+            
+            if (notificationsSent > 0) {
+                logger.debug('Bot join notifications sent', {
+                    botUid: bot.uid,
+                    botNickname: bot.nickname,
+                    roomId: room.id,
+                    roomName: room.name,
+                    notificationsSent
+                });
+            }
+        } catch (error) {
+            logger.warn('Failed to send bot join notifications', {
+                botUid: bot.uid,
+                botNickname: bot.nickname,
                 roomId: room.id,
                 error: error.message
             });
@@ -1780,6 +1892,9 @@ class BotManager {
                     botName: botName,
                     roomId: assignedRoom.id
                 });
+            } else {
+                // Send join notification to real users in the room
+                this.sendBotJoinNotification(assignedRoom, bot);
             }
 
             return bot;
