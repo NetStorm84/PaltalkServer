@@ -54,6 +54,7 @@ const PACKET_TYPES = {
     USER_SEARCH: -69,
     ADD_PAL: -67,
     REMOVE_PAL: -66,  // Remove buddy from buddy list
+    USER_PROFILE_UPDATE: -65,  // User profile data update packet
     REFRESH_CATEGORIES: -330,
     ALERT_ADMIN: -305,
     EMAIL_INVITE: -200,

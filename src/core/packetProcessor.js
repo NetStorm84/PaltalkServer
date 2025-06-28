@@ -257,6 +257,10 @@ class PacketProcessor {
                     });
                     // Handle -1100 packet (likely final disconnect)
                     break;
+                
+                case PACKET_TYPES.USER_PROFILE_UPDATE:
+                    await this.handleUserProfileUpdate(socket, payload);
+                    break;
 
                 default:
                     logger.warn('Unhandled packet type', { packetType, socketId: socket.id });
@@ -1244,9 +1248,12 @@ class PacketProcessor {
         ]);
         
         room.getAllUsers().forEach(otherUserData => {
-            const otherUser = serverState.getUser(otherUserData.uid);
-            if (otherUser && otherUser.socket) {
-                sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_ON, micRequestData, otherUser.socket.id);
+            // Don't send mic request notification to the requesting user themselves
+            if (otherUserData.uid !== user.uid) {
+                const otherUser = serverState.getUser(otherUserData.uid);
+                if (otherUser && otherUser.socket) {
+                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_ON, micRequestData, otherUser.socket.id);
+                }
             }
         });
 
@@ -1280,17 +1287,23 @@ class PacketProcessor {
             );
             
             room.getAllUsers().forEach(otherUserData => {
-                const otherUser = serverState.getUser(otherUserData.uid);
-                if (otherUser && otherUser.socket) {
-                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micGrantedData, otherUser.socket.id);
+                // Don't send mic granted notification to the user who was granted mic (they already know)
+                if (otherUserData.uid !== user.uid) {
+                    const otherUser = serverState.getUser(otherUserData.uid);
+                    if (otherUser && otherUser.socket) {
+                        sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micGrantedData, otherUser.socket.id);
+                    }
                 }
             });
 
             // Remove the mic request flag since it was granted
             room.getAllUsers().forEach(otherUserData => {
-                const otherUser = serverState.getUser(otherUserData.uid);
-                if (otherUser && otherUser.socket) {
-                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_OFF, micRequestData, otherUser.socket.id);
+                // Don't send mic request OFF to the user who requested mic (they already know the status changed)
+                if (otherUserData.uid !== user.uid) {
+                    const otherUser = serverState.getUser(otherUserData.uid);
+                    if (otherUser && otherUser.socket) {
+                        sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_OFF, micRequestData, otherUser.socket.id);
+                    }
                 }
             });
         } else {
@@ -1305,8 +1318,9 @@ class PacketProcessor {
             sendPacket(socket, PACKET_TYPES.PACKET_ROOM_USER_RED_DOT_OFF, Buffer.from('00000000', 'hex'), socket.id);
         }
 
-        // Broadcast updated user list
-        this.broadcastUserListUpdate(room);
+        // NOTE: Removed broadcastUserListUpdate call as it was causing client disconnections
+        // The mic status changes are already communicated through the specific mic notification packets above
+        // and clients update their user lists automatically based on those packets
     }
 
     async handleMicUnrequest(socket, payload) {
@@ -1379,9 +1393,12 @@ class PacketProcessor {
         ]);
         
         room.getAllUsers().forEach(otherUserData => {
-            const otherUser = serverState.getUser(otherUserData.uid);
-            if (otherUser && otherUser.socket) {
-                sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_OFF, micRequestData, otherUser.socket.id);
+            // Don't send mic unrequest notification to the user who unrequested (they already know)
+            if (otherUserData.uid !== user.uid) {
+                const otherUser = serverState.getUser(otherUserData.uid);
+                if (otherUser && otherUser.socket) {
+                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_USER_MICREQUEST_OFF, micRequestData, otherUser.socket.id);
+                }
             }
         });
 
@@ -1392,14 +1409,18 @@ class PacketProcessor {
         );
         
         room.getAllUsers().forEach(otherUserData => {
-            const otherUser = serverState.getUser(otherUserData.uid);
-            if (otherUser && otherUser.socket) {
-                sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData, otherUser.socket.id);
+            // Don't send mic removal notification to the user who removed their mic (they already know)
+            if (otherUserData.uid !== user.uid) {
+                const otherUser = serverState.getUser(otherUserData.uid);
+                if (otherUser && otherUser.socket) {
+                    sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData, otherUser.socket.id);
+                }
             }
         });
 
-        // Broadcast updated user list to show mic status change
-        this.broadcastUserListUpdate(room);
+        // NOTE: Removed broadcastUserListUpdate call as it was causing client disconnections
+        // The mic status changes are already communicated through the specific mic notification packets above
+        // and clients update their user lists automatically based on those packets
 
         logger.info('=== MIC UNREQUEST DEBUG END ===', {
             userId: user.uid,
@@ -2579,6 +2600,134 @@ class PacketProcessor {
     }
 
     /**
+     * Handle user profile update packet (-65)
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleUserProfileUpdate(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) {
+            logger.warn('Profile update from unauthenticated socket', { socketId: socket.id });
+            return;
+        }
+
+        try {
+            // Decode the payload as UTF-8 string containing key-value pairs
+            const profileData = payload.toString('utf8');
+            
+            logger.info('User profile update received', {
+                userId: user.uid,
+                nickname: user.nickname,
+                payloadLength: payload.length,
+                rawData: profileData
+            });
+
+            // Parse the key-value pairs (format: key=value\nkey=value\n...)
+            const profileFields = {};
+            const lines = profileData.split('\n');
+            
+            for (const line of lines) {
+                const [key, value] = line.split('=');
+                if (key && value !== undefined) {
+                    profileFields[key.trim()] = value.trim();
+                }
+            }
+
+            logger.debug('Parsed profile fields', {
+                userId: user.uid,
+                nickname: user.nickname,
+                parsedFields: profileFields
+            });
+
+            // Verify the UID matches the logged-in user for security
+            if (profileFields.uid && parseInt(profileFields.uid) !== user.uid) {
+                logger.warn('UID mismatch in profile update - potential security issue', {
+                    packetUid: profileFields.uid,
+                    userUid: user.uid,
+                    socketId: socket.id
+                });
+                return;
+            }
+
+            // Map the profile fields to database fields
+            const updateData = {};
+            
+            if (profileFields.first) {
+                updateData.firstName = profileFields.first;
+            }
+            
+            if (profileFields.last) {
+                updateData.lastName = profileFields.last;
+            }
+            
+            if (profileFields.nickname) {
+                updateData.nickname = profileFields.nickname;
+            }
+            
+            if (profileFields.email) {
+                updateData.email = profileFields.email;
+            }
+
+            if (profileFields.get_offers_from_us) {
+                updateData.getOffersFromUs = profileFields.get_offers_from_us;
+            }
+
+            if (profileFields.get_offers_from_affiliates) {
+                updateData.getOffersFromAffiliates = profileFields.get_offers_from_affiliates;
+            }
+
+            if (profileFields.show_email) {
+                updateData.showEmail = profileFields.show_email;
+            }
+
+            if (profileFields.show_first) {
+                updateData.showFirst = profileFields.show_first;
+            }
+
+            if (profileFields.show_last) {
+                updateData.showLast = profileFields.show_last;
+            }
+
+            // Update the database if we have any fields to update
+            if (Object.keys(updateData).length > 0) {
+                await this.db.updateUser(user.uid, updateData);
+                
+                // Update the user object in memory
+                if (updateData.firstName) user.firstName = updateData.firstName;
+                if (updateData.lastName) user.lastName = updateData.lastName;
+                if (updateData.nickname) user.nickname = updateData.nickname;
+                if (updateData.email) user.email = updateData.email;
+                if (updateData.getOffersFromUs) user.getOffersFromUs = updateData.getOffersFromUs;
+                if (updateData.getOffersFromAffiliates) user.getOffersFromAffiliates = updateData.getOffersFromAffiliates;
+                if (updateData.showEmail) user.showEmail = updateData.showEmail;
+                if (updateData.showFirst) user.showFirst = updateData.showFirst;
+                if (updateData.showLast) user.showLast = updateData.showLast;
+
+                logger.info('User profile updated successfully', {
+                    userId: user.uid,
+                    nickname: user.nickname,
+                    updatedFields: Object.keys(updateData),
+                    updateData
+                });
+            } else {
+                logger.debug('No profile fields to update', {
+                    userId: user.uid,
+                    nickname: user.nickname,
+                    receivedFields: Object.keys(profileFields)
+                });
+            }
+
+        } catch (error) {
+            logger.error('Error processing user profile update', error, {
+                userId: user.uid,
+                nickname: user.nickname,
+                payloadLength: payload.length,
+                payloadHex: payload.toString('hex')
+            });
+        }
+    }
+
+    /**
      * Send buddy status notification to all users who have this user on their buddy list
      * @param {Object} user - The user whose status changed
      * @param {boolean} isOnline - Whether the user is going online (true) or offline (false)
@@ -2586,7 +2735,7 @@ class PacketProcessor {
     async sendBuddyStatusNotification(user, isOnline) {
         try {
             // Get all users who have this user on their buddy list
-            const usersWithBuddy = await this.databaseManager.getUsersWithBuddy(user.uid);
+            const usersWithBuddy = await this.db.getUsersWithBuddy(user.uid);
             
             if (usersWithBuddy.length === 0) {
                 logger.debug('No users have this user on their buddy list', { 

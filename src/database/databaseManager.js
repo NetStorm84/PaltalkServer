@@ -205,25 +205,55 @@ class DatabaseManager {
                 lastName = '',
                 paid1,
                 admin,
-                listed = 1
+                listed = 1,
+                getOffersFromUs,
+                getOffersFromAffiliates,
+                showEmail,
+                showFirst,
+                showLast
             } = updateData;
 
-            this.db.run(
-                `UPDATE users 
-                 SET nickname = ?, email = ?, first = ?, last = ?, 
-                     paid1 = ?, admin = ?, listed = ? 
-                 WHERE uid = ?`,
-                [nickname, email, firstName, lastName, paid1, admin, listed, uid],
-                function(err) {
-                    if (err) {
-                        logger.error('Failed to update user', err, { uid, updateData });
-                        reject(err);
-                    } else {
-                        logger.info('User updated successfully', { uid, changes: this.changes });
-                        resolve(this.changes > 0);
-                    }
+            // Build dynamic SQL to only update provided fields
+            const fields = [];
+            const values = [];
+
+            if (nickname !== undefined) { fields.push('nickname = ?'); values.push(nickname); }
+            if (email !== undefined) { fields.push('email = ?'); values.push(email); }
+            if (firstName !== undefined) { fields.push('first = ?'); values.push(firstName); }
+            if (lastName !== undefined) { fields.push('last = ?'); values.push(lastName); }
+            if (paid1 !== undefined) { fields.push('paid1 = ?'); values.push(paid1); }
+            if (admin !== undefined) { fields.push('admin = ?'); values.push(admin); }
+            if (listed !== undefined) { fields.push('listed = ?'); values.push(listed); }
+            if (getOffersFromUs !== undefined) { fields.push('get_offers_from_us = ?'); values.push(getOffersFromUs); }
+            if (getOffersFromAffiliates !== undefined) { fields.push('get_offers_from_affiliates = ?'); values.push(getOffersFromAffiliates); }
+            if (showEmail !== undefined) { fields.push('show_email = ?'); values.push(showEmail); }
+            if (showFirst !== undefined) { fields.push('show_first = ?'); values.push(showFirst); }
+            if (showLast !== undefined) { fields.push('show_last = ?'); values.push(showLast); }
+
+            if (fields.length === 0) {
+                logger.warn('No fields to update', { uid, updateData });
+                resolve(false);
+                return;
+            }
+
+            values.push(uid); // Add UID for WHERE clause
+
+            const sql = `UPDATE users SET ${fields.join(', ')} WHERE uid = ?`;
+
+            this.db.run(sql, values, function(err) {
+                if (err) {
+                    logger.error('Failed to update user', err, { uid, updateData });
+                    reject(err);
+                } else {
+                    logger.info('User updated successfully', { 
+                        uid, 
+                        changes: this.changes, 
+                        updatedFields: fields,
+                        updateData 
+                    });
+                    resolve(this.changes > 0);
                 }
-            );
+            });
         });
     }
 
@@ -262,47 +292,7 @@ class DatabaseManager {
         });
     }
 
-    /**
-     * Update user information
-     * @param {number} uid 
-     * @param {Object} updateData 
-     * @returns {Promise<boolean>}
-     */
-    async updateUser(uid, updateData) {
-        return new Promise((resolve, reject) => {
-            const {
-                nickname,
-                email,
-                firstName,
-                lastName,
-                paid1,
-                admin,
-                listed
-            } = updateData;
-
-            this.db.run(
-                `UPDATE users SET 
-                    nickname = ?, 
-                    email = ?, 
-                    first = ?, 
-                    last = ?, 
-                    paid1 = ?, 
-                    admin = ?, 
-                    listed = ?
-                WHERE uid = ?`,
-                [nickname, email, firstName || '', lastName || '', paid1, admin, listed, uid],
-                function(err) {
-                    if (err) {
-                        logger.error('Failed to update user', err, { uid, updateData });
-                        reject(err);
-                    } else {
-                        logger.info('User updated successfully', { uid, changes: this.changes });
-                        resolve(this.changes > 0);
-                    }
-                }
-            );
-        });
-    }
+    // NOTE: updateUser method moved to line 199 with enhanced dynamic field updating
 
     /**
      * Delete user from database

@@ -23,6 +23,13 @@ class User {
         this.listed = userData.listed || 1;
         this.color = userData.color || '000000000';
         
+        // Profile privacy settings
+        this.getOffersFromUs = userData.get_offers_from_us || 'N';
+        this.getOffersFromAffiliates = userData.get_offers_from_affiliates || 'N';
+        this.showEmail = userData.show_email || 'Y';
+        this.showFirst = userData.show_first || 'Y';
+        this.showLast = userData.show_last || 'Y';
+        
         // Parse buddies and blocked lists
         this.buddies = Utils.safeJsonParse(userData.buddies, []);
         this.blocked = Utils.safeJsonParse(userData.blocked, []);
@@ -345,6 +352,8 @@ class User {
             uid: this.uid,
             nickname: this.nickname,
             email: this.email,
+            firstName: this.firstName,
+            lastName: this.lastName,
             isOnline: this.isOnline(),
             mode: this.mode,
             isAdmin: this.isAdmin(),
@@ -359,9 +368,12 @@ class User {
             admin: this.admin, // Include admin level
             created: this.created,
             lastLogin: this.lastLogin,
-            firstName: this.firstName,
-            lastName: this.lastName,
-            listed: this.listed
+            listed: this.listed,
+            getOffersFromUs: this.getOffersFromUs,
+            getOffersFromAffiliates: this.getOffersFromAffiliates,
+            showEmail: this.showEmail,
+            showFirst: this.showFirst,
+            showLast: this.showLast
         };
     }
 }

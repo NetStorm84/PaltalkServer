@@ -26,8 +26,11 @@ const db = new sqlite3.Database("database.db", (err) => {
       verified                      INTEGER NOT NULL DEFAULT 0,
       random                        TEXT NOT NULL DEFAULT 0,
       paid1                         TEXT NOT NULL DEFAULT 'N', -- Y,6,E
-      get_offers_from_us            TEXT NOT NULL DEFAULT 1,
-      get_offers_from_affiliates    TEXT NOT NULL DEFAULT 1,
+      get_offers_from_us            TEXT NOT NULL DEFAULT 'N',
+      get_offers_from_affiliates    TEXT NOT NULL DEFAULT 'N',
+      show_email                    TEXT NOT NULL DEFAULT 'Y',
+      show_first                    TEXT NOT NULL DEFAULT 'Y',
+      show_last                     TEXT NOT NULL DEFAULT 'Y',
       banners                       TEXT NOT NULL DEFAULT 'yes', -- yes,no
       admin                         INTEGER NOT NULL DEFAULT 0,
       sup                           INTEGER NOT NULL DEFAULT 0, --pal support?
@@ -83,14 +86,14 @@ const db = new sqlite3.Database("database.db", (err) => {
   const insertStatements = [
     {
       sql: `
-        INSERT INTO users (uid, nickname, email, paid1, banners, admin, password, color, buddies, blocked, listed) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (uid, nickname, email, first, last, paid1, get_offers_from_us, get_offers_from_affiliates, show_email, show_first, show_last, banners, admin, password, color, buddies, blocked, listed) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       data: [
-        [1000001, "Paltalk", "default@example.com", 'Y', 'no', 2, "default_password_hash", "000000128", "", "", 0],
-        [1000002, "NetStorm", "default@example.com", '6', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
-        [1000003, "Medianoche (co-admin)", "medianoche@example.com", 'Y' , 'no', 2, "another_password_hash", "128000000", "[]", "", 1],
-        [1000004, "Dan", "dan@example.com", 'N', 'yes', 0, "another_password_hash", "000128000", "[]", "", 1],
+        [1000001, "Paltalk", "default@example.com", "Paltalk", "Official", 'Y', 'N', 'N', 'Y', 'Y', 'Y', 'no', 2, "default_password_hash", "000000128", "", "", 0],
+        [1000002, "NetStorm", "default@example.com", "Net", "Storm", '6', 'N', 'N', 'Y', 'Y', 'Y', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
+        [1000003, "Medianoche (co-admin)", "medianoche@example.com", "Media", "Noche", 'Y', 'N', 'N', 'Y', 'Y', 'Y', 'no', 2, "another_password_hash", "128000000", "[]", "", 1],
+        [1000004, "Dan", "dan@example.com", "Dan", "Crawley", 'N', 'N', 'N', 'Y', 'Y', 'Y', 'yes', 0, "another_password_hash", "000128000", "[]", "", 1],
       ],
     },
     {
