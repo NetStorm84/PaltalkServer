@@ -128,6 +128,10 @@ class PacketProcessor {
                     await this.handleRoomJoin(socket, payload);
                     break;
                 
+                case PACKET_TYPES.ROOM_JOIN_REQUEST:
+                    await this.handleRoomJoinRequest(socket, payload);
+                    break;
+                
                 case PACKET_TYPES.ROOM_LEAVE:
                     await this.handleRoomLeave(socket, payload);
                     break;
@@ -745,6 +749,124 @@ class PacketProcessor {
                 reason: 'room.addUser() returned false',
                 currentUsersInRoom: Array.from(room.users.keys()),
                 currentUserNicknames: Array.from(room.users.values()).map(u => u.nickname)
+            });
+        }
+    }
+
+    /**
+     * Handle room join request packet (-311)
+     * This packet contains room join parameters in key-value format
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleRoomJoinRequest(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) return;
+
+        logger.info('Room join request packet received', {
+            userId: user.uid,
+            nickname: user.nickname,
+            payloadHex: payload.toString('hex'),
+            payloadLength: payload.length
+        });
+
+        try {
+            // Decode the payload as UTF-8 string containing key-value pairs
+            const payloadString = payload.toString('utf8');
+            
+            logger.debug('Room join request data', {
+                userId: user.uid,
+                payloadString: payloadString.substring(0, 200) // Truncate for logs
+            });
+
+            // Parse key-value pairs separated by newlines
+            const params = {};
+            payloadString.split('\n').forEach(line => {
+                const [key, value] = line.split('=');
+                if (key && value !== undefined) {
+                    params[key.trim()] = value.trim();
+                }
+            });
+
+            logger.info('Parsed room join parameters', {
+                userId: user.uid,
+                nickname: user.nickname,
+                params: params
+            });
+
+            // Extract room parameters
+            const affId = parseInt(params.aff); // Affiliation ID (not room ID)
+            const roomName = params.name; // Room name
+            const invisible = params.invis === '1'; // Invisible mode
+            const voicePort = parseInt(params.port) || 2090; // Voice port
+            const roomLock = params.lock || ''; // Room password/lock
+
+            if (!roomName) {
+                logger.warn('Invalid room join request - missing room name', {
+                    userId: user.uid,
+                    affId,
+                    roomName,
+                    params
+                });
+                return;
+            }
+
+            // Find room by name since aff is not the room ID
+            const allRooms = serverState.getAllRooms();
+            const room = allRooms.find(r => r.name === roomName);
+            
+            if (!room) {
+                logger.warn('Room join request for non-existent room by name', {
+                    userId: user.uid,
+                    requestedRoomName: roomName,
+                    affId,
+                    availableRooms: allRooms.slice(0, 5).map(r => ({ id: r.id, name: r.name }))
+                });
+                return;
+            }
+
+            logger.info('Found room by name', {
+                userId: user.uid,
+                roomName,
+                roomId: room.id,
+                affId
+            });
+
+            // Check room password if provided
+            if (roomLock && room.password && roomLock !== room.password) {
+                logger.warn('Incorrect room password in join request', {
+                    userId: user.uid,
+                    roomId: room.id,
+                    roomName
+                });
+                return;
+            }
+
+            logger.info('Processing room join request', {
+                userId: user.uid,
+                nickname: user.nickname,
+                roomId: room.id,
+                roomName,
+                invisible,
+                voicePort,
+                hasPassword: !!roomLock
+            });
+
+            // Create standard room join payload format and delegate to handleRoomJoin
+            // Format: 4 bytes room ID + 2 bytes flags
+            const roomJoinPayload = Buffer.alloc(6);
+            roomJoinPayload.writeUInt32BE(room.id, 0); // Room ID
+            roomJoinPayload.writeUInt16BE(invisible ? 1 : 0, 4); // Invisible flag
+
+            // Delegate to the standard room join handler
+            await this.handleRoomJoin(socket, roomJoinPayload);
+
+        } catch (error) {
+            logger.error('Error processing room join request', error, {
+                userId: user.uid,
+                nickname: user.nickname,
+                payloadHex: payload.toString('hex'),
+                errorMessage: error.message
             });
         }
     }
@@ -1803,13 +1925,11 @@ class PacketProcessor {
                         userNickname: user.nickname
                     });
                 } else {
-                    logger.warn('Database topic reload failed - using in-memory topic', {
+                    logger.warn('Failed to reload topic from database', {
                         roomId: room.id,
                         roomName: room.name,
-                        hasRoomData: !!updatedRoomData,
-                        databaseTopic: updatedRoomData ? updatedRoomData.topic : 'NO_ROOM_DATA',
-                        inMemoryTopic: room.topic.substring(0, 100),
-                        userId: user.uid
+                        updatedRoomDataExists: !!updatedRoomData,
+                        topicField: updatedRoomData ? updatedRoomData.topic : 'NO_ROOM_DATA'
                     });
                 }
             } catch (error) {
