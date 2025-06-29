@@ -266,6 +266,10 @@ class PacketProcessor {
                     await this.handleUserProfileUpdate(socket, payload);
                     break;
 
+                case PACKET_TYPES.REQUEST_STATUS:
+                    await this.handleRequestStatus(socket, payload);
+                    break;
+
                 default:
                     logger.warn('Unhandled packet type', { packetType, socketId: socket.id });
                     break;
@@ -2924,6 +2928,206 @@ class PacketProcessor {
                 isOnline
             });
         }
+    }
+
+    /**
+     * Handle REQUEST_STATUS packet (-68)
+     * Client requests the current status of a specific user (usually after receiving IM from non-buddy)
+     * @param {Socket} socket 
+     * @param {Buffer} payload 
+     */
+    async handleRequestStatus(socket, payload) {
+        const user = serverState.getUserBySocketId(socket.id);
+        if (!user) {
+            logger.warn('REQUEST_STATUS: No user found for socket', { socketId: socket.id });
+            return;
+        }
+
+        if (payload.length < 4) {
+            logger.warn('REQUEST_STATUS: Invalid payload length', {
+                userId: user.uid,
+                nickname: user.nickname,
+                payloadLength: payload.length,
+                expectedMinLength: 4
+            });
+            return;
+        }
+
+        // Extract the target user UID from the first 4 bytes of payload
+        const targetUid = Utils.hexToDec(payload.slice(0, 4));
+        
+        logger.debug('REQUEST_STATUS packet received - checking user status', {
+            requestingUser: user.uid,
+            requestingUserNickname: user.nickname,
+            targetUid: targetUid,
+            payloadHex: payload.toString('hex')
+        });
+
+        // Find the target user and determine their status
+        const targetUser = serverState.getUser(targetUid);
+        let status = 'offline';
+        let statusCode = '00000000'; // Default to offline
+        
+        if (targetUser && targetUser.isOnline()) {
+            if (targetUser.mode === USER_MODES.AWAY) {
+                status = 'away';
+                statusCode = '00000046'; // Away status code
+            } else {
+                status = 'online';
+                statusCode = '0000001E'; // Online status code
+            }
+        }
+        
+        // Send text-based response with packet type 68 (positive REQUEST_STATUS response)
+        // Format: uid=X\nnickname=Y\nstatus=Z
+        const targetNickname = targetUser ? targetUser.nickname : 'Unknown';
+        const responseText = `uid=${targetUid}\nnickname=${targetNickname}`;
+        const responseBuffer = Buffer.from(responseText, 'utf8');
+        
+        sendPacket(socket, 68, responseBuffer, socket.id);
+        
+        // ADDITIONAL: Send STATUS_CHANGE packet to update visual status display
+        // This mirrors what happens when adding a buddy - sends the proper status notification
+        const statusBuffer = Buffer.from(Utils.decToHex(targetUid) + statusCode, 'hex');
+        sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+        
+        logger.info('REQUEST_STATUS: Sent dual response (text + status change)', {
+            requestingUser: user.uid,
+            requestingUserNickname: user.nickname,
+            targetUid: targetUid,
+            targetNickname: targetNickname,
+            status: status,
+            statusCode: statusCode,
+            responseText: responseText
+        });
+    }
+
+    /**
+     * Send system message to user
+     * @param {Socket} socket 
+     * @param {string} message 
+     */
+    sendSystemMessage(socket, message) {
+        const responseBuffer = Buffer.concat([
+            Buffer.from('000f4241', 'hex'), // System identifier
+            Buffer.from(message, 'utf8')
+        ]);
+
+        sendPacket(socket, PACKET_TYPES.IM_IN, responseBuffer, socket.id);
+    }
+
+    // Helper methods
+
+    createBuddyListBuffer(user) {
+        const buffers = [];
+        const delimiter = Buffer.from([0xC8]);
+
+        user.buddies.forEach(buddy => {
+            // Use the original Paltalk buddy list format: uid=X\nnickname=Y
+            const buddyString = `uid=${buddy.uid}\nnickname=${buddy.nickname}`;
+            buffers.push(Buffer.from(buddyString));
+            buffers.push(delimiter);
+        });
+
+        return Buffer.concat(buffers);
+    }
+
+    /**
+     * Send individual STATUS_CHANGE packets for each buddy during login
+     * This is required for the client's buddy list UI to show correct status
+     */
+    sendBuddyStatusUpdatesOnLogin(socket, user) {
+        user.buddies.forEach(buddy => {
+            // Check if buddy is online and get their status
+            const buddyUser = serverState.getUser(buddy.uid);
+            let statusCode = '00000000'; // Default to offline
+            
+            if (buddyUser && buddyUser.isOnline()) {
+                // Buddy is online - check their mode
+                if (buddyUser.mode === USER_MODES.AWAY) {
+                    statusCode = '00000046'; // Away status
+                } else {
+                    statusCode = '0000001E'; // Online status
+                }
+            } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
+                // Special case: Paltalk user should always appear online
+                statusCode = '0000001E';
+            }
+            
+            // Send STATUS_CHANGE packet for this buddy
+            const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + statusCode, 'hex');
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            
+            logger.debug('Login buddy status sent', {
+                userId: user.uid,
+                buddyUid: buddy.uid,
+                buddyNickname: buddy.nickname,
+                statusCode,
+                status: statusCode === '0000001E' ? 'online' : statusCode === '00000046' ? 'away' : 'offline'
+            });
+        });
+    }
+
+    async createCategoryBuffer() {
+        const categories = serverState.getAllCategories();
+        const buffers = [];
+        const delimiter = Buffer.from([0xC8]);
+
+        categories.forEach(category => {
+            const categoryString = `code=${category.code}\nvalue=${category.value}\nlist=2`;
+            buffers.push(Buffer.from(categoryString));
+            buffers.push(delimiter);
+        });
+
+        return Buffer.concat(buffers);
+    }
+
+    createCategoryCountsBuffer() {
+        const buffers = [];
+        const delimiter = Buffer.from([0xC8]);
+
+        serverState.getAllCategories().forEach(category => {
+            const count = serverState.getRoomsByCategory(category.code).length;
+            if (count > 0) {
+                buffers.push(Buffer.from(`id=${category.code}\n#=${count}`));
+                buffers.push(delimiter);
+            }
+        });
+
+        return Buffer.concat(buffers);
+    }
+
+    createRoomListBuffer(categoryId, user = null) {
+        const buffers = [];
+        const delimiter = Buffer.from([0xC8]);
+        
+        buffers.push(Buffer.from(`catg=${categoryId}\n`));
+        buffers.push(delimiter);
+
+        // Pass user context to getRoomsByCategory to filter out closed rooms
+        const rooms = serverState.getRoomsByCategory(categoryId, user);
+        rooms.forEach(room => {
+            // l=1 means locked (password required), l=0 means not locked
+            const isLocked = room.password ? 1 : 0;
+            const roomString = `id=${room.id}\nnm=${room.name}\n#=${room.getUserCount()}\nv=${room.isVoice}\nl=${isLocked}\nr=${room.rating}\np=${room.isPrivate}\nc=000000000`;
+            buffers.push(Buffer.from(roomString));
+            buffers.push(delimiter);
+        });
+
+        return Buffer.concat(buffers);
+    }
+
+    createSearchResultBuffer(users) {
+        const buffers = [];
+        const delimiter = Buffer.from([0xC8]);
+
+        users.forEach(user => {
+            const userString = `uid=${user.uid}\nnickname=${user.nickname}\nfirst=${user.first || ''}\nlast=${user.last || ''}`;
+            buffers.push(Buffer.from(userString));
+            buffers.push(delimiter);
+        });
+
+        return Buffer.concat(buffers);
     }
 }
 
