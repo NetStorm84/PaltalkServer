@@ -730,14 +730,15 @@ class PacketProcessor {
                     'hex'
                 );
                 
-                room.getAllUsers().forEach(otherUserData => {
-                    if (otherUserData.uid !== user.uid) {
-                        const otherUser = serverState.getUser(otherUserData.uid);
-                        if (otherUser && otherUser.socket) {
-                            sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData, otherUser.socket.id);
-                        }
-                    }
-                });
+                // this was causing our reconnect issue in voice rooms
+                // room.getAllUsers().forEach(otherUserData => {
+                //     if (otherUserData.uid !== user.uid) {
+                //         const otherUser = serverState.getUser(otherUserData.uid);
+                //         if (otherUser && otherUser.socket) {
+                //             sendPacket(otherUser.socket, PACKET_TYPES.PACKET_ROOM_MIC_GIVEN_REMOVED, micNotificationData, otherUser.socket.id);
+                //         }
+                //     }
+                // });
             }
             
             // *** REAL-TIME BROADCAST: Send updated user lists to everyone ***
