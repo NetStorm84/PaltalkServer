@@ -646,7 +646,7 @@
             submitBtn.textContent = 'Subscribing...';
             
             try {
-                const response = await fetch('/api/notify-signup', {
+                const response = await fetch('/api/notify-signup.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

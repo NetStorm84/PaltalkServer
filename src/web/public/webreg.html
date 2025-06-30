@@ -278,7 +278,7 @@
         async function checkNicknameExists(nickname) {
             try {
                 const apiBase = getApiBaseUrl();
-                const res = await fetch(`${apiBase}/api/check-nickname`, {
+                const res = await fetch(`${apiBase}/api/check-nickname.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ nickname })
@@ -393,7 +393,7 @@
             
             try {
                 const apiBase = getApiBaseUrl();
-                const res = await fetch(`${apiBase}/api/register`, {
+                const res = await fetch(`${apiBase}/api/register.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ first, last, nickname, password })
