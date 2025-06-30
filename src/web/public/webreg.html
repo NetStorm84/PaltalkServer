@@ -3,7 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>h2ktalk.fun Registration</title>
+    
+    <!-- Primary Meta Tags -->
+    <title>Register for h2ktalk.fun - Join Classic Paltalk Community Chat</title>
+    <meta name="title" content="Register for h2ktalk.fun - Join Classic Paltalk Community Chat">
+    <meta name="description" content="Create your free account to join the h2ktalk.fun community. Experience authentic 2002 Paltalk chat rooms with voice chat, text chat, and nostalgic interface.">
+    <meta name="keywords" content="paltalk registration, classic paltalk signup, retro chat register, 2002 paltalk account, voice chat signup, h2ktalk register">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://h2ktalk.fun/webreg.html">
+    <meta property="og:title" content="Register for h2ktalk.fun - Join Classic Paltalk Community">
+    <meta property="og:description" content="Create your free account to join the h2ktalk.fun community. Experience authentic 2002 Paltalk chat rooms.">
+    <meta property="og:image" content="https://h2ktalk.fun/og-image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary">
+    <meta property="twitter:url" content="https://h2ktalk.fun/webreg.html">
+    <meta property="twitter:title" content="Register for h2ktalk.fun - Join Classic Paltalk Community">
+    <meta property="twitter:description" content="Create your free account to join the h2ktalk.fun community. Experience authentic 2002 Paltalk chat rooms.">
+    
+    <!-- Additional SEO -->
+    <link rel="canonical" href="https://h2ktalk.fun/webreg.html">
+    <meta name="theme-color" content="#000080">
     <style>
         * {
             margin: 0;
@@ -191,6 +214,18 @@
                 font-size: 0.8rem;
             }
         }
+        
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
     </style>
 </head>
 <body>
@@ -200,17 +235,23 @@
             Create your account to join chat rooms and connect with others.<br>
             <b>Do not use your real Paltalk credentials.</b>
         </div>
-        <form id="regForm" autocomplete="off">
-            <div id="formError" class="error" style="display:none;"></div>
-            <div id="formSuccess" class="success" style="display:none;"></div>
+        <form id="regForm" autocomplete="off" aria-label="Account registration form">
+            <div id="formError" class="error" style="display:none;" role="alert" aria-live="assertive"></div>
+            <div id="formSuccess" class="success" style="display:none;" role="status" aria-live="polite"></div>
             <label for="first">First Name</label>
-            <input type="text" id="first" name="first" maxlength="32" required>
+            <input type="text" id="first" name="first" maxlength="32" required autocomplete="given-name" aria-describedby="first-help">
+            
             <label for="last">Last Name</label>
-            <input type="text" id="last" name="last" maxlength="32" required>
+            <input type="text" id="last" name="last" maxlength="32" required autocomplete="family-name" aria-describedby="last-help">
+            
             <label for="nickname">Nickname</label>
-            <input type="text" id="nickname" name="nickname" maxlength="32" required>
+            <input type="text" id="nickname" name="nickname" maxlength="32" required autocomplete="username" aria-describedby="nickname-help">
+            <span id="nickname-help" class="sr-only">Must be 5+ characters, no brackets, and cannot contain: admin, co-admin, paltalk, support, palsupport</span>
+            
             <label for="password">Password</label>
-            <input type="password" id="password" name="password" maxlength="64" required>
+            <input type="password" id="password" name="password" maxlength="64" required autocomplete="new-password" aria-describedby="password-help">
+            <span id="password-help" class="sr-only">Choose a strong password for your account security</span>
+            
             <button type="submit" class="btn">Register</button>
         </form>
     </div>

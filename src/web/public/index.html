@@ -3,7 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>h2ktalk.fun - Community Chat Server</title>
+    
+    <!-- Primary Meta Tags -->
+    <title>h2ktalk.fun - Classic Paltalk Community Chat Server | Retro 2002 Experience</title>
+    <meta name="title" content="h2ktalk.fun - Classic Paltalk Community Chat Server | Retro 2002 Experience">
+    <meta name="description" content="Experience authentic 2002 Paltalk chat rooms with the original client. Join voice chats, browse hundreds of themed rooms, and connect with a nostalgic community. Free registration, no ads.">
+    <meta name="keywords" content="paltalk, classic paltalk, retro chat, 2002 paltalk, voice chat, chat rooms, community server, nostalgia, free chat, h2ktalk">
+    <meta name="robots" content="index, follow">
+    <meta name="language" content="English">
+    <meta name="author" content="h2ktalk.fun Community">
+    <meta name="revisit-after" content="7 days">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://h2ktalk.fun/">
+    <meta property="og:title" content="h2ktalk.fun - Classic Paltalk Community Chat Server">
+    <meta property="og:description" content="Experience authentic 2002 Paltalk chat rooms with the original client. Join voice chats, browse themed rooms, and connect with a nostalgic community.">
+    <meta property="og:image" content="https://h2ktalk.fun/og-image.png">
+    <meta property="og:site_name" content="h2ktalk.fun">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://h2ktalk.fun/">
+    <meta property="twitter:title" content="h2ktalk.fun - Classic Paltalk Community Chat Server">
+    <meta property="twitter:description" content="Experience authentic 2002 Paltalk chat rooms with the original client. Join voice chats and connect with a nostalgic community.">
+    <meta property="twitter:image" content="https://h2ktalk.fun/og-image.png">
+    
+    <!-- Additional SEO -->
+    <link rel="canonical" href="https://h2ktalk.fun/">
+    <meta name="theme-color" content="#000080">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="h2ktalk.fun">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "h2ktalk.fun",
+        "url": "https://h2ktalk.fun",
+        "description": "Classic Paltalk community chat server recreating the authentic 2002 experience with original client support",
+        "publisher": {
+            "@type": "Organization",
+            "name": "h2ktalk.fun Community",
+            "url": "https://h2ktalk.fun"
+        },
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://h2ktalk.fun/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+        },
+        "sameAs": [
+            "https://github.com/NetStorm84/PaltalkServer"
+        ]
+    }
+    </script>
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "h2ktalk.fun Chat Server",
+        "description": "Community-driven recreation of classic 2002 Paltalk chat experience with voice rooms, text chat, and nostalgic interface",
+        "url": "https://h2ktalk.fun",
+        "downloadUrl": "https://h2ktalk.fun/Paltalk.exe",
+        "operatingSystem": "Windows",
+        "applicationCategory": "CommunicationApplication",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "developer": {
+            "@type": "Organization",
+            "name": "h2ktalk.fun Community"
+        },
+        "datePublished": "2024-06-30",
+        "keywords": "paltalk, chat, voice chat, retro, 2002, community, nostalgia"
+    }
+    </script>
+    
     <style>
         * {
             margin: 0;
@@ -160,6 +247,18 @@
         
         .warning strong {
             color: #ff4500;
+        }
+        
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
         
         .screenshots-grid {
@@ -410,7 +509,7 @@
         </header>
         
         <main>
-            <section class="hero">
+            <section class="hero" role="banner">
                 <h1>Welcome to the Nostalgic World of Paltalk</h1>
                 <p>Experience the classic Paltalk chat rooms with our community-driven server. Connect with friends, join voice chats, and be part of a vibrant online community.</p>
                 
@@ -424,26 +523,27 @@
                 </div>
             </section>
             
-            <section class="features">
-                <div class="feature">
+            <section class="features" aria-labelledby="features-heading">
+                <h2 id="features-heading" class="sr-only">Key Features</h2>
+                <article class="feature">
                     <h3>🎙️ Voice Chat Rooms</h3>
                     <p>Join live voice conversations with multiple participants. Experience the classic Paltalk voice chat experience with crystal clear audio.</p>
-                </div>
+                </article>
                 
-                <div class="feature">
+                <article class="feature">
                     <h3>💬 Text Chat</h3>
                     <p>Engage in real-time text conversations. Share thoughts, links, and connect with people from around the world.</p>
-                </div>
+                </article>
                 
-                <div class="feature">
+                <article class="feature">
                     <h3>🏠 Multiple Rooms</h3>
                     <p>Explore hundreds of themed chat rooms covering various topics, interests, and communities. Find your perfect chat environment.</p>
-                </div>
+                </article>
                 
-                <div class="feature">
+                <article class="feature">
                     <h3>👥 Community Driven</h3>
                     <p>Built by the community, for the community. This is a non-commercial project dedicated to preserving the classic Paltalk experience.</p>
-                </div>
+                </article>
             </section>
             
             <section class="info-section">
@@ -494,12 +594,14 @@
                 <div class="notify-section">
                     <h3>📧 Stay Updated</h3>
                     <p>Get notified when new features are added or when the server is feature-complete!</p>
-                    <form id="notifyForm" class="notify-form">
+                    <form id="notifyForm" class="notify-form" aria-label="Email notification signup">
                         <div class="notify-input-group">
-                            <input type="email" id="notifyEmail" placeholder="Enter your email address" required>
+                            <label for="notifyEmail" class="sr-only">Email address for notifications</label>
+                            <input type="email" id="notifyEmail" placeholder="Enter your email address" required aria-describedby="email-help">
+                            <span id="email-help" class="sr-only">We'll only email you about major updates and when the server is complete</span>
                             <button type="submit" class="btn notify-btn">Notify Me</button>
                         </div>
-                        <div id="notifyMessage" class="notify-message" style="display: none;"></div>
+                        <div id="notifyMessage" class="notify-message" style="display: none;" role="status" aria-live="polite"></div>
                     </form>
                 </div>
             </section>
