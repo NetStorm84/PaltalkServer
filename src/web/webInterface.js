@@ -100,6 +100,78 @@ class WebInterface {
 
         // API Routes
         
+        // User registration endpoint
+        this.app.post('/api/register', async (req, res) => {
+            try {
+                const { username, password, email, firstName, lastName } = req.body;
+                
+                // Validate input
+                if (!username || !password || !email) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: 'Username, password, and email are required' 
+                    });
+                }
+                
+                // Check if user already exists
+                const existingUser = await this.db.getUserByNickname(username);
+                if (existingUser) {
+                    return res.status(409).json({ 
+                        success: false, 
+                        message: 'Username already exists' 
+                    });
+                }
+                
+                // Check if email already exists
+                const existingEmail = await this.db.getUserByEmail(email);
+                if (existingEmail) {
+                    return res.status(409).json({ 
+                        success: false, 
+                        message: 'Email already registered' 
+                    });
+                }
+                
+                // Hash password
+                const bcrypt = require('bcrypt');
+                const saltRounds = 10;
+                const hashedPassword = await bcrypt.hash(password, saltRounds);
+                
+                // Create user object
+                const userData = {
+                    nickname: username,
+                    password: hashedPassword,
+                    email: email,
+                    firstName: firstName || '',
+                    lastName: lastName || '',
+                    admin: 0,
+                    paid1: 0
+                };
+                
+                // Save to database
+                const userId = await this.db.createUser(userData);
+                
+                logger.info('New user registered', { 
+                    userId, 
+                    username, 
+                    email,
+                    ip: req.ip 
+                });
+                
+                res.status(201).json({ 
+                    success: true, 
+                    message: 'User registered successfully',
+                    userId: userId
+                });
+                
+            } catch (error) {
+                logger.error('Registration failed', error, { ip: req.ip });
+                res.status(500).json({ 
+                    success: false, 
+                    message: 'Registration failed. Please try again.' 
+                });
+            }
+        });
+        
         // Server state for main dashboard
         this.app.get('/api/server-state', async (req, res) => {
             try {

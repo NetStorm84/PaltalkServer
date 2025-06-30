@@ -99,6 +99,77 @@ class DatabaseManager {
     }
 
     /**
+     * Get user by email
+     * @param {string} email 
+     * @returns {Promise<Object|null>}
+     */
+    async getUserByEmail(email) {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                'SELECT * FROM users WHERE email = ? COLLATE NOCASE',
+                [email],
+                (err, row) => {
+                    if (err) {
+                        logger.error('Failed to get user by email', err, { email });
+                        reject(err);
+                    } else {
+                        resolve(row || null);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Create a new user
+     * @param {Object} userData 
+     * @returns {Promise<number>} - New user UID
+     */
+    async createUser(userData) {
+        return new Promise((resolve, reject) => {
+            const {
+                nickname,
+                password,
+                email,
+                firstName = '',
+                lastName = '',
+                admin = 0,
+                paid1 = 0,
+                listed = 1,
+                getOffersFromUs = 0,
+                getOffersFromAffiliates = 0,
+                showEmail = 0,
+                showFirst = 0,
+                showLast = 0
+            } = userData;
+
+            this.db.run(
+                `INSERT INTO users (
+                    nickname, password, email, first, last, admin, paid1, listed,
+                    get_offers_from_us, get_offers_from_affiliates
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    nickname, password, email, firstName, lastName, admin, paid1, listed,
+                    getOffersFromUs, getOffersFromAffiliates
+                ],
+                function(err) {
+                    if (err) {
+                        logger.error('Failed to create user', err, { nickname, email });
+                        reject(err);
+                    } else {
+                        logger.info('User created successfully', { 
+                            uid: this.lastID, 
+                            nickname, 
+                            email 
+                        });
+                        resolve(this.lastID);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
      * Search users by nickname
      * @param {string} nickname 
      * @param {boolean} exactMatch 

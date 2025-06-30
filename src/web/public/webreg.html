@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paltalk Server Registration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #f8fafc;
+            color: #1f2937;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .reg-container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+        }
+        
+        h1 {
+            color: #111827;
+            margin-bottom: 8px;
+            font-size: 1.75rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .desc {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+        
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #111827;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        input[type="text"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .btn {
+            width: 100%;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2563eb;
+        }
+        
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .error {
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 0.875rem;
+        }
+        
+        .success {
+            color: #059669;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 0.875rem;
+        }
+        
+        @media (max-width: 480px) {
+            .reg-container {
+                padding: 24px;
+                margin: 16px;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="reg-container">
+        <h1>Register for Paltalk Server</h1>
+        <div class="desc">
+            Create your account to join chat rooms and connect with others.<br>
+            Only a nickname, first and last name, and password are required.<br>
+            <b>Do not use your real Paltalk credentials.</b>
+        </div>
+        <form id="regForm" autocomplete="off">
+            <div id="formError" class="error" style="display:none;"></div>
+            <div id="formSuccess" class="success" style="display:none;"></div>
+            <label for="first">First Name</label>
+            <input type="text" id="first" name="first" maxlength="32" required>
+            <label for="last">Last Name</label>
+            <input type="text" id="last" name="last" maxlength="32" required>
+            <label for="nickname">Nickname</label>
+            <input type="text" id="nickname" name="nickname" maxlength="32" required>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" maxlength="64" required>
+            <button type="submit" class="btn">Register</button>
+        </form>
+    </div>
+    <script>
+        const form = document.getElementById('regForm');
+        const errorDiv = document.getElementById('formError');
+        const successDiv = document.getElementById('formSuccess');
+        const nicknameInput = document.getElementById('nickname');
+        let nicknameCheckTimeout;
+
+        // Check if nickname exists
+        async function checkNicknameExists(nickname) {
+            try {
+                const res = await fetch('/api/check-nickname', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname })
+                });
+                const data = await res.json();
+                return data.exists;
+            } catch (err) {
+                return false; // Assume available if check fails
+            }
+        }
+
+        // Real-time nickname validation
+        nicknameInput.addEventListener('input', () => {
+            clearTimeout(nicknameCheckTimeout);
+            const nickname = nicknameInput.value.trim();
+            
+            if (nickname.length >= 3) {
+                nicknameCheckTimeout = setTimeout(async () => {
+                    const exists = await checkNicknameExists(nickname);
+                    if (exists) {
+                        errorDiv.textContent = 'This nickname is already taken. Please choose another.';
+                        errorDiv.style.display = 'block';
+                    } else {
+                        errorDiv.style.display = 'none';
+                    }
+                }, 500);
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            const first = form.first.value.trim();
+            const last = form.last.value.trim();
+            const nickname = form.nickname.value.trim();
+            const password = form.password.value;
+            
+            if (!first || !last || !nickname || !password) {
+                errorDiv.textContent = 'All fields are required.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validate nickname format
+            if (nickname.length < 3) {
+                errorDiv.textContent = 'Nickname must be at least 3 characters long.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            if (!/^[a-zA-Z0-9_-]+$/.test(nickname)) {
+                errorDiv.textContent = 'Nickname can only contain letters, numbers, hyphens, and underscores.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Final nickname availability check
+            const exists = await checkNicknameExists(nickname);
+            if (exists) {
+                errorDiv.textContent = 'This nickname is already taken. Please choose another.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ first, last, nickname, password })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    successDiv.textContent = 'Registration successful! You can now log in.';
+                    successDiv.style.display = 'block';
+                    // Clear form but keep values in case of error
+                } else {
+                    errorDiv.textContent = data.error || 'Registration failed.';
+                    errorDiv.style.display = 'block';
+                    // Keep form values so user doesn't have to re-enter everything
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Server error. Please try again later.';
+                errorDiv.style.display = 'block';
+                // Keep form values so user doesn't have to re-enter everything
+            }
+        });
+
+        // Clear error messages when user starts typing in any field
+        ['first', 'last', 'nickname', 'password'].forEach(fieldName => {
+            document.getElementById(fieldName).addEventListener('input', () => {
+                if (fieldName !== 'nickname') { // Don't clear nickname-specific errors immediately
+                    errorDiv.style.display = 'none';
+                }
+                successDiv.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
