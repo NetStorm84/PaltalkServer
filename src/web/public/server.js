@@ -10,8 +10,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
-// Import API routes from webInterface
-const webInterface = require('./api.js');
+// Import simple API routes
+const apiRoutes = require('./simple-api.js');
+app.use(apiRoutes);
 
 // Start server
 app.listen(PORT, () => {
