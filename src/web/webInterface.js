@@ -172,6 +172,34 @@ class WebInterface {
             }
         });
         
+        // Check nickname availability endpoint
+        this.app.post('/api/check-nickname', async (req, res) => {
+            try {
+                const { nickname } = req.body;
+                
+                if (!nickname) {
+                    return res.status(400).json({ 
+                        exists: false,
+                        message: 'Nickname is required' 
+                    });
+                }
+                
+                const existingUser = await this.db.getUserByNickname(nickname);
+                
+                res.json({ 
+                    exists: !!existingUser,
+                    message: existingUser ? 'Nickname already taken' : 'Nickname available'
+                });
+                
+            } catch (error) {
+                logger.error('Check nickname failed', error, { ip: req.ip });
+                res.status(500).json({ 
+                    exists: false,
+                    message: 'Server error checking nickname' 
+                });
+            }
+        });
+        
         // Server state for main dashboard
         this.app.get('/api/server-state', async (req, res) => {
             try {

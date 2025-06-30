@@ -266,6 +266,18 @@
             }
         }
 
+        // Detect API base URL based on current location
+        function getApiBaseUrl() {
+            const currentPath = window.location.pathname;
+            if (currentPath.includes('/server/public/')) {
+                // Running under subdirectory, API is likely on port 3000
+                return `${window.location.protocol}//${window.location.hostname}:3000`;
+            } else {
+                // Running directly from Node.js server
+                return '';
+            }
+        }
+
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -281,7 +293,8 @@
             hideMessages();
             
             try {
-                const response = await fetch('/auth/login', {
+                const apiBase = getApiBaseUrl();
+                const response = await fetch(`${apiBase}/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -297,7 +310,14 @@
                 if (response.ok && data.success) {
                     showSuccess('Login successful! Redirecting...');
                     setTimeout(() => {
-                        window.location.href = '/';
+                        const currentPath = window.location.pathname;
+                        if (currentPath.includes('/server/public/')) {
+                            // Redirect to dashboard in subdirectory
+                            window.location.href = './dashboard.html';
+                        } else {
+                            // Redirect to root dashboard
+                            window.location.href = '/';
+                        }
                     }, 1000);
                 } else {
                     showError(data.message || 'Login failed. Please check your credentials.');
