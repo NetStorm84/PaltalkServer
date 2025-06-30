@@ -221,6 +221,82 @@
             color: #000080;
         }
         
+        .notify-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .notify-section h3 {
+            margin-bottom: 0.75rem;
+            color: #ffffff;
+        }
+        
+        .notify-form {
+            margin-top: 1rem;
+        }
+        
+        .notify-input-group {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        .notify-input-group input[type="email"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .notify-input-group input[type="email"]:focus {
+            outline: none;
+            border-color: #ff4500;
+        }
+        
+        .notify-input-group input[type="email"]::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .notify-btn {
+            padding: 12px 24px;
+            background: #ff4500;
+            border: 2px solid #ff4500;
+            white-space: nowrap;
+            min-width: auto;
+            max-width: none;
+        }
+        
+        .notify-btn:hover {
+            background: #ff6600;
+            border-color: #ff6600;
+            color: #ffffff;
+        }
+        
+        .notify-message {
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
+        .notify-message.success {
+            background: rgba(255, 69, 0, 0.2);
+            border: 1px solid #ff4500;
+            color: #ffffff;
+        }
+        
+        .notify-message.error {
+            background: rgba(220, 38, 38, 0.2);
+            border: 1px solid #dc2626;
+            color: #ffffff;
+        }
+        
         footer {
             text-align: center;
             padding: 2rem 0;
@@ -282,6 +358,15 @@
             
             .screenshot-placeholder {
                 padding: 1.5rem 1rem;
+            }
+            
+            .notify-input-group {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .notify-btn {
+                width: 100%;
             }
         }
         
@@ -405,6 +490,18 @@
                         🔗 View on GitHub
                     </a>
                 </div>
+                
+                <div class="notify-section">
+                    <h3>📧 Stay Updated</h3>
+                    <p>Get notified when new features are added or when the server is feature-complete!</p>
+                    <form id="notifyForm" class="notify-form">
+                        <div class="notify-input-group">
+                            <input type="email" id="notifyEmail" placeholder="Enter your email address" required>
+                            <button type="submit" class="btn notify-btn">Notify Me</button>
+                        </div>
+                        <div id="notifyMessage" class="notify-message" style="display: none;"></div>
+                    </form>
+                </div>
             </section>
         </main>
         
@@ -413,5 +510,65 @@
             <p>Not affiliated with Paltalk Communications Inc.</p>
         </footer>
     </div>
+    
+    <script>
+        // Email notification form handling
+        const notifyForm = document.getElementById('notifyForm');
+        const notifyMessage = document.getElementById('notifyMessage');
+        
+        function showNotifyMessage(message, isSuccess = true) {
+            notifyMessage.textContent = message;
+            notifyMessage.className = `notify-message ${isSuccess ? 'success' : 'error'}`;
+            notifyMessage.style.display = 'block';
+            
+            // Hide message after 5 seconds
+            setTimeout(() => {
+                notifyMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        notifyForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('notifyEmail').value.trim();
+            
+            if (!email) {
+                showNotifyMessage('Please enter a valid email address.', false);
+                return;
+            }
+            
+            // Disable form during submission
+            const submitBtn = notifyForm.querySelector('.notify-btn');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Subscribing...';
+            
+            try {
+                const response = await fetch('/api/notify-signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showNotifyMessage(data.message || 'Thanks! You\'ll be notified when we have updates.', true);
+                    notifyForm.reset();
+                } else {
+                    showNotifyMessage(data.error || 'Failed to subscribe. Please try again.', false);
+                }
+            } catch (error) {
+                showNotifyMessage('Network error. Please check your connection and try again.', false);
+                console.error('Email notification signup error:', error);
+            } finally {
+                // Re-enable form
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
+        });
+    </script>
 </body>
 </html>

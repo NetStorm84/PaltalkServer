@@ -997,6 +997,124 @@ class DatabaseManager {
             );
         });
     }
+
+    /**
+     * Add email to notification list
+     * @param {string} email - Email address to add
+     * @param {string} ipAddress - IP address of the requester
+     * @param {string} userAgent - User agent string
+     * @returns {Promise<number>} - The ID of the inserted record
+     */
+    async addEmailNotification(email, ipAddress = null, userAgent = null) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            
+            this.db.run(
+                `INSERT INTO email_notifications (email, ip_address, user_agent) VALUES (?, ?, ?)`,
+                [email, ipAddress, userAgent],
+                function(err) {
+                    const duration = Date.now() - startTime;
+                    
+                    if (err) {
+                        logger.error('Failed to add email notification', err, { 
+                            email, 
+                            ipAddress,
+                            duration 
+                        });
+                        reject(err);
+                    } else {
+                        logger.info('Email notification added', { 
+                            id: this.lastID, 
+                            email,
+                            ipAddress,
+                            duration 
+                        });
+                        resolve(this.lastID);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Check if email is already subscribed
+     * @param {string} email - Email address to check
+     * @returns {Promise<boolean>} - True if email exists and is active
+     */
+    async isEmailSubscribed(email) {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                `SELECT id, status FROM email_notifications WHERE email = ? COLLATE NOCASE`,
+                [email],
+                (err, row) => {
+                    if (err) {
+                        logger.error('Failed to check email subscription', err, { email });
+                        reject(err);
+                    } else {
+                        const isSubscribed = row && row.status === 'active';
+                        logger.debug('Email subscription check', { 
+                            email, 
+                            exists: !!row,
+                            isActive: isSubscribed 
+                        });
+                        resolve(isSubscribed);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Get all active email subscriptions
+     * @returns {Promise<Array>} - Array of active email subscriptions
+     */
+    async getActiveEmailSubscriptions() {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                `SELECT id, email, created FROM email_notifications WHERE status = 'active' ORDER BY created DESC`,
+                [],
+                (err, rows) => {
+                    if (err) {
+                        logger.error('Failed to get active email subscriptions', err);
+                        reject(err);
+                    } else {
+                        logger.debug('Retrieved active email subscriptions', { 
+                            count: rows.length 
+                        });
+                        resolve(rows || []);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Unsubscribe email from notifications
+     * @param {string} email - Email address to unsubscribe
+     * @returns {Promise<boolean>} - True if email was unsubscribed
+     */
+    async unsubscribeEmail(email) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                `UPDATE email_notifications SET status = 'unsubscribed' WHERE email = ? COLLATE NOCASE`,
+                [email],
+                function(err) {
+                    if (err) {
+                        logger.error('Failed to unsubscribe email', err, { email });
+                        reject(err);
+                    } else {
+                        const wasUpdated = this.changes > 0;
+                        logger.info('Email unsubscription', { 
+                            email, 
+                            success: wasUpdated,
+                            changes: this.changes 
+                        });
+                        resolve(wasUpdated);
+                    }
+                }
+            );
+        });
+    }
 }
 
 module.exports = DatabaseManager;

@@ -218,6 +218,68 @@ class WebInterface {
             }
         });
         
+        // Email notification signup endpoint
+        this.app.post('/api/notify-signup', async (req, res) => {
+            try {
+                const { email } = req.body;
+                
+                // Validate email
+                if (!email || !email.includes('@')) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: 'Valid email address is required' 
+                    });
+                }
+                
+                // Check if email is already subscribed
+                const isAlreadySubscribed = await this.db.isEmailSubscribed(email);
+                if (isAlreadySubscribed) {
+                    return res.status(200).json({ 
+                        success: true, 
+                        message: 'You are already subscribed to updates!' 
+                    });
+                }
+                
+                // Get client info
+                const ipAddress = req.ip || req.connection.remoteAddress;
+                const userAgent = req.get('User-Agent');
+                
+                // Add email to notifications
+                const notificationId = await this.db.addEmailNotification(email, ipAddress, userAgent);
+                
+                logger.info('New email notification signup', { 
+                    id: notificationId,
+                    email, 
+                    ipAddress,
+                    userAgent 
+                });
+                
+                res.status(201).json({ 
+                    success: true, 
+                    message: 'Successfully subscribed! We\'ll notify you when we have updates.',
+                    id: notificationId
+                });
+                
+            } catch (error) {
+                if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                    // Handle race condition where email was added between check and insert
+                    return res.status(200).json({ 
+                        success: true, 
+                        message: 'You are already subscribed to updates!' 
+                    });
+                }
+                
+                logger.error('Email notification signup failed', error, { 
+                    email: req.body.email,
+                    ip: req.ip 
+                });
+                res.status(500).json({ 
+                    success: false, 
+                    error: 'Failed to subscribe. Please try again later.' 
+                });
+            }
+        });
+        
         // Check nickname availability endpoint
         this.app.post('/api/check-nickname', async (req, res) => {
             try {

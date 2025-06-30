@@ -13,6 +13,7 @@ const db = new sqlite3.Database("database.db", (err) => {
     `DROP TABLE IF EXISTS offline_messages`,
     `DROP TABLE IF EXISTS categories`, 
     `DROP TABLE IF EXISTS users`,
+    `DROP TABLE IF EXISTS email_notifications`,
     
     // Then recreate tables
     `
@@ -78,6 +79,16 @@ const db = new sqlite3.Database("database.db", (err) => {
       cr                    TEXT NOT NULL DEFAULT '', -- creator UID
       topic                 TEXT DEFAULT 'Please support our sponsors.',
       isClosed              INTEGER NOT NULL DEFAULT 0 -- room closed status: 0=open, 1=closed
+    )
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS email_notifications (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      email                 TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      created               TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      status                TEXT NOT NULL DEFAULT 'active', -- active, unsubscribed
+      ip_address            TEXT DEFAULT NULL,
+      user_agent            TEXT DEFAULT NULL
     )
     `,
   ];
