@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paltalk Server Registration</title>
+    <title>h2ktalk.fun Registration</title>
     <style>
         * {
             margin: 0;
@@ -12,9 +12,9 @@
         }
         
         body {
-            background: #f8fafc;
-            color: #1f2937;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #000080;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -23,25 +23,24 @@
         }
         
         .reg-container {
-            background: white;
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
             padding: 40px;
             width: 100%;
             max-width: 420px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e5e7eb;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
         h1 {
-            color: #111827;
+            color: #ffffff;
             margin-bottom: 8px;
             font-size: 1.75rem;
-            font-weight: 600;
+            font-weight: bold;
             text-align: center;
         }
         
         .desc {
-            color: #6b7280;
+            color: rgba(255, 255, 255, 0.9);
             font-size: 0.9rem;
             margin-bottom: 32px;
             text-align: center;
@@ -51,8 +50,8 @@
         label {
             display: block;
             margin-bottom: 6px;
-            font-weight: 500;
-            color: #374151;
+            font-weight: bold;
+            color: #ffffff;
             font-size: 0.875rem;
         }
         
@@ -60,81 +59,145 @@
             width: 100%;
             padding: 12px;
             margin-bottom: 20px;
-            border-radius: 8px;
-            border: 1px solid #d1d5db;
-            background: white;
-            color: #111827;
+            border-radius: 4px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
             font-size: 1rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'Courier New', monospace;
+            transition: border-color 0.2s;
         }
         
         input[type="text"]:focus, input[type="password"]:focus {
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            border-color: #ff4500;
+        }
+        
+        input[type="text"]::placeholder, input[type="password"]::placeholder {
+            color: rgba(255, 255, 255, 0.6);
         }
         
         .btn {
             width: 100%;
-            background: #3b82f6;
-            color: white;
-            border: none;
+            background: #ff4500;
+            color: #ffffff;
+            border: 2px solid #ff4500;
             padding: 14px;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 1rem;
-            font-weight: 500;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
             cursor: pointer;
             margin-top: 8px;
             transition: background-color 0.2s;
         }
         
         .btn:hover {
-            background: #2563eb;
+            background: #ff6600;
+            border-color: #ff6600;
         }
         
         .btn:disabled {
-            background: #9ca3af;
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.3);
             cursor: not-allowed;
         }
         
         .error {
-            color: #dc2626;
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 8px;
+            color: #ffffff;
+            background: rgba(220, 38, 38, 0.2);
+            border: 1px solid #dc2626;
+            border-radius: 4px;
             padding: 12px;
             margin-bottom: 20px;
             font-size: 0.875rem;
         }
         
         .success {
-            color: #059669;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 8px;
+            color: #ffffff;
+            background: rgba(255, 69, 0, 0.2);
+            border: 1px solid #ff4500;
+            border-radius: 4px;
             padding: 12px;
             margin-bottom: 20px;
             font-size: 0.875rem;
         }
         
-        @media (max-width: 480px) {
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            
             .reg-container {
-                padding: 24px;
-                margin: 16px;
+                padding: 30px 25px;
+                max-width: 100%;
             }
             
             h1 {
-                font-size: 1.5rem;
+                font-size: 1.6rem;
+            }
+            
+            .desc {
+                font-size: 0.85rem;
+                margin-bottom: 25px;
+            }
+            
+            input[type="text"], input[type="password"] {
+                padding: 14px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .btn {
+                padding: 16px;
+                font-size: 1rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .reg-container {
+                padding: 20px;
+                margin: 0;
+            }
+            
+            h1 {
+                font-size: 1.4rem;
+            }
+            
+            .desc {
+                font-size: 0.8rem;
+                line-height: 1.4;
+            }
+            
+            label {
+                font-size: 0.8rem;
+            }
+            
+            input[type="text"], input[type="password"] {
+                padding: 12px;
+                margin-bottom: 15px;
+            }
+            
+            .btn {
+                padding: 14px;
+                font-size: 0.9rem;
+            }
+            
+            .error, .success {
+                padding: 10px;
+                font-size: 0.8rem;
             }
         }
     </style>
 </head>
 <body>
     <div class="reg-container">
-        <h1>Register for Paltalk Server</h1>
+        <h1>Register for h2ktalk.fun</h1>
         <div class="desc">
             Create your account to join chat rooms and connect with others.<br>
-            Only a nickname, first and last name, and password are required.<br>
             <b>Do not use your real Paltalk credentials.</b>
         </div>
         <form id="regForm" autocomplete="off">
@@ -191,7 +254,34 @@
             clearTimeout(nicknameCheckTimeout);
             const nickname = nicknameInput.value.trim();
             
-            if (nickname.length >= 3) {
+            // Quick validation checks
+            if (nickname.length > 0 && nickname.length < 5) {
+                errorDiv.textContent = 'Nickname must be at least 5 characters long.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Check for blacklisted words
+            if (nickname.length >= 5) {
+                const blacklistedWords = ['admin', 'co-admin', 'coadmin', 'paltalk', 'support', 'palsupport'];
+                const nicknameLC = nickname.toLowerCase();
+                
+                for (const word of blacklistedWords) {
+                    if (nicknameLC.includes(word)) {
+                        errorDiv.textContent = `Nickname cannot contain the word "${word}".`;
+                        errorDiv.style.display = 'block';
+                        return;
+                    }
+                }
+                
+                // Check for brackets
+                if (nickname.includes('(') || nickname.includes(')')) {
+                    errorDiv.textContent = 'Nickname cannot contain brackets ( ).';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+                
+                // Check if already taken
                 nicknameCheckTimeout = setTimeout(async () => {
                     const exists = await checkNicknameExists(nickname);
                     if (exists) {
@@ -221,14 +311,33 @@
             }
 
             // Validate nickname format
-            if (nickname.length < 3) {
-                errorDiv.textContent = 'Nickname must be at least 3 characters long.';
+            if (nickname.length < 5) {
+                errorDiv.textContent = 'Nickname must be at least 5 characters long.';
                 errorDiv.style.display = 'block';
                 return;
             }
 
             if (!/^[a-zA-Z0-9_-]+$/.test(nickname)) {
                 errorDiv.textContent = 'Nickname can only contain letters, numbers, hyphens, and underscores.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Check for blacklisted words
+            const blacklistedWords = ['admin', 'co-admin', 'coadmin', 'paltalk', 'support', 'palsupport'];
+            const nicknameLC = nickname.toLowerCase();
+            
+            for (const word of blacklistedWords) {
+                if (nicknameLC.includes(word)) {
+                    errorDiv.textContent = `Nickname cannot contain the word "${word}".`;
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+            }
+            
+            // Check for brackets
+            if (nickname.includes('(') || nickname.includes(')')) {
+                errorDiv.textContent = 'Nickname cannot contain brackets ( ).';
                 errorDiv.style.display = 'block';
                 return;
             }

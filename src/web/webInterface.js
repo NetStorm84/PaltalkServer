@@ -62,12 +62,17 @@ class WebInterface {
 
     setupRoutes() {
         // Authentication routes
-        this.app.get('/login', (req, res) => {
+        this.app.get('/admin/login', (req, res) => {
             // If already authenticated, redirect to dashboard
             if (req.session && req.session.isAuthenticated) {
-                return res.redirect('/');
+                return res.redirect('/admin');
             }
-            res.sendFile(path.join(__dirname, 'public', 'login.html'));
+            res.sendFile(path.join(__dirname, 'public', 'admin', 'login.html'));
+        });
+        
+        // Redirect old login path
+        this.app.get('/login', (req, res) => {
+            res.redirect('/admin/login');
         });
         
         this.app.post('/auth/login', (req, res) => {
@@ -79,23 +84,42 @@ class WebInterface {
         });
         
         // Main dashboard - protected by authentication
-        this.app.get('/', requireAuth, (req, res) => {
-            res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+        this.app.get('/admin', requireAuth, (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'admin', 'dashboard.html'));
+        });
+        
+        // Redirect root to admin for authenticated users, otherwise show public index
+        this.app.get('/', (req, res) => {
+            if (req.session && req.session.isAuthenticated) {
+                return res.redirect('/admin');
+            }
+            res.sendFile(path.join(__dirname, 'public', 'index.html'));
         });
 
         // Voice dashboard - protected by authentication
-        this.app.get('/voice-dashboard.html', requireAuth, (req, res) => {
-            res.sendFile(path.join(__dirname, 'public', 'voice-dashboard.html'));
+        this.app.get('/admin/voice-dashboard.html', requireAuth, (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'admin', 'voice-dashboard.html'));
         });
         
         // Bot management - protected by authentication
-        this.app.get('/bot-management.html', requireAuth, (req, res) => {
-            res.sendFile(path.join(__dirname, 'public', 'bot-management.html'));
+        this.app.get('/admin/bot-management.html', requireAuth, (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'admin', 'bot-management.html'));
         });
 
         // Packet logs - protected by authentication
+        this.app.get('/admin/packet-logs.html', requireAuth, (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'admin', 'packet-logs.html'));
+        });
+        
+        // Redirect old admin paths
+        this.app.get('/voice-dashboard.html', requireAuth, (req, res) => {
+            res.redirect('/admin/voice-dashboard.html');
+        });
+        this.app.get('/bot-management.html', requireAuth, (req, res) => {
+            res.redirect('/admin/bot-management.html');
+        });
         this.app.get('/packet-logs.html', requireAuth, (req, res) => {
-            res.sendFile(path.join(__dirname, 'public', 'packet-logs.html'));
+            res.redirect('/admin/packet-logs.html');
         });
 
         // API Routes
@@ -103,31 +127,52 @@ class WebInterface {
         // User registration endpoint
         this.app.post('/api/register', async (req, res) => {
             try {
-                const { username, password, email, firstName, lastName } = req.body;
+                const { first, last, nickname, password } = req.body;
                 
                 // Validate input
-                if (!username || !password || !email) {
+                if (!first || !last || !nickname || !password) {
                     return res.status(400).json({ 
                         success: false, 
-                        message: 'Username, password, and email are required' 
+                        error: 'All fields are required' 
+                    });
+                }
+                
+                // Validate nickname length
+                if (nickname.length < 5) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: 'Nickname must be at least 5 characters long' 
+                    });
+                }
+                
+                // Blacklisted words/characters
+                const blacklistedWords = ['admin', 'co-admin', 'coadmin', 'paltalk', 'support', 'palsupport'];
+                const nicknameLC = nickname.toLowerCase();
+                
+                // Check for blacklisted words
+                for (const word of blacklistedWords) {
+                    if (nicknameLC.includes(word)) {
+                        return res.status(400).json({ 
+                            success: false, 
+                            error: `Nickname cannot contain the word "${word}"` 
+                        });
+                    }
+                }
+                
+                // Check for brackets
+                if (nickname.includes('(') || nickname.includes(')')) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: 'Nickname cannot contain brackets ( )' 
                     });
                 }
                 
                 // Check if user already exists
-                const existingUser = await this.db.getUserByNickname(username);
+                const existingUser = await this.db.getUserByNickname(nickname);
                 if (existingUser) {
                     return res.status(409).json({ 
                         success: false, 
-                        message: 'Username already exists' 
-                    });
-                }
-                
-                // Check if email already exists
-                const existingEmail = await this.db.getUserByEmail(email);
-                if (existingEmail) {
-                    return res.status(409).json({ 
-                        success: false, 
-                        message: 'Email already registered' 
+                        error: 'Nickname already exists' 
                     });
                 }
                 
@@ -138,11 +183,11 @@ class WebInterface {
                 
                 // Create user object
                 const userData = {
-                    nickname: username,
+                    nickname: nickname,
                     password: hashedPassword,
-                    email: email,
-                    firstName: firstName || '',
-                    lastName: lastName || '',
+                    email: '', // No email field in this form
+                    firstName: first,
+                    lastName: last,
                     admin: 0,
                     paid1: 0
                 };
@@ -152,12 +197,13 @@ class WebInterface {
                 
                 logger.info('New user registered', { 
                     userId, 
-                    username, 
-                    email,
+                    nickname, 
+                    firstName: first,
+                    lastName: last,
                     ip: req.ip 
                 });
                 
-                res.status(201).json({ 
+                res.status(200).json({ 
                     success: true, 
                     message: 'User registered successfully',
                     userId: userId
@@ -167,7 +213,7 @@ class WebInterface {
                 logger.error('Registration failed', error, { ip: req.ip });
                 res.status(500).json({ 
                     success: false, 
-                    message: 'Registration failed. Please try again.' 
+                    error: 'Registration failed. Please try again.' 
                 });
             }
         });
