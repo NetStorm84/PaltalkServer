@@ -150,9 +150,33 @@
     </div>
     
     <div class="stat-card">
-        <h3>Email Notifications</h3>
-        <div class="stat-value" id="emailNotifications">-</div>
-        <div class="stat-description">Active subscriptions</div>
+        <h3>Online Users</h3>
+        <div class="stat-value" id="onlineUsers">-</div>
+        <div class="stat-description">Currently connected</div>
+    </div>
+    
+    <div class="stat-card">
+        <h3>Active Rooms</h3>
+        <div class="stat-value" id="activeRooms">-</div>
+        <div class="stat-description">Rooms with users</div>
+    </div>
+    
+    <div class="stat-card">
+        <h3>Total Connections</h3>
+        <div class="stat-value" id="totalConnections">-</div>
+        <div class="stat-description">Server connections</div>
+    </div>
+    
+    <div class="stat-card">
+        <h3>Server Uptime</h3>
+        <div class="stat-value" id="serverUptime">-</div>
+        <div class="stat-description">Time since restart</div>
+    </div>
+    
+    <div class="stat-card">
+        <h3>Voice Sessions</h3>
+        <div class="stat-value" id="voiceSessions">-</div>
+        <div class="stat-description">Active voice users</div>
     </div>
 </div>
 
@@ -167,11 +191,17 @@
         <a href="{{ route('admin.users') }}" class="action-btn">
             👥 Manage Users
         </a>
+        <a href="{{ route('admin.packet-logs') }}" class="action-btn">
+            📋 Packet Logs
+        </a>
+        <a href="{{ route('admin.voice-logs') }}" class="action-btn">
+            🎙️ Voice Logs
+        </a>
+        <a href="{{ route('admin.bot-management') }}" class="action-btn">
+            🤖 Bot Management
+        </a>
         <a href="#" class="action-btn" onclick="viewEmailSubscriptions()">
             📧 Email Subscriptions
-        </a>
-        <a href="#" class="action-btn" onclick="viewServerLogs()">
-            📋 Server Logs
         </a>
         <a href="#" class="action-btn" onclick="connectToChatServer()">
             💬 Chat Server Status
@@ -191,61 +221,127 @@ if (!adminToken) {
 // Load dashboard data
 async function loadDashboardData() {
     try {
-        // Load basic stats
-        const statsResponse = await fetch('/api/stats', {
-            headers: {
-                'Authorization': `Bearer ${adminToken}`,
-                'X-CSRF-TOKEN': token
-            }
-        });
-        
-        if (statsResponse.ok) {
-            const stats = await statsResponse.json();
-            document.getElementById('totalUsers').textContent = stats.users?.total || 0;
-            document.getElementById('activeUsers').textContent = stats.users?.active || 0;
-            document.getElementById('adminUsers').textContent = stats.users?.admins || 0;
-            document.getElementById('emailNotifications').textContent = stats.notifications?.active || 0;
-        }
-        
-        // Load server state
+        // Load real-time server state from Node.js server
         const serverResponse = await fetch('/api/server-state', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`,
-                'X-CSRF-TOKEN': token
+                'X-CSRF-TOKEN': token,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
             }
         });
         
         if (serverResponse.ok) {
             const serverData = await serverResponse.json();
+            
+            // Update database-based stats
+            document.getElementById('totalUsers').textContent = serverData.database?.users_total || 0;
+            document.getElementById('activeUsers').textContent = serverData.database?.users_active || 0;
+            document.getElementById('adminUsers').textContent = serverData.database?.admins || 0;
+            
+            // Update real-time server stats from Node.js
+            if (serverData.stats) {
+                document.getElementById('onlineUsers').textContent = serverData.stats.onlineUsers || 0;
+                document.getElementById('activeRooms').textContent = serverData.stats.activeRooms || 0;
+                document.getElementById('totalConnections').textContent = serverData.stats.totalConnections || 0;
+            }
+            
+            // Update server info
+            if (serverData.server) {
+                document.getElementById('serverUptime').textContent = serverData.server.uptime || 'Unknown';
+            }
+            
+            // Update voice stats if available
+            if (serverData.voice) {
+                document.getElementById('voiceSessions').textContent = serverData.voice.activeSessions || 0;
+            } else {
+                document.getElementById('voiceSessions').textContent = 0;
+            }
+            
+            // Update server status display
             const statusDiv = document.getElementById('serverStatus');
+            const isOnline = !serverData.error;
+            
             statusDiv.innerHTML = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                     <div>
-                        <strong>Laravel Server:</strong><br>
-                        Status: <span style="color: #4ade80;">Running</span><br>
+                        <strong>Chat Server:</strong><br>
+                        Status: <span style="color: ${isOnline ? '#4ade80' : '#ef4444'};">${isOnline ? 'Online' : 'Offline'}</span><br>
+                        Port: ${serverData.server?.port || 5001}<br>
                         Version: ${serverData.server?.version || '1.0.0'}
                     </div>
                     <div>
+                        <strong>Voice Server:</strong><br>
+                        Status: <span style="color: ${serverData.voice ? '#4ade80' : '#ef4444'};">${serverData.voice ? 'Online' : 'Offline'}</span><br>
+                        Port: ${serverData.voice?.port || 2090}<br>
+                        Sessions: ${serverData.voice?.activeSessions || 0}
+                    </div>
+                    <div>
                         <strong>Database:</strong><br>
+                        Status: <span style="color: #4ade80;">Connected</span><br>
                         Users: ${serverData.database?.users_total || 0}<br>
                         Active: ${serverData.database?.users_active || 0}
                     </div>
                     <div>
-                        <strong>Chat Server:</strong><br>
-                        Port: ${serverData.chat_server?.port || 5001}<br>
-                        Voice Port: ${serverData.chat_server?.voice_port || 2090}
+                        <strong>Performance:</strong><br>
+                        CPU: ${serverData.performance?.cpu || 'N/A'}<br>
+                        Memory: ${serverData.performance?.memory || 'N/A'}<br>
+                        Uptime: ${serverData.server?.uptime || 'Unknown'}
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <strong>Active Users:</strong><br>
+                            ${(serverData.users || []).slice(0, 3).map(user => `<span style="color: #4ade80;">${user.nickname || user.name}</span>`).join(', ')}
+                            ${(serverData.users || []).length > 3 ? `<span style="color: rgba(255,255,255,0.7);"> +${(serverData.users || []).length - 3} more</span>` : ''}
+                        </div>
+                        <div>
+                            <strong>Popular Rooms:</strong><br>
+                            ${(serverData.rooms || []).slice(0, 3).map(room => `<span style="color: #ff4500;">${room.name}</span> (${room.userCount})`).join('<br>')}
+                        </div>
                     </div>
                 </div>
                 <p style="margin-top: 1rem; color: rgba(255, 255, 255, 0.7); font-style: italic;">
-                    ${serverData.message || 'Server running normally'}
+                    ${serverData.error ? `⚠️ ${serverData.error}` : '✅ All systems operational'}
                 </p>
             `;
         }
         
+        // Also load voice server stats separately
+        try {
+            const voiceResponse = await fetch('/api/admin/voice/stats', {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`,
+                    'X-CSRF-TOKEN': token
+                }
+            });
+            
+            if (voiceResponse.ok) {
+                const voiceData = await voiceResponse.json();
+                if (voiceData.activeSessions !== undefined) {
+                    document.getElementById('voiceSessions').textContent = voiceData.activeSessions;
+                }
+            }
+        } catch (error) {
+            console.log('Voice server stats unavailable:', error.message);
+        }
+        
     } catch (error) {
         console.error('Error loading dashboard data:', error);
+        
+        // Show fallback data when server is unavailable
+        document.getElementById('totalUsers').textContent = '0';
+        document.getElementById('activeUsers').textContent = '0';
+        document.getElementById('adminUsers').textContent = '0';
+        document.getElementById('onlineUsers').textContent = '0';
+        document.getElementById('activeRooms').textContent = '0';
+        document.getElementById('totalConnections').textContent = '0';
+        document.getElementById('serverUptime').textContent = 'Unknown';
+        document.getElementById('voiceSessions').textContent = '0';
+        
         document.getElementById('serverStatus').innerHTML = 
-            '<span style="color: #ef4444;">Error loading server data</span>';
+            '<span style="color: #ef4444;">⚠️ Unable to connect to chat server. Dashboard showing local data only.</span>';
     }
 }
 

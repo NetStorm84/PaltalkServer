@@ -25,7 +25,14 @@ class AdminMiddleware
         }
 
         // Check if user has admin privileges (level 2 or higher)
-        if (!$user->isAdmin()) {
+        $isAdmin = false;
+        if (is_object($user) && isset($user->admin)) {
+            $isAdmin = $user->admin >= 2;
+        } elseif (is_object($user) && method_exists($user, 'isAdmin')) {
+            $isAdmin = $user->isAdmin();
+        }
+        
+        if (!$isAdmin) {
             return response()->json([
                 'success' => false,
                 'error' => 'Admin access required'

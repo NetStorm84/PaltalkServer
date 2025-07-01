@@ -32,17 +32,18 @@ class AuthController extends Controller
 
         // Check hardcoded dashboard admin first
         if ($username === 'admin' && $password === 'password123') {
-            // Create a temporary admin user object for token generation
-            $adminUser = new User([
-                'id' => 0,
-                'name' => 'Dashboard Admin',
+            // Create a temporary admin user for session
+            session(['admin_user' => [
+                'uid' => 0,
                 'nickname' => 'admin',
+                'first' => 'Dashboard',
+                'last' => 'Admin',
                 'admin' => 3,
                 'is_active' => true
-            ]);
+            ]]);
             
-            // Create Sanctum token
-            $token = $adminUser->createToken('admin-token')->plainTextToken;
+            // Create a token manually (since we can't use Sanctum with non-database user)
+            $token = 'admin-' . bin2hex(random_bytes(32));
 
             return response()->json([
                 'success' => true,
