@@ -261,10 +261,111 @@ let adminToken = localStorage.getItem('admin_token');
 let isCapturing = false;
 let packetLogs = [];
 let captureInterval = null;
+let isSocketConnected = false;
+let expandedPackets = new Set(); // Track expanded packet details
 
 // Check if user is logged in
 if (!adminToken) {
     window.location.href = '{{ route("admin.login") }}';
+}
+
+// Socket.IO event handlers for packet logs
+function setupPacketSocketListeners() {
+    if (!window.socketClient) {
+        console.warn('Socket.IO client not available for packet logs');
+        return;
+    }
+
+    // Listen for real-time packet events
+    window.socketClient.on('packet-logged', (packetData) => {
+        console.log('📦 Real-time packet received:', packetData);
+        addPacketToLogsRealtime(packetData);
+    });
+
+    // Listen for connection status changes
+    window.socketClient.on('connection-status', (status) => {
+        isSocketConnected = status.connected;
+        updatePacketConnectionIndicator(status);
+        
+        if (status.connected && isCapturing) {
+            // Request packet stream when connected and capturing
+            requestPacketStream();
+        }
+    });
+
+    // Listen for bulk packet updates
+    window.socketClient.on('packets-batch', (data) => {
+        console.log('📦 Packet batch received:', data);
+        if (data.packets && Array.isArray(data.packets)) {
+            data.packets.forEach(packet => addPacketToLogsRealtime(packet));
+        }
+    });
+}
+
+// Update connection indicator for packet logs
+function updatePacketConnectionIndicator(status) {
+    const headerTitle = document.querySelector('.admin-header h1');
+    if (headerTitle) {
+        const emoji = status.connected ? '📦' : '🔌';
+        const originalText = headerTitle.textContent.replace(/^[📦🔌] /, '');
+        headerTitle.textContent = `${emoji} ${originalText}`;
+    }
+    
+    // Update capture button text based on connection
+    const captureBtn = document.getElementById('captureBtn');
+    if (captureBtn && !isCapturing) {
+        captureBtn.textContent = status.connected ? 
+            'Start Real-time Capture' : 'Start Simulated Capture';
+    }
+}
+
+// Request packet stream via Socket.IO
+function requestPacketStream() {
+    if (window.socketClient && isSocketConnected) {
+        // Request to start packet streaming
+        window.socketClient.send('startPacketStream', {
+            filter: document.getElementById('packetFilter').value,
+            maxEntries: parseInt(document.getElementById('maxEntries').value) || 100
+        });
+        
+        console.log('📦 Requested real-time packet stream via Socket.IO');
+    }
+}
+
+// Stop packet stream via Socket.IO
+function stopPacketStream() {
+    if (window.socketClient && isSocketConnected) {
+        window.socketClient.send('stopPacketStream', {});
+        console.log('⏹️ Stopped real-time packet stream via Socket.IO');
+    }
+}
+
+// Add packet to logs with real-time processing
+function addPacketToLogsRealtime(packetData) {
+    // Create a standardized packet object
+    const packet = {
+        id: packetData.id || Date.now() + Math.random(),
+        timestamp: new Date(packetData.timestamp || Date.now()),
+        direction: packetData.direction || 'unknown',
+        type: packetData.type || 'UNKNOWN',
+        size: packetData.size || 0,
+        data: packetData.data || packetData.payload || '',
+        details: packetData.details || {},
+        summary: packetData.summary || 'No summary available'
+    };
+    
+    // Add to beginning of logs array
+    packetLogs.unshift(packet);
+    
+    // Limit total logs to prevent memory issues
+    const maxLogs = parseInt(document.getElementById('maxEntries').value) * 2;
+    if (packetLogs.length > maxLogs) {
+        packetLogs = packetLogs.slice(0, maxLogs);
+    }
+    
+    // Update UI
+    updateStats();
+    renderLogs();
 }
 
 // Toggle packet capture
@@ -273,12 +374,12 @@ function toggleCapture() {
     
     if (!isCapturing) {
         startCapture();
-        btn.textContent = 'Stop Capture';
+        btn.textContent = isSocketConnected ? 'Stop Real-time Capture' : 'Stop Simulated Capture';
         btn.style.background = '#dc2626';
         btn.style.borderColor = '#dc2626';
     } else {
         stopCapture();
-        btn.textContent = 'Start Capture';
+        btn.textContent = isSocketConnected ? 'Start Real-time Capture' : 'Start Simulated Capture';
         btn.style.background = '#ff4500';
         btn.style.borderColor = '#ff4500';
     }
@@ -288,15 +389,30 @@ function toggleCapture() {
 
 // Start packet capture
 function startCapture() {
-    captureInterval = setInterval(fetchPacketLogs, 1000); // Poll every second
-    fetchPacketLogs();
+    if (isSocketConnected) {
+        // Use real-time Socket.IO streaming
+        requestPacketStream();
+        console.log('🚀 Started real-time packet capture via Socket.IO');
+    } else {
+        // Fallback to polling simulation
+        captureInterval = setInterval(fetchPacketLogs, 1000); // Poll every second
+        fetchPacketLogs();
+        console.log('🚀 Started simulated packet capture');
+    }
 }
 
 // Stop packet capture
 function stopCapture() {
+    if (isSocketConnected) {
+        // Stop real-time streaming
+        stopPacketStream();
+        console.log('⏹️ Stopped real-time packet capture');
+    }
+    
     if (captureInterval) {
         clearInterval(captureInterval);
         captureInterval = null;
+        console.log('⏹️ Stopped simulated packet capture');
     }
 }
 
@@ -380,7 +496,7 @@ function updateStats() {
     document.getElementById('recentPackets').textContent = recent;
 }
 
-// Render logs
+// Render logs with enhanced display and expandable details
 function renderLogs() {
     const container = document.getElementById('logsContainer');
     const filter = document.getElementById('packetFilter').value;
@@ -395,19 +511,67 @@ function renderLogs() {
         return;
     }
     
-    const logsHtml = filteredLogs.slice(-20).reverse().map(packet => `
-        <div class="log-entry ${packet.direction}">
-            <div>
-                <span class="log-timestamp">${packet.timestamp.toLocaleTimeString()}</span>
-                <span class="log-direction ${packet.direction}">${packet.direction.toUpperCase()}</span>
-                <span style="color: #ffffff;">${packet.type} (${packet.size} bytes)</span>
+    const displayLogs = filteredLogs.slice(0, 50); // Show last 50 packets
+    
+    const logsHtml = displayLogs.map((packet, index) => {
+        const isExpanded = expandedPackets.has(packet.id);
+        const directionColor = packet.direction === 'incoming' ? '#3b82f6' : '#ef4444';
+        const directionSymbol = packet.direction === 'incoming' ? '⬇️' : '⬆️';
+        
+        return `
+            <div class="log-entry ${packet.direction}" style="margin-bottom: 0.5rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;">
+                <div style="padding: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" 
+                     onclick="togglePacketDetails('${packet.id}')">
+                    <div style="flex: 1;">
+                        <span class="log-timestamp" style="color: #888; margin-right: 1rem;">${packet.timestamp.toLocaleTimeString()}</span>
+                        <span style="color: ${directionColor}; font-weight: bold; margin-right: 1rem;">${directionSymbol} ${packet.direction.toUpperCase()}</span>
+                        <span style="color: #ffffff; margin-right: 1rem;">${packet.type}</span>
+                        <span style="color: #8b5cf6;">(${packet.size} bytes)</span>
+                    </div>
+                    <span style="color: #64748b; font-size: 0.8rem;">${isExpanded ? '▲' : '▼'}</span>
+                </div>
+                
+                ${isExpanded ? `
+                    <div style="padding: 0 0.75rem 0.75rem 0.75rem; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong style="color: #f8fafc;">Summary:</strong>
+                            <span style="color: #cbd5e1;">${packet.summary}</span>
+                        </div>
+                        
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong style="color: #f8fafc;">Data (HEX):</strong>
+                            <div style="background: #000; padding: 0.5rem; border-radius: 3px; font-family: monospace; font-size: 0.8rem; color: #fbbf24; word-break: break-all; max-height: 100px; overflow-y: auto;">
+                                ${packet.data || 'No data available'}
+                            </div>
+                        </div>
+                        
+                        ${packet.details && Object.keys(packet.details).length > 0 ? `
+                            <div>
+                                <strong style="color: #f8fafc;">Details:</strong>
+                                <div style="background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 3px; font-size: 0.8rem;">
+                                    ${Object.entries(packet.details).map(([key, value]) => 
+                                        `<div><span style="color: #94a3b8;">${key}:</span> <span style="color: #f8fafc;">${value}</span></div>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''}
             </div>
-            <div class="log-hex">${packet.data}</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     
     container.innerHTML = logsHtml;
-    container.scrollTop = 0; // Scroll to top (newest)
+}
+
+// Toggle packet details
+function togglePacketDetails(packetId) {
+    if (expandedPackets.has(packetId)) {
+        expandedPackets.delete(packetId);
+    } else {
+        expandedPackets.add(packetId);
+    }
+    renderLogs();
 }
 
 // Clear logs
@@ -491,6 +655,18 @@ document.getElementById('packetFilter').addEventListener('change', renderLogs);
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    // Set up Socket.IO listeners
+    setupPacketSocketListeners();
+    
+    // Initialize stats
     updateStats();
+    
+    // Check initial connection status
+    setTimeout(() => {
+        if (window.socketClient) {
+            const status = window.socketClient.getStatus();
+            updatePacketConnectionIndicator({ connected: status.connected });
+        }
+    }, 1000);
 });
 @endsection

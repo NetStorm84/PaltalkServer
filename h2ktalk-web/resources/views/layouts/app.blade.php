@@ -33,6 +33,9 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     
+    <!-- Vite Assets -->
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    
     <style>
         * {
             margin: 0;
@@ -199,6 +202,23 @@
         
         function hideMessage(element) {
             element.style.display = 'none';
+        }
+        
+        // Socket.IO connection status indicator
+        function updateGlobalConnectionStatus(status) {
+            // You can add a global connection indicator here if needed
+            console.log('Global connection status:', status);
+        }
+        
+        // Initialize Socket.IO if on admin pages
+        if (window.location.pathname.includes('/admin') && window.socketClient) {
+            document.addEventListener('DOMContentLoaded', () => {
+                window.socketClient.on('connection-status', updateGlobalConnectionStatus);
+                // Auto-connect for admin pages
+                window.socketClient.connect().catch(error => {
+                    console.warn('Failed to connect to Socket.IO server:', error);
+                });
+            });
         }
         
         @yield('scripts')

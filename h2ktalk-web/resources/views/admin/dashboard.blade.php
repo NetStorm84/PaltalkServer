@@ -380,8 +380,45 @@ function connectToChatServer() {
 }
 
 // Load data when page loads
-document.addEventListener('DOMContentLoaded', loadDashboardData);
+document.addEventListener('DOMContentLoaded', () => {
+    // Set up Socket.IO listeners first
+    setupSocketListeners();
+    
+    // Load initial data via API (fallback)
+    loadDashboardData();
+    
+    // If Socket.IO is connected, request real-time data
+    setTimeout(() => {
+        if (isSocketConnected) {
+            requestServerData();
+        }
+    }, 1000);
+});
 
-// Refresh data every 30 seconds
-setInterval(loadDashboardData, 30000);
+// Refresh data periodically with dynamic interval based on connection status
+let refreshInterval;
+
+function setupRefreshInterval() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+    
+    const interval = isSocketConnected ? 60000 : 15000; // 60s with Socket.IO, 15s without
+    
+    refreshInterval = setInterval(() => {
+        if (isSocketConnected) {
+            // With Socket.IO, refresh less frequently
+            // Real-time updates handle most data changes
+            requestServerData();
+        } else {
+            // Without Socket.IO, refresh more frequently
+            loadDashboardData();
+        }
+    }, interval);
+    
+    console.log(`📊 Dashboard refresh interval set to ${interval/1000}s (Socket.IO: ${isSocketConnected ? 'connected' : 'disconnected'})`);
+}
+
+// Start initial refresh interval
+setupRefreshInterval();
 @endsection

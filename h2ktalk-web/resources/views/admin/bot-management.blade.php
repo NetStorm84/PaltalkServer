@@ -395,10 +395,102 @@ let botStats = {
     uptime: '00:00:00'
 };
 let isOnlineMode = true; // Track API connectivity
+let isSocketConnected = false; // Track Socket.IO connectivity
 
 // Check if user is logged in
 if (!adminToken) {
     window.location.href = '{{ route("admin.login") }}';
+}
+
+// Socket.IO event handlers for bot management
+function setupBotSocketListeners() {
+    if (!window.socketClient) {
+        console.warn('Socket.IO client not available for bot management');
+        return;
+    }
+
+    // Listen for real-time bot updates
+    window.socketClient.on('bot-update', (data) => {
+        console.log('🤖 Real-time bot update:', data);
+        updateBotsFromSocket(data);
+    });
+
+    // Listen for connection status changes
+    window.socketClient.on('connection-status', (status) => {
+        isSocketConnected = status.connected;
+        updateBotConnectionIndicator(status);
+        
+        if (status.connected) {
+            // Request initial bot data when connected
+            requestBotData();
+        }
+    });
+
+    // Listen for individual bot events
+    window.socketClient.on('bot-started', (data) => {
+        console.log('🚀 Bot started:', data);
+        refreshBotList();
+    });
+
+    window.socketClient.on('bot-stopped', (data) => {
+        console.log('⏹️ Bot stopped:', data);
+        refreshBotList();
+    });
+
+    window.socketClient.on('bot-error', (data) => {
+        console.log('❌ Bot error:', data);
+        alert(`Bot Error: ${data.message}`);
+        refreshBotList();
+    });
+}
+
+// Update connection indicator for bot management
+function updateBotConnectionIndicator(status) {
+    // You can add a visual indicator here if needed
+    console.log(`Bot Management Socket.IO: ${status.connected ? 'Connected' : 'Disconnected'}`);
+    
+    // Update the page title to show connection status
+    const headerTitle = document.querySelector('.admin-header h1');
+    if (headerTitle) {
+        const emoji = status.connected ? '🤖' : '🔌';
+        const originalText = headerTitle.textContent.replace(/^[🤖🔌] /, '');
+        headerTitle.textContent = `${emoji} ${originalText}`;
+    }
+}
+
+// Request bot data via Socket.IO
+function requestBotData() {
+    if (window.socketClient && isSocketConnected) {
+        // Request bot list and stats
+        window.socketClient.send('requestBotList', {});
+        window.socketClient.send('requestBotStats', {});
+        
+        console.log('🤖 Requested real-time bot data via Socket.IO');
+    }
+}
+
+// Update bots from Socket.IO data
+function updateBotsFromSocket(data) {
+    console.log('🔄 Updating bot management with Socket.IO data:', data);
+    
+    if (data.bots) {
+        activeBots = data.bots;
+        renderBotList();
+    }
+    
+    if (data.stats) {
+        botStats = {
+            active: data.stats.active || 0,
+            totalMessages: data.stats.totalMessages || 0,
+            averageLatency: data.stats.averageLatency || 0,
+            uptime: data.stats.uptime || '00:00:00'
+        };
+        updateBotStats();
+    }
+    
+    // Mark as online mode when receiving real-time data
+    isOnlineMode = true;
+    updateConnectionStatus();
 }
 
 // API utility functions
@@ -571,8 +663,29 @@ document.getElementById('botConfigForm').addEventListener('submit', async (e) =>
     }
 });
 
-// Deploy bots function with real API call
+// Deploy bots function with Socket.IO and API fallback
 async function deployBots(config) {
+    // Try Socket.IO first if connected
+    if (window.socketClient && isSocketConnected) {
+        try {
+            const response = await window.socketClient.request('deployBots', {
+                bot_count: config.botCount,
+                target_room: config.targetRoom,
+                chat_frequency: config.chatFrequency,
+                move_frequency: config.moveFrequency,
+                distribution_mode: config.distributionMode
+            });
+            
+            console.log('🚀 Bots deployed via Socket.IO:', response);
+            
+            // Real-time updates will handle the UI refresh
+            return { success: true, data: response };
+        } catch (socketError) {
+            console.warn('Failed to deploy bots via Socket.IO, falling back to API:', socketError);
+        }
+    }
+    
+    // Fallback to REST API
     try {
         const response = await makeApiCall('/api/admin/bots/start', {
             method: 'POST',
@@ -595,7 +708,7 @@ async function deployBots(config) {
     } catch (error) {
         console.error('Failed to deploy bots via API, simulating deployment:', error);
         
-        // Fallback to mock deployment when API is unavailable
+        // Fallback to mock deployment when both Socket.IO and API are unavailable
         for (let i = 0; i < config.botCount; i++) {
             const newBot = {
                 id: activeBots.length + i + 1,
@@ -837,15 +950,33 @@ async function loadAvailableRooms() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
+    // Set up Socket.IO listeners first
+    setupBotSocketListeners();
+    
+    // Load initial data
     await loadBotStats();
     updateBotStats();
     renderBotList();
     await loadAvailableRooms();
     
-    // Auto-refresh every 10 seconds
+    // If Socket.IO is connected, request real-time data
+    setTimeout(() => {
+        if (isSocketConnected) {
+            requestBotData();
+        }
+    }, 1000);
+    
+    // Auto-refresh with dynamic interval based on connection
     setInterval(async () => {
-        await loadBotStats();
-        updateBotStats();
-    }, 10000);
+        if (isSocketConnected) {
+            // With Socket.IO, refresh less frequently (every 30 seconds)
+            // Real-time updates handle most changes
+            requestBotData();
+        } else {
+            // Without Socket.IO, refresh more frequently (every 10 seconds)
+            await loadBotStats();
+            updateBotStats();
+        }
+    }, isSocketConnected ? 30000 : 10000);
 });
 @endsection
