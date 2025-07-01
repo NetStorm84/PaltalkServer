@@ -214,6 +214,24 @@
 let adminToken = localStorage.getItem('admin_token');
 let isSocketConnected = false;
 
+// Format uptime from seconds to readable format
+function formatUptime(seconds) {
+    if (typeof seconds !== 'number' || seconds < 0) return 'Unknown';
+    
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+    
+    return parts.join(' ');
+}
+
 // Check if user is logged in
 if (!adminToken) {
     console.warn('⚠️ No admin token found, creating temporary token for development');
@@ -289,8 +307,10 @@ function updateDashboardFromSocket(data) {
         document.getElementById('totalConnections').textContent = data.stats.totalConnections || 0;
     }
     
-    if (data.server) {
-        document.getElementById('serverUptime').textContent = data.server.uptime || 'Unknown';
+    if (data.stats && data.stats.uptime !== undefined) {
+        document.getElementById('serverUptime').textContent = formatUptime(data.stats.uptime);
+    } else {
+        document.getElementById('serverUptime').textContent = 'Unknown';
     }
     
     if (data.voice) {
@@ -350,11 +370,13 @@ async function loadDashboardData() {
                 if (totalConnectionsEl) totalConnectionsEl.textContent = serverData.stats.totalConnections || 0;
             }
             
-            // Update server info
+            // Update server info (uptime is in stats, not server)
             console.log('📊 Updating server info...');
-            if (serverData.server) {
-                const serverUptimeEl = document.getElementById('serverUptime');
-                if (serverUptimeEl) serverUptimeEl.textContent = serverData.server.uptime || 'Unknown';
+            const serverUptimeEl = document.getElementById('serverUptime');
+            if (serverUptimeEl && serverData.stats && serverData.stats.uptime) {
+                serverUptimeEl.textContent = formatUptime(serverData.stats.uptime);
+            } else if (serverUptimeEl) {
+                serverUptimeEl.textContent = 'Unknown';
             }
             
             // Update voice stats if available
@@ -396,7 +418,7 @@ async function loadDashboardData() {
                         <strong>Performance:</strong><br>
                         CPU: ${serverData.performance?.cpu || 'N/A'}<br>
                         Memory: ${serverData.performance?.memory || 'N/A'}<br>
-                        Uptime: ${serverData.server?.uptime || 'Unknown'}
+                        Uptime: ${serverData.stats?.uptime ? formatUptime(serverData.stats.uptime) : 'Unknown'}
                     </div>
                 </div>
                 <div style="margin-top: 1rem;">
