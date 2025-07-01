@@ -229,6 +229,59 @@ class Utils {
             return fallback;
         }
     }
+
+    /**
+     * Decrypt an encrypted string using key-based decryption
+     * @param {string} key - The decryption key
+     * @param {number} keyOffset - Starting position in the key
+     * @param {string} encryptedString - The encrypted string to decrypt
+     * @returns {string} The decrypted string
+     */
+    static decrypt(key, keyOffset, encryptedString) {
+        const decryptedChars = [];
+        const destination = key.slice();
+        let counter = 0;
+
+        for (let i = 0; i < encryptedString.length; i += 4) {
+            const encryptedSegment = encryptedString.substring(i, i + 3);
+            const encryptedNumber = parseInt(encryptedSegment);
+            const decryptedCharCode = encryptedNumber - destination.charCodeAt(keyOffset + counter) - 122 - counter;
+            counter++;
+
+            const decryptedChar = String.fromCharCode(decryptedCharCode & 0xFF);
+            decryptedChars.push(decryptedChar);
+        }
+
+        return decryptedChars.join('');
+    }
+
+    /**
+     * Encrypt a plain text string using key-based encryption
+     * @param {string} plainText - The text to encrypt
+     * @param {number} keyOffset - Starting position in the key
+     * @param {string} key - The encryption key
+     * @returns {string} The encrypted string
+     */
+    static encrypt(plainText, keyOffset, key) {
+        let encryptedString = "";
+        const keyLength = key.length;
+        let counter = 0;
+
+        for (let i = 0; i < plainText.length; i++, counter++) {
+            const plainCharCode = plainText.charCodeAt(i);
+            const keyCharCode = key.charCodeAt((keyOffset + counter) % keyLength);
+            const encryptedNumber = plainCharCode + keyCharCode + 122 + counter;
+
+            let formattedNumber = encryptedNumber.toString();
+            while (formattedNumber.length < 4) {
+                formattedNumber += '0';
+            }
+
+            encryptedString += formattedNumber;
+        }
+
+        return encryptedString;
+    }
 }
 
 module.exports = Utils;
