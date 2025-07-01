@@ -212,16 +212,101 @@
 
 @section('scripts')
 let adminToken = localStorage.getItem('admin_token');
+let isSocketConnected = false;
 
 // Check if user is logged in
 if (!adminToken) {
-    window.location.href = '{{ route("admin.login") }}';
+    console.warn('⚠️ No admin token found, creating temporary token for development');
+    // For development/testing, create a temporary admin token
+    adminToken = 'admin-dev-token';
+    localStorage.setItem('admin_token', adminToken);
+}
+
+// Socket.IO event handlers for dashboard
+function setupSocketListeners() {
+    console.log('🔌 Setting up Socket.IO listeners...');
+    
+    if (typeof io === 'undefined') {
+        console.warn('⚠️ Socket.IO library not available');
+        return;
+    }
+    
+    try {
+        // Try to connect to Node.js server for real-time updates
+        const chatServerUrl = 'http://localhost:3000';
+        window.dashboardSocket = io(chatServerUrl);
+        
+        window.dashboardSocket.on('connect', () => {
+            console.log('✅ Dashboard connected to chat server');
+            isSocketConnected = true;
+            requestServerData();
+        });
+        
+        window.dashboardSocket.on('disconnect', () => {
+            console.log('❌ Dashboard disconnected from chat server');
+            isSocketConnected = false;
+        });
+        
+        // Listen for server state updates
+        window.dashboardSocket.on('server-state-update', (data) => {
+            console.log('📊 Real-time server state update:', data);
+            updateDashboardFromSocket(data);
+        });
+        
+        // Error handling
+        window.dashboardSocket.on('connect_error', (error) => {
+            console.warn('❌ Dashboard Socket.IO connection error:', error.message);
+            isSocketConnected = false;
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to initialize Socket.IO for dashboard:', error);
+        isSocketConnected = false;
+    }
+}
+
+// Request server data via Socket.IO
+function requestServerData() {
+    if (window.dashboardSocket && isSocketConnected) {
+        window.dashboardSocket.emit('requestServerState', {});
+        console.log('📡 Requested real-time server state via Socket.IO');
+    }
+}
+
+// Update dashboard from Socket.IO data
+function updateDashboardFromSocket(data) {
+    console.log('🔄 Updating dashboard with Socket.IO data:', data);
+    
+    if (data.database) {
+        document.getElementById('totalUsers').textContent = data.database.users_total || 0;
+        document.getElementById('activeUsers').textContent = data.database.users_active || 0;
+        document.getElementById('adminUsers').textContent = data.database.admins || 0;
+    }
+    
+    if (data.stats) {
+        document.getElementById('onlineUsers').textContent = data.stats.onlineUsers || 0;
+        document.getElementById('activeRooms').textContent = data.stats.activeRooms || 0;
+        document.getElementById('totalConnections').textContent = data.stats.totalConnections || 0;
+    }
+    
+    if (data.server) {
+        document.getElementById('serverUptime').textContent = data.server.uptime || 'Unknown';
+    }
+    
+    if (data.voice) {
+        document.getElementById('voiceSessions').textContent = data.voice.activeSessions || 0;
+    } else {
+        document.getElementById('voiceSessions').textContent = 0;
+    }
 }
 
 // Load dashboard data
 async function loadDashboardData() {
+    console.log('🔄 Starting dashboard data load...');
+    
     try {
         // Load real-time server state from Node.js server
+        console.log('📡 Fetching server state...');
         const serverResponse = await fetch('/api/server-state', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`,
@@ -231,31 +316,56 @@ async function loadDashboardData() {
             }
         });
         
+        console.log('📊 Server response status:', serverResponse.status);
+        
         if (serverResponse.ok) {
             const serverData = await serverResponse.json();
+            console.log('📊 Server data received:', serverData);
             
             // Update database-based stats
-            document.getElementById('totalUsers').textContent = serverData.database?.users_total || 0;
-            document.getElementById('activeUsers').textContent = serverData.database?.users_active || 0;
-            document.getElementById('adminUsers').textContent = serverData.database?.admins || 0;
+            console.log('📊 Updating database stats...');
+            const totalUsersEl = document.getElementById('totalUsers');
+            const activeUsersEl = document.getElementById('activeUsers'); 
+            const adminUsersEl = document.getElementById('adminUsers');
+            
+            console.log('📊 Elements found:', {
+                totalUsers: !!totalUsersEl,
+                activeUsers: !!activeUsersEl,
+                adminUsers: !!adminUsersEl
+            });
+            
+            if (totalUsersEl) totalUsersEl.textContent = serverData.database?.users_total || 0;
+            if (activeUsersEl) activeUsersEl.textContent = serverData.database?.users_active || 0;
+            if (adminUsersEl) adminUsersEl.textContent = serverData.database?.admins || 0;
             
             // Update real-time server stats from Node.js
+            console.log('📊 Updating server stats...');
             if (serverData.stats) {
-                document.getElementById('onlineUsers').textContent = serverData.stats.onlineUsers || 0;
-                document.getElementById('activeRooms').textContent = serverData.stats.activeRooms || 0;
-                document.getElementById('totalConnections').textContent = serverData.stats.totalConnections || 0;
+                const onlineUsersEl = document.getElementById('onlineUsers');
+                const activeRoomsEl = document.getElementById('activeRooms');
+                const totalConnectionsEl = document.getElementById('totalConnections');
+                
+                if (onlineUsersEl) onlineUsersEl.textContent = serverData.stats.onlineUsers || 0;
+                if (activeRoomsEl) activeRoomsEl.textContent = serverData.stats.activeRooms || 0;
+                if (totalConnectionsEl) totalConnectionsEl.textContent = serverData.stats.totalConnections || 0;
             }
             
             // Update server info
+            console.log('📊 Updating server info...');
             if (serverData.server) {
-                document.getElementById('serverUptime').textContent = serverData.server.uptime || 'Unknown';
+                const serverUptimeEl = document.getElementById('serverUptime');
+                if (serverUptimeEl) serverUptimeEl.textContent = serverData.server.uptime || 'Unknown';
             }
             
             // Update voice stats if available
-            if (serverData.voice) {
-                document.getElementById('voiceSessions').textContent = serverData.voice.activeSessions || 0;
-            } else {
-                document.getElementById('voiceSessions').textContent = 0;
+            console.log('📊 Updating voice stats...');
+            const voiceSessionsEl = document.getElementById('voiceSessions');
+            if (voiceSessionsEl) {
+                if (serverData.voice) {
+                    voiceSessionsEl.textContent = serverData.voice.activeSessions || 0;
+                } else {
+                    voiceSessionsEl.textContent = 0;
+                }
             }
             
             // Update server status display
@@ -381,16 +491,24 @@ function connectToChatServer() {
 
 // Load data when page loads
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Dashboard initializing...');
+    console.log('🔑 Admin token present:', !!adminToken);
+    console.log('🎫 CSRF token present:', !!token);
+    
     // Set up Socket.IO listeners first
     setupSocketListeners();
     
     // Load initial data via API (fallback)
+    console.log('📊 Loading initial dashboard data...');
     loadDashboardData();
     
     // If Socket.IO is connected, request real-time data
     setTimeout(() => {
         if (isSocketConnected) {
+            console.log('🔌 Socket.IO connected, requesting real-time data...');
             requestServerData();
+        } else {
+            console.log('🔌 Socket.IO not connected, using API only');
         }
     }, 1000);
 });

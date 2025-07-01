@@ -36,6 +36,10 @@
     <!-- Vite Assets -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     
+    <!-- Socket.IO for real-time admin features (proxied through Laravel) -->
+    <script src="/socket.io/socket.io.js" 
+            onerror="console.warn('Socket.IO library failed to load')"></script>
+    
     <style>
         * {
             margin: 0;
