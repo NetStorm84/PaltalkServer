@@ -26,7 +26,7 @@ const db = new sqlite3.Database("database.db", (err) => {
       privacy                       TEXT NOT NULL DEFAULT 'A', -- A,T,P
       verified                      INTEGER NOT NULL DEFAULT 0,
       random                        TEXT NOT NULL DEFAULT 0,
-      paid1                         TEXT NOT NULL DEFAULT 'N', -- Y,6,E
+      paid1                         INTEGER NOT NULL DEFAULT 0, -- 0=free, 1=basic, 6=premium
       get_offers_from_us            TEXT NOT NULL DEFAULT 'N',
       get_offers_from_affiliates    TEXT NOT NULL DEFAULT 'N',
       show_email                    TEXT NOT NULL DEFAULT 'Y',
@@ -101,10 +101,10 @@ const db = new sqlite3.Database("database.db", (err) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       data: [
-        [1000001, "Paltalk", "default@example.com", "Paltalk", "Official", 'Y', 'N', 'N', 'Y', 'Y', 'Y', 'no', 2, "default_password_hash", "000000128", "", "", 0],
-        [1000002, "NetStorm", "default@example.com", "Net", "Storm", '6', 'N', 'N', 'Y', 'Y', 'Y', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
-        [1000003, "Medianoche (co-admin)", "medianoche@example.com", "Media", "Noche", 'Y', 'N', 'N', 'Y', 'Y', 'Y', 'no', 2, "another_password_hash", "128000000", "[]", "", 1],
-        [1000004, "Dan", "dan@example.com", "Dan", "Crawley", 'N', 'N', 'N', 'Y', 'Y', 'Y', 'yes', 0, "another_password_hash", "000128000", "[]", "", 1],
+        [1000001, "Paltalk", "default@example.com", "Paltalk", "Official", 1, 'N', 'N', 'Y', 'Y', 'Y', 'no', 2, "default_password_hash", "000000255", "", "", 0],
+        [1000002, "NetStorm", "default@example.com", "Net", "Storm", 6, 'N', 'N', 'Y', 'Y', 'Y', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000001, "nickname": "Paltalk"}]', "", 1],
+        [1000003, "Medianoche (co-admin)", "medianoche@example.com", "Media", "Noche", 1, 'N', 'N', 'Y', 'Y', 'Y', 'no', 2, "another_password_hash", "000000255", "[]", "", 1],
+        [1000004, "Dan", "dan@example.com", "Dan", "Crawley", 0, 'N', 'N', 'Y', 'Y', 'Y', 'yes', 0, "another_password_hash", "000000000", "[]", "", 1],
       ],
     },
     {

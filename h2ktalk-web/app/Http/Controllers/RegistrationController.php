@@ -40,6 +40,7 @@ class RegistrationController extends Controller
                     }
                 },
             ],
+            'email' => 'nullable|email|max:255|unique:users,email',
             'password' => 'required|string|min:6|max:64',
         ]);
 
@@ -53,14 +54,14 @@ class RegistrationController extends Controller
         try {
             $user = User::create([
                 'nickname' => $request->nickname,
-                'email' => '', // Set empty for now
+                'email' => $request->email ?: '',
                 'first' => $request->first_name,
                 'last' => $request->last_name,
                 'password' => Hash::make($request->password),
                 'admin' => 0,
                 'privacy' => 'A',
                 'verified' => false,
-                'paid1' => 'N',
+                'paid1' => 0, // Use integer instead of string
                 'listed' => 1,
                 'color' => '000000000'
             ]);

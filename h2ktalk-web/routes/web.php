@@ -70,6 +70,10 @@ Route::prefix('admin')->group(function () {
         return view('admin.users');
     })->name('admin.users');
     
+    Route::get('/users/{id}/edit', function ($id) {
+        return view('admin.users.edit', compact('id'));
+    })->name('admin.users.edit');
+    
     Route::get('/packet-logs', function () {
         return view('admin.packet-logs');
     })->name('admin.packet-logs');
@@ -87,3 +91,4 @@ Route::prefix('admin')->group(function () {
 Route::get('/login', function () {
     return redirect()->route('admin.login');
 })->name('login');
+

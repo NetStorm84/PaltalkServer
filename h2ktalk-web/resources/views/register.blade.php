@@ -40,7 +40,7 @@ label {
     font-size: 0.875rem;
 }
 
-input[type="text"], input[type="password"] {
+input[type="text"], input[type="password"], input[type="email"] {
     width: 100%;
     padding: 12px;
     margin-bottom: 20px;
@@ -53,12 +53,12 @@ input[type="text"], input[type="password"] {
     transition: border-color 0.2s;
 }
 
-input[type="text"]:focus, input[type="password"]:focus {
+input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus {
     outline: none;
     border-color: #ff4500;
 }
 
-input[type="text"]::placeholder, input[type="password"]::placeholder {
+input[type="text"]::placeholder, input[type="password"]::placeholder, input[type="email"]::placeholder {
     color: rgba(255, 255, 255, 0.6);
 }
 
@@ -119,7 +119,7 @@ input[type="text"]::placeholder, input[type="password"]::placeholder {
         margin-bottom: 25px;
     }
     
-    input[type="text"], input[type="password"] {
+    input[type="text"], input[type="password"], input[type="email"] {
         padding: 14px;
         font-size: 16px; /* Prevents zoom on iOS */
     }
@@ -150,7 +150,7 @@ input[type="text"]::placeholder, input[type="password"]::placeholder {
         font-size: 0.8rem;
     }
     
-    input[type="text"], input[type="password"] {
+    input[type="text"], input[type="password"], input[type="email"] {
         padding: 12px;
         margin-bottom: 15px;
     }
@@ -184,6 +184,12 @@ input[type="text"]::placeholder, input[type="password"]::placeholder {
         <input type="text" id="nickname" name="nickname" maxlength="32" required autocomplete="username">
         <small style="color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; margin-top: -15px; display: block; margin-bottom: 15px;">
             Must be 5+ characters, no brackets, and cannot contain: admin, co-admin, paltalk, support, palsupport
+        </small>
+        
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" maxlength="255" placeholder="your@email.com" autocomplete="email">
+        <small style="color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; margin-top: -15px; display: block; margin-bottom: 15px;">
+            Optional - for account recovery and notifications
         </small>
         
         <label for="password">Password</label>
@@ -276,6 +282,7 @@ form.addEventListener('submit', async (e) => {
     const first = form.first.value.trim();
     const last = form.last.value.trim();
     const nickname = form.nickname.value.trim();
+    const email = form.email.value.trim();
     const password = form.password.value;
     
     if (!first || !last || !nickname || !password) {
@@ -334,7 +341,8 @@ form.addEventListener('submit', async (e) => {
             body: JSON.stringify({ 
                 first_name: first, 
                 last_name: last, 
-                nickname, 
+                nickname,
+                email: email || null,
                 password 
             })
         });
@@ -361,7 +369,7 @@ form.addEventListener('submit', async (e) => {
 });
 
 // Clear error messages when user starts typing in any field
-['first', 'last', 'nickname', 'password'].forEach(fieldName => {
+['first', 'last', 'nickname', 'email', 'password'].forEach(fieldName => {
     document.getElementById(fieldName).addEventListener('input', () => {
         if (fieldName !== 'nickname') { // Don't clear nickname-specific errors immediately
             hideMessage(errorDiv);

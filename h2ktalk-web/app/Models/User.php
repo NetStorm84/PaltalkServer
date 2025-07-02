@@ -16,6 +16,11 @@ class User extends Authenticatable
      * The primary key for the model.
      */
     protected $primaryKey = 'uid';
+    
+    /**
+     * Indicates if the model should be timestamped.
+     */
+    public $timestamps = false;
 
     /**
      * The attributes that are mass assignable.
@@ -25,14 +30,24 @@ class User extends Authenticatable
         'email', 
         'first',
         'last',
+        'first_name',  // Allow both field names
+        'last_name',   // Allow both field names
         'password',
         'admin',
         'privacy',
         'verified',
         'paid1',
         'listed',
-        'color'
+        'is_active',   // Allow this alias too
+        'color',
+        'banners'
     ];
+    
+    /**
+     * The attributes that should be mass assignable.
+     * Adding explicit guarded to ensure no conflicts
+     */
+    protected $guarded = [];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -52,7 +67,6 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'verified' => 'boolean',
             'listed' => 'boolean',

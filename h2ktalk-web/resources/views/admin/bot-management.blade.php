@@ -1,80 +1,837 @@
-@extends('layouts.app')
+@extends('layouts.admin')
 
 @section('title', 'Bot Management - h2ktalk.fun Admin')
 
 @section('styles')
-.admin-header {
+<style>
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 24px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.section {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.section-header {
+    background: #0f172a;
+    padding: 16px 20px;
+    border-bottom: 1px solid #334155;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.admin-header h1 {
-    color: #ffffff;
-    font-size: 1.8rem;
+.section-title {
+    color: #f8fafc;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
 }
 
-.back-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: 8px 16px;
-    font-size: 0.9rem;
+.section-content {
+    padding: 20px;
+    height: calc(100vh - 300px);
+    overflow-y: auto;
 }
 
-.bot-section {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+.bot-item {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
 }
 
-.bot-stats {
+.bot-item:hover {
+    border-color: #3b82f6;
+    transform: translateY(-1px);
+}
+
+.bot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.bot-name {
+    color: #3b82f6;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.bot-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.bot-status.online {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.bot-status.offline {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.bot-status.starting {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.bot-status.paused {
+    background: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+}
+
+.bot-info {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
 }
 
-.bot-stat {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+.bot-info-item {
+    color: #94a3b8;
+}
+
+.bot-info-value {
+    color: #f8fafc;
+    font-weight: 500;
+}
+
+.bot-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
     border-radius: 4px;
-    padding: 1rem;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+}
+
+.btn-danger {
+    background: #ef4444;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-warning {
+    background: #f59e0b;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
+.btn-success {
+    background: #10b981;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-label {
+    display: block;
+    color: #f8fafc;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.form-input, .form-select {
+    width: 100%;
+    background: #334155;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.control-panel {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.control-panel h3 {
+    color: #f8fafc;
+    margin-bottom: 16px;
+    font-size: 1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.stat-item {
     text-align: center;
 }
 
-.bot-stat-value {
+.stat-value {
     font-size: 1.5rem;
-    font-weight: bold;
-    color: #ff4500;
+    font-weight: 700;
+    margin-bottom: 4px;
 }
 
-.bot-stat-label {
-    color: rgba(255, 255, 255, 0.8);
+.stat-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.stat-value.total { color: #3b82f6; }
+.stat-value.active { color: #10b981; }
+.stat-value.paused { color: #f59e0b; }
+.stat-value.error { color: #ef4444; }
+
+.empty-state {
+    text-align: center;
+    color: #64748b;
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 0.9rem;
-    margin-top: 0.25rem;
 }
 
-.bot-controls {
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 16px;
+    }
+    
+    .bot-info {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@endsection
+
+@section('content')
+<!-- Page Header -->
+<div class="mb-8">
+    <div class="md:flex md:items-center md:justify-between">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                🤖 Bot Management
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">
+                Manage and monitor your automated bots in real-time.
+            </p>
+        </div>
+        <div class="mt-4 flex md:ml-4 md:mt-0">
+            <div class="connection-status">
+                <div class="status-dot" id="connectionDot"></div>
+                <span id="connectionStatus">Connected</span>
+            </div>
+            <a href="{{ route('admin.dashboard') }}" 
+               class="ml-4 inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                <svg class="-ml-0.5 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m0 7h18"></path>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="main-content">
+    <!-- Left Column - Active Bots -->
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">🤖 Active Bots</h2>
+            <button class="btn btn-small" onclick="refreshBots()">🔄 Refresh</button>
+        </div>
+        <div class="section-content">
+            <div id="botsList">
+                <div class="empty-state">No bots running</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Bot Management -->
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">⚙️ Bot Controls</h2>
+        </div>
+        <div class="section-content">
+            <!-- Create New Bots -->
+            <div class="control-panel">
+                <h3>➕ Start New Bots</h3>
+                
+                <div class="form-group">
+                    <label class="form-label">Bot Count:</label>
+                    <input type="number" id="botCount" class="form-input" placeholder="Enter number of bots (e.g., 5)" min="1" max="100" value="5">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Distribution Mode:</label>
+                    <select id="distributionMode" class="form-select">
+                        <option value="random">Random Distribution</option>
+                        <option value="balanced">Balanced Distribution</option>
+                        <option value="single_room">Single Room</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Target Room (for Single Room mode):</label>
+                    <input type="text" id="targetRoom" class="form-input" placeholder="Room name or ID (optional)">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Advanced Configuration (JSON):</label>
+                    <textarea id="botConfig" class="form-input" rows="4" placeholder='{"chatFrequency": 30000, "moveFrequency": 60000}'></textarea>
+                </div>
+
+                <button class="btn" onclick="createBots()">🚀 Start Bots</button>
+            </div>
+
+            <!-- Global Bot Controls -->
+            <div class="control-panel">
+                <h3>🎛️ Global Bot Controls</h3>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-success" onclick="startAllBots()">▶️ Start All</button>
+                    <button class="btn btn-warning" onclick="pauseAllBots()">⏸️ Pause All</button>
+                    <button class="btn btn-danger" onclick="stopAllBots()">⏹️ Stop All</button>
+                    <button class="btn" onclick="reloadBotConfigs()">🔄 Reload Configs</button>
+                </div>
+            </div>
+
+            <!-- Bot Statistics -->
+            <div class="control-panel">
+                <h3>📊 Bot Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value total" id="totalBots">-</div>
+                        <div class="stat-label">Total Bots</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value active" id="activeBots">-</div>
+                        <div class="stat-label">Active Bots</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value paused" id="pausedBots">-</div>
+                        <div class="stat-label">Paused Bots</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value error" id="errorBots">-</div>
+                        <div class="stat-label">Error Bots</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@section('scripts')
+// Check if user is logged in
+if (!adminToken) {
+    window.location.href = '{{ route("admin.login") }}';
+}
+
+// WebSocket connection for real-time updates
+const botSocket = io();
+let isConnected = false;
+
+// Connection handling
+botSocket.on('connect', () => {
+    isConnected = true;
+    updateConnectionStatus(true);
+    refreshBots();
+});
+
+botSocket.on('disconnect', () => {
+    isConnected = false;
+    updateConnectionStatus(false);
+});
+
+// Real-time bot updates
+botSocket.on('botUpdate', (data) => {
+    updateBotsList(data.bots || []);
+    updateBotStats(data.stats || {});
+});
+
+function updateConnectionStatus(connected) {
+    const statusEl = document.getElementById('connectionStatus');
+    const dotEl = document.getElementById('connectionDot');
+    
+    if (connected) {
+        statusEl.textContent = 'Connected';
+        dotEl.style.background = '#10b981';
+    } else {
+        statusEl.textContent = 'Disconnected';
+        dotEl.style.background = '#ef4444';
+    }
+}
+
+function updateBotsList(bots) {
+    const botsList = document.getElementById('botsList');
+    
+    if (!bots || bots.length === 0) {
+        botsList.innerHTML = '<div class="empty-state">No bots running</div>';
+        return;
+    }
+    
+    const botsHTML = bots.map(bot => `
+        <div class="bot-item">
+            <div class="bot-header">
+                <div class="bot-name">${escapeHtml(bot.name || `Bot ${bot.id}`)}</div>
+                <div class="bot-status ${bot.status}">${bot.status.toUpperCase()}</div>
+            </div>
+            <div class="bot-info">
+                <div class="bot-info-item">
+                    Room: <span class="bot-info-value">${escapeHtml(bot.currentRoom || 'None')}</span>
+                </div>
+                <div class="bot-info-item">
+                    Uptime: <span class="bot-info-value">${formatUptime(bot.uptime || 0)}</span>
+                </div>
+                <div class="bot-info-item">
+                    Messages: <span class="bot-info-value">${bot.messagesSent || 0}</span>
+                </div>
+                <div class="bot-info-item">
+                    Type: <span class="bot-info-value">${escapeHtml(bot.type || 'Standard')}</span>
+                </div>
+            </div>
+            <div class="bot-actions">
+                ${bot.status === 'offline' ? 
+                    `<button class="btn btn-success btn-small" onclick="startBot('${bot.id}')">▶️ Start</button>` :
+                    `<button class="btn btn-warning btn-small" onclick="pauseBot('${bot.id}')">⏸️ Pause</button>`
+                }
+                <button class="btn btn-danger btn-small" onclick="stopBot('${bot.id}')">⏹️ Stop</button>
+                <button class="btn btn-small" onclick="restartBot('${bot.id}')">🔄 Restart</button>
+                <button class="btn btn-small" onclick="viewBotLogs('${bot.id}')">📋 Logs</button>
+            </div>
+        </div>
+    `).join('');
+    
+    botsList.innerHTML = botsHTML;
+}
+
+function updateBotStats(stats) {
+    document.getElementById('totalBots').textContent = stats.total || 0;
+    document.getElementById('activeBots').textContent = stats.active || 0;
+    document.getElementById('pausedBots').textContent = stats.paused || 0;
+    document.getElementById('errorBots').textContent = stats.error || 0;
+}
+
+async function refreshBots() {
+    try {
+        const response = await fetch('/api/admin/bots', {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            updateBotsList(data.bots || []);
+            updateBotStats(data.stats || {});
+        } else if (response.status === 401) {
+            localStorage.removeItem('admin_token');
+            window.location.href = '{{ route("admin.login") }}';
+        } else {
+            throw new Error('Failed to load bots');
+        }
+    } catch (error) {
+        console.error('Error loading bots:', error);
+        showToast('Error loading bots', 'error');
+    }
+}
+
+async function createBots() {
+    const botCount = parseInt(document.getElementById('botCount').value);
+    const distributionMode = document.getElementById('distributionMode').value;
+    const targetRoom = document.getElementById('targetRoom').value;
+    const botConfigText = document.getElementById('botConfig').value;
+    
+    if (!botCount || botCount < 1 || botCount > 100) {
+        showToast('Please enter a valid bot count (1-100)', 'error');
+        return;
+    }
+    
+    let botConfig = {};
+    if (botConfigText.trim()) {
+        try {
+            botConfig = JSON.parse(botConfigText);
+        } catch (error) {
+            showToast('Invalid JSON configuration', 'error');
+            return;
+        }
+    }
+    
+    const requestData = {
+        count: botCount,
+        distributionMode: distributionMode,
+        targetRoom: targetRoom || null,
+        config: botConfig
+    };
+    
+    try {
+        const response = await fetch('/api/admin/bots/create', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        if (response.ok) {
+            showToast(`Starting ${botCount} bots...`, 'success');
+            refreshBots();
+        } else {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to create bots');
+        }
+    } catch (error) {
+        console.error('Error creating bots:', error);
+        showToast(`Error creating bots: ${error.message}`, 'error');
+    }
+}
+
+async function startBot(botId) {
+    await sendBotCommand('start', botId);
+}
+
+async function pauseBot(botId) {
+    await sendBotCommand('pause', botId);
+}
+
+async function stopBot(botId) {
+    await sendBotCommand('stop', botId);
+}
+
+async function restartBot(botId) {
+    await sendBotCommand('restart', botId);
+}
+
+async function sendBotCommand(action, botId) {
+    try {
+        const response = await fetch(`/api/admin/bots/${botId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            showToast(`Bot ${action} command sent`, 'success');
+            refreshBots();
+        } else {
+            throw new Error(`Failed to ${action} bot`);
+        }
+    } catch (error) {
+        console.error(`Error ${action} bot:`, error);
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function startAllBots() {
+    await sendGlobalBotCommand('start-all');
+}
+
+async function pauseAllBots() {
+    await sendGlobalBotCommand('pause-all');
+}
+
+async function stopAllBots() {
+    if (!confirm('Are you sure you want to stop all bots?')) {
+        return;
+    }
+    await sendGlobalBotCommand('stop-all');
+}
+
+async function reloadBotConfigs() {
+    await sendGlobalBotCommand('reload-configs');
+}
+
+async function sendGlobalBotCommand(action) {
+    try {
+        const response = await fetch(`/api/admin/bots/${action}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            showToast(`${action.replace('-', ' ')} command sent`, 'success');
+            refreshBots();
+        } else {
+            throw new Error(`Failed to ${action}`);
+        }
+    } catch (error) {
+        console.error(`Error ${action}:`, error);
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+function viewBotLogs(botId) {
+    // Open bot logs in a new window or modal
+    window.open(`/admin/bot-logs/${botId}`, '_blank', 'width=800,height=600');
+}
+
+function formatUptime(seconds) {
+    if (!seconds) return '0s';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    } else {
+        return `${secs}s`;
+    }
+}
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    
+    if (typeof text !== 'string') {
+        text = String(text);
+    }
+    
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Load bots when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    refreshBots();
+});
+
+// Auto-refresh bots every 10 seconds
+setInterval(refreshBots, 10000);
+@endsection
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.bots-table td {
+    padding: 16px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #111827;
+    font-size: 0.875rem;
+}
+
+.bots-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.bots-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.bot-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.bot-status.online {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.bot-status.offline {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.bot-status.starting {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.bot-status.error {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+.bot-type {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+}
+
+.btn-start {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.btn-start:hover {
+    background: #bbf7d0;
+}
+
+.btn-stop {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+.btn-stop:hover {
+    background: #fca5a5;
+}
+
+.btn-restart {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.btn-restart:hover {
+    background: #fde68a;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-secondary {
+    background: white;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+    background: #f9fafb;
+}
+
+.form-grid {
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 2rem;
-    align-items: start;
-}
-
-.control-form {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    padding: 1.5rem;
-}
-
-.control-form h3 {
-    color: #ffffff;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
     margin-bottom: 1rem;
 }
 
@@ -82,901 +839,440 @@
     margin-bottom: 1rem;
 }
 
-.form-group label {
+.form-label {
     display: block;
-    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
     margin-bottom: 0.5rem;
-    font-weight: bold;
 }
 
-.form-group input,
-.form-group select {
+.form-input,
+.form-select {
     width: 100%;
-    padding: 8px 12px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    background: white;
+    color: #111827;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.form-input:focus,
+.form-select:focus {
     outline: none;
-    border-color: #ff4500;
-}
-
-.form-group small {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.8rem;
-    margin-top: 0.25rem;
-    display: block;
-}
-
-.form-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-}
-
-.quick-actions {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    padding: 1.5rem;
-    min-width: 200px;
-}
-
-.quick-actions h3 {
-    color: #ffffff;
-    margin-bottom: 1rem;
-}
-
-.quick-actions .btn {
-    width: 100%;
-    margin-bottom: 0.5rem;
-    padding: 10px;
-    font-size: 0.9rem;
-}
-
-.btn-start {
-    background: rgba(34, 197, 94, 0.8);
-    border: 2px solid #22c55e;
-    color: #ffffff;
-}
-
-.btn-start:hover {
-    background: #22c55e;
-    border-color: #22c55e;
-}
-
-.btn-stop {
-    background: rgba(239, 68, 68, 0.8);
-    border: 2px solid #ef4444;
-    color: #ffffff;
-}
-
-.btn-stop:hover {
-    background: #ef4444;
-    border-color: #ef4444;
-}
-
-.bot-list {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    padding: 1.5rem;
-}
-
-.bot-list h3 {
-    color: #ffffff;
-    margin-bottom: 1rem;
-}
-
-.bot-item {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: 1rem;
-    align-items: center;
-}
-
-.bot-info {
-    color: #ffffff;
-}
-
-.bot-name {
-    font-weight: bold;
-    margin-bottom: 0.25rem;
-}
-
-.bot-details {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.85rem;
-}
-
-.bot-status {
-    padding: 4px 8px;
-    border-radius: 3px;
-    font-size: 0.8rem;
-    font-weight: bold;
-}
-
-.status-active {
-    background: rgba(34, 197, 94, 0.2);
-    color: #22c55e;
-    border: 1px solid #22c55e;
-}
-
-.status-idle {
-    background: rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
-    border: 1px solid #f59e0b;
-}
-
-.status-offline {
-    background: rgba(107, 114, 128, 0.2);
-    color: #9ca3af;
-    border: 1px solid #9ca3af;
-}
-
-.bot-actions {
-    display: flex;
-    gap: 0.25rem;
-}
-
-.action-btn {
-    padding: 4px 8px;
-    border: 1px solid;
-    border-radius: 3px;
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.btn-stop-bot {
-    color: #ef4444;
-    border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.1);
-}
-
-.btn-restart {
-    color: #3b82f6;
     border-color: #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.loading-text {
+.loading-text,
+.no-bots {
     text-align: center;
-    color: rgba(255, 255, 255, 0.7);
-    font-style: italic;
-    padding: 2rem;
+    color: #6b7280;
+    padding: 3rem;
+    font-size: 0.875rem;
 }
 
 @media (max-width: 768px) {
-    .admin-header {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-    }
-    
-    .bot-controls {
+    .stats-grid {
         grid-template-columns: 1fr;
-        gap: 1rem;
     }
     
-    .quick-actions {
-        min-width: auto;
-    }
-    
-    .bot-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .bot-item {
+    .form-grid {
         grid-template-columns: 1fr;
-        gap: 0.5rem;
-        text-align: center;
     }
     
-    .form-actions {
+    .action-buttons {
         flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .bots-table {
+        font-size: 0.75rem;
     }
 }
 @endsection
 
 @section('content')
-<div class="admin-header">
-    <h1>🤖 Bot Management</h1>
-    <a href="{{ route('admin.dashboard') }}" class="btn back-btn">← Back to Dashboard</a>
-</div>
-
-<div class="bot-stats">
-    <div class="bot-stat">
-        <div class="bot-stat-value" id="activeBots">-</div>
-        <div class="bot-stat-label">Active Bots</div>
-    </div>
-    <div class="bot-stat">
-        <div class="bot-stat-value" id="totalMessages">-</div>
-        <div class="bot-stat-label">Messages Sent</div>
-    </div>
-    <div class="bot-stat">
-        <div class="bot-stat-value" id="averageLatency">-</div>
-        <div class="bot-stat-label">Avg Response (ms)</div>
-    </div>
-    <div class="bot-stat">
-        <div class="bot-stat-value" id="botUptime">-</div>
-        <div class="bot-stat-label">Bot Uptime</div>
-    </div>
-</div>
-
-<div class="bot-section">
-    <div class="bot-controls">
-        <div class="control-form">
-            <h3>Deploy New Bots</h3>
-            <form id="botConfigForm">
-                <div class="form-group">
-                    <label for="botCount">Number of Bots</label>
-                    <input type="number" id="botCount" min="1" max="50" value="5">
-                    <small>Maximum 50 bots per deployment</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="targetRoom">Target Room</label>
-                    <select id="targetRoom">
-                        <option value="">Select Room</option>
-                        <option value="1">General Chat</option>
-                        <option value="2">Music Room</option>
-                        <option value="3">Tech Talk</option>
-                        <option value="4">Random Chat</option>
-                    </select>
-                    <small>Room where bots will be deployed</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="chatFrequency">Chat Frequency (seconds)</label>
-                    <input type="number" id="chatFrequency" min="10" max="300" value="60">
-                    <small>How often bots send messages</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="moveFrequency">Move Frequency (seconds)</label>
-                    <input type="number" id="moveFrequency" min="30" max="600" value="120">
-                    <small>How often bots change rooms</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="distributionMode">Distribution Mode</label>
-                    <select id="distributionMode">
-                        <option value="random">Random Distribution</option>
-                        <option value="concentrated">Concentrated</option>
-                        <option value="spread">Even Spread</option>
-                    </select>
-                    <small>How bots are distributed across rooms</small>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-start">Deploy Bots</button>
-                    <button type="button" class="btn btn-primary" onclick="previewConfig()">Preview Config</button>
-                </div>
-            </form>
+<!-- Page Header -->
+<div class="mb-8">
+    <div class="md:flex md:items-center md:justify-between">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                Bot Management
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">
+                Manage automated bot users and their behavior in chat rooms.
+            </p>
         </div>
-        
-        <div class="quick-actions">
-            <h3>Quick Actions</h3>
-            <button class="btn btn-start" onclick="startAllBots()">Start All Bots</button>
-            <button class="btn btn-stop" onclick="stopAllBots()">Stop All Bots</button>
-            <button class="btn btn-primary" onclick="restartBots()">Restart Bots</button>
-            <button class="btn btn-primary" onclick="refreshBotList()">Refresh List</button>
+        <div class="mt-4 flex md:ml-4 md:mt-0">
+            <a href="{{ route('admin.dashboard') }}" 
+               class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                <svg class="-ml-0.5 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m0 7h18"></path>
+                </svg>
+                Back to Dashboard
+            </a>
         </div>
     </div>
 </div>
 
-<div class="bot-list">
-    <h3>Active Bot Sessions</h3>
-    <div id="botsList">
-        <div class="loading-text">Loading bot information...</div>
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value" id="totalBots">-</div>
+        <div class="stat-label">Total Bots</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="activeBots">-</div>
+        <div class="stat-label">Active Bots</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="offlineBots">-</div>
+        <div class="stat-label">Offline Bots</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="errorBots">-</div>
+        <div class="stat-label">Error Bots</div>
+    </div>
+</div>
+
+<!-- Add New Bot Card -->
+<div class="bg-white shadow rounded-lg mb-6">
+    <div class="px-4 py-5 sm:p-6 border-b border-gray-200">
+        <h3 class="text-lg font-medium leading-6 text-gray-900">Add New Bot</h3>
+        <p class="mt-1 text-sm text-gray-500">Configure and start a new automated bot user.</p>
+    </div>
+    <div class="px-4 py-5 sm:p-6">
+        <form id="addBotForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="botName" class="form-label">Bot Name</label>
+                    <input type="text" id="botName" name="name" class="form-input" placeholder="Enter bot name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="botType" class="form-label">Bot Type</label>
+                    <select id="botType" name="type" class="form-select" required>
+                        <option value="">Select bot type</option>
+                        <option value="greeter">Greeter Bot</option>
+                        <option value="moderator">Moderator Bot</option>
+                        <option value="announcer">Announcer Bot</option>
+                        <option value="chatbot">Chat Bot</option>
+                        <option value="custom">Custom Bot</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="botRoom" class="form-label">Target Room</label>
+                    <input type="text" id="botRoom" name="room" class="form-input" placeholder="Room name or ID">
+                </div>
+                
+                <div class="form-group">
+                    <label for="botInterval" class="form-label">Action Interval (seconds)</label>
+                    <input type="number" id="botInterval" name="interval" class="form-input" placeholder="60" min="10" max="3600">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="botMessage" class="form-label">Bot Message/Script</label>
+                <textarea id="botMessage" name="message" class="form-input" rows="3" placeholder="Enter bot message or script"></textarea>
+            </div>
+            
+            <div class="flex justify-end">
+                <button type="submit" class="btn btn-primary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Start Bot
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Active Bots Table -->
+<div class="bg-white shadow rounded-lg">
+    <div class="px-4 py-5 sm:p-6 border-b border-gray-200">
+        <div class="md:flex md:items-center md:justify-between">
+            <div class="min-w-0 flex-1">
+                <h3 class="text-lg font-medium leading-6 text-gray-900">Active Bots</h3>
+                <p class="mt-1 text-sm text-gray-500">Currently running bots and their status.</p>
+            </div>
+            <div class="mt-4 md:ml-4 md:mt-0">
+                <button class="btn btn-secondary" onclick="loadBots()">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="botsContent" class="loading-text">
+        <div class="flex items-center justify-center py-12">
+            <div class="flex items-center space-x-2">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span class="text-gray-500">Loading bots...</span>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
 
 @section('scripts')
-let adminToken = localStorage.getItem('admin_token');
-let activeBots = [];
-let botStats = {
-    active: 0,
-    totalMessages: 0,
-    averageLatency: 0,
-    uptime: '00:00:00'
-};
-let isOnlineMode = true; // Track API connectivity
-let isSocketConnected = false; // Track Socket.IO connectivity
-
 // Check if user is logged in
 if (!adminToken) {
     window.location.href = '{{ route("admin.login") }}';
 }
 
-// Socket.IO event handlers for bot management
-function setupBotSocketListeners() {
-    if (!window.socketClient) {
-        console.warn('Socket.IO client not available for bot management');
-        return;
-    }
-
-    // Listen for real-time bot updates
-    window.socketClient.on('bot-update', (data) => {
-        console.log('🤖 Real-time bot update:', data);
-        updateBotsFromSocket(data);
-    });
-
-    // Listen for connection status changes
-    window.socketClient.on('connection-status', (status) => {
-        isSocketConnected = status.connected;
-        updateBotConnectionIndicator(status);
-        
-        if (status.connected) {
-            // Request initial bot data when connected
-            requestBotData();
-        }
-    });
-
-    // Listen for individual bot events
-    window.socketClient.on('bot-started', (data) => {
-        console.log('🚀 Bot started:', data);
-        refreshBotList();
-    });
-
-    window.socketClient.on('bot-stopped', (data) => {
-        console.log('⏹️ Bot stopped:', data);
-        refreshBotList();
-    });
-
-    window.socketClient.on('bot-error', (data) => {
-        console.log('❌ Bot error:', data);
-        alert(`Bot Error: ${data.message}`);
-        refreshBotList();
-    });
-}
-
-// Update connection indicator for bot management
-function updateBotConnectionIndicator(status) {
-    // You can add a visual indicator here if needed
-    console.log(`Bot Management Socket.IO: ${status.connected ? 'Connected' : 'Disconnected'}`);
-    
-    // Update the page title to show connection status
-    const headerTitle = document.querySelector('.admin-header h1');
-    if (headerTitle) {
-        const emoji = status.connected ? '🤖' : '🔌';
-        const originalText = headerTitle.textContent.replace(/^[🤖🔌] /, '');
-        headerTitle.textContent = `${emoji} ${originalText}`;
-    }
-}
-
-// Request bot data via Socket.IO
-function requestBotData() {
-    if (window.socketClient && isSocketConnected) {
-        // Request bot list and stats
-        window.socketClient.send('requestBotList', {});
-        window.socketClient.send('requestBotStats', {});
-        
-        console.log('🤖 Requested real-time bot data via Socket.IO');
-    }
-}
-
-// Update bots from Socket.IO data
-function updateBotsFromSocket(data) {
-    console.log('🔄 Updating bot management with Socket.IO data:', data);
-    
-    if (data.bots) {
-        activeBots = data.bots;
-        renderBotList();
-    }
-    
-    if (data.stats) {
-        botStats = {
-            active: data.stats.active || 0,
-            totalMessages: data.stats.totalMessages || 0,
-            averageLatency: data.stats.averageLatency || 0,
-            uptime: data.stats.uptime || '00:00:00'
-        };
-        updateBotStats();
-    }
-    
-    // Mark as online mode when receiving real-time data
-    isOnlineMode = true;
-    updateConnectionStatus();
-}
-
-// API utility functions
-async function makeApiCall(endpoint, options = {}) {
-    const defaultOptions = {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${adminToken}`,
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    };
-    
-    const finalOptions = {
-        ...defaultOptions,
-        ...options,
-        headers: {
-            ...defaultOptions.headers,
-            ...options.headers
-        }
-    };
-    
+// Load bot statistics and list
+async function loadBots() {
     try {
-        const response = await fetch(endpoint, finalOptions);
+        const response = await fetch('/api/admin/bots/stats', {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Accept': 'application/json'
+            }
+        });
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('API call failed:', error);
-        throw error;
-    }
-}
-
-// Generate fallback mock data when API is unavailable
-function generateFallbackBots() {
-    const botNames = ['ChatBot', 'TalkBot', 'VoiceBot', 'RandomBot', 'TestBot'];
-    const rooms = ['General Chat', 'Music Room', 'Tech Talk', 'Random Chat'];
-    const statuses = ['active', 'idle', 'offline'];
-    
-    activeBots = [];
-    for (let i = 0; i < Math.floor(Math.random() * 10) + 5; i++) {
-        const bot = {
-            id: i + 1,
-            name: `${botNames[Math.floor(Math.random() * botNames.length)]}${i + 1}`,
-            room: rooms[Math.floor(Math.random() * rooms.length)],
-            status: statuses[Math.floor(Math.random() * statuses.length)],
-            messages: Math.floor(Math.random() * 500) + 50,
-            uptime: `${Math.floor(Math.random() * 24)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`,
-            lastActivity: new Date(Date.now() - Math.random() * 3600000).toLocaleTimeString()
-        };
-        activeBots.push(bot);
-    }
-    
-    // Update stats
-    botStats.active = activeBots.filter(b => b.status === 'active').length;
-    botStats.totalMessages = activeBots.reduce((sum, bot) => sum + bot.messages, 0);
-    botStats.averageLatency = Math.floor(Math.random() * 100) + 50;
-    botStats.uptime = '2d 14h 32m';
-}
-
-// Load bot statistics from API
-async function loadBotStats() {
-    try {
-        const response = await makeApiCall('/api/admin/bots/stats');
-        
-        if (response.success) {
-            // Update bot statistics from API response
-            botStats.active = response.data.active_bots || 0;
-            botStats.totalMessages = response.data.total_messages || 0;
-            botStats.averageLatency = response.data.average_latency || 0;
-            botStats.uptime = response.data.uptime || '00:00:00';
-            
-            // Update bot list from API response
-            activeBots = response.data.bots || [];
-            
-            // Mark as online mode
-            isOnlineMode = true;
-            updateConnectionStatus();
+        if (response.ok) {
+            const data = await response.json();
+            updateStats(data.stats || {});
+            renderBots(data.bots || []);
+        } else if (response.status === 401) {
+            localStorage.removeItem('admin_token');
+            window.location.href = '{{ route("admin.login") }}';
         } else {
-            throw new Error(response.message || 'Failed to load bot stats');
+            throw new Error('Failed to load bots');
         }
     } catch (error) {
-        console.error('Failed to load bot stats from API, using fallback data:', error);
-        // Fall back to mock data when API is unavailable
-        generateFallbackBots();
-        
-        // Mark as offline mode
-        isOnlineMode = false;
-        updateConnectionStatus();
+        console.error('Error loading bots:', error);
+        document.getElementById('botsContent').innerHTML = 
+            '<div class="no-bots">Error loading bots. Bot server may be offline.</div>';
     }
 }
 
-// Update connection status indicator
-function updateConnectionStatus() {
-    // You can add visual indicators here if needed
-    console.log(`Bot Management: ${isOnlineMode ? 'Online' : 'Offline'} mode`);
+// Update statistics
+function updateStats(stats) {
+    document.getElementById('totalBots').textContent = stats.totalBots || 0;
+    document.getElementById('activeBots').textContent = stats.activeBots || 0;
+    document.getElementById('offlineBots').textContent = (stats.totalBots || 0) - (stats.activeBots || 0);
+    document.getElementById('errorBots').textContent = stats.errorBots || 0;
 }
 
-// Update bot statistics
-function updateBotStats() {
-    document.getElementById('activeBots').textContent = botStats.active;
-    document.getElementById('totalMessages').textContent = botStats.totalMessages.toLocaleString();
-    document.getElementById('averageLatency').textContent = botStats.averageLatency;
-    document.getElementById('botUptime').textContent = botStats.uptime;
-}
-
-// Render bot list
-function renderBotList() {
-    const container = document.getElementById('botsList');
+// Render bots table
+function renderBots(bots) {
+    const botsContent = document.getElementById('botsContent');
     
-    if (activeBots.length === 0) {
-        container.innerHTML = '<div class="loading-text">No active bots</div>';
+    if (bots.length === 0) {
+        botsContent.innerHTML = '<div class="no-bots">No bots are currently configured.</div>';
         return;
     }
     
-    const botsHtml = activeBots.map(bot => `
-        <div class="bot-item">
-            <div class="bot-info">
-                <div class="bot-name">${bot.name}</div>
-                <div class="bot-details">
-                    Room: ${bot.room} | Messages: ${bot.messages} | Last: ${bot.lastActivity}
-                </div>
-            </div>
-            <div class="bot-status status-${bot.status}">
-                ${bot.status.toUpperCase()}
-            </div>
-            <div class="bot-actions">
-                <button class="action-btn btn-restart" onclick="restartBot(${bot.id})">Restart</button>
-                <button class="action-btn btn-stop-bot" onclick="stopBot(${bot.id})">Stop</button>
-            </div>
-        </div>
-    `).join('');
-    
-    container.innerHTML = botsHtml;
-}
-
-// Bot configuration form
-document.getElementById('botConfigForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const config = {
-        botCount: parseInt(document.getElementById('botCount').value),
-        targetRoom: document.getElementById('targetRoom').value,
-        chatFrequency: parseInt(document.getElementById('chatFrequency').value),
-        moveFrequency: parseInt(document.getElementById('moveFrequency').value),
-        distributionMode: document.getElementById('distributionMode').value
-    };
-    
-    if (!config.targetRoom) {
-        alert('Please select a target room');
-        return;
-    }
-    
-    try {
-        const result = await deployBots(config);
-        
-        if (result && result.success) {
-            alert(`Successfully deployed ${config.botCount} bots to ${document.getElementById('targetRoom').selectedOptions[0].text}`);
-        } else {
-            alert(`Deployed ${config.botCount} bots to ${document.getElementById('targetRoom').selectedOptions[0].text} (offline mode)`);
-        }
-        
-        await refreshBotList();
-    } catch (error) {
-        console.error('Error deploying bots:', error);
-        alert('Failed to deploy bots. Using offline mode.');
-        await refreshBotList();
-    }
-});
-
-// Deploy bots function with Socket.IO and API fallback
-async function deployBots(config) {
-    // Try Socket.IO first if connected
-    if (window.socketClient && isSocketConnected) {
-        try {
-            const response = await window.socketClient.request('deployBots', {
-                bot_count: config.botCount,
-                target_room: config.targetRoom,
-                chat_frequency: config.chatFrequency,
-                move_frequency: config.moveFrequency,
-                distribution_mode: config.distributionMode
-            });
-            
-            console.log('🚀 Bots deployed via Socket.IO:', response);
-            
-            // Real-time updates will handle the UI refresh
-            return { success: true, data: response };
-        } catch (socketError) {
-            console.warn('Failed to deploy bots via Socket.IO, falling back to API:', socketError);
-        }
-    }
-    
-    // Fallback to REST API
-    try {
-        const response = await makeApiCall('/api/admin/bots/start', {
-            method: 'POST',
-            body: JSON.stringify({
-                bot_count: config.botCount,
-                target_room: config.targetRoom,
-                chat_frequency: config.chatFrequency,
-                move_frequency: config.moveFrequency,
-                distribution_mode: config.distributionMode
-            })
-        });
-        
-        if (response.success) {
-            // Refresh bot list after successful deployment
-            await loadBotStats();
-            return response;
-        } else {
-            throw new Error(response.message || 'Failed to deploy bots');
-        }
-    } catch (error) {
-        console.error('Failed to deploy bots via API, simulating deployment:', error);
-        
-        // Fallback to mock deployment when both Socket.IO and API are unavailable
-        for (let i = 0; i < config.botCount; i++) {
-            const newBot = {
-                id: activeBots.length + i + 1,
-                name: `Bot${activeBots.length + i + 1}`,
-                room: document.getElementById('targetRoom').selectedOptions[0].text,
-                status: 'active',
-                messages: 0,
-                uptime: '00:00:00',
-                lastActivity: new Date().toLocaleTimeString()
-            };
-            activeBots.push(newBot);
-        }
-        
-        // Re-throw error to let caller handle it
-        throw error;
-    }
-}
-
-// Quick action functions
-async function startAllBots() {
-    try {
-        const response = await makeApiCall('/api/admin/bots/start', {
-            method: 'POST',
-            body: JSON.stringify({ action: 'start_all' })
-        });
-        
-        if (response.success) {
-            await loadBotStats();
-            updateBotStats();
-            renderBotList();
-            alert('All bots have been started');
-        } else {
-            throw new Error(response.message || 'Failed to start bots');
-        }
-    } catch (error) {
-        console.error('Failed to start bots via API, using fallback:', error);
-        
-        // Fallback behavior
-        activeBots.forEach(bot => {
-            if (bot.status !== 'active') {
-                bot.status = 'active';
-                bot.lastActivity = new Date().toLocaleTimeString();
-            }
-        });
-        updateBotStats();
-        renderBotList();
-        alert('All bots have been started (offline mode)');
-    }
-}
-
-async function stopAllBots() {
-    if (confirm('Are you sure you want to stop all bots?')) {
-        try {
-            const response = await makeApiCall('/api/admin/bots/stop', {
-                method: 'POST',
-                body: JSON.stringify({ action: 'stop_all' })
-            });
-            
-            if (response.success) {
-                await loadBotStats();
-                updateBotStats();
-                renderBotList();
-                alert('All bots have been stopped');
-            } else {
-                throw new Error(response.message || 'Failed to stop bots');
-            }
-        } catch (error) {
-            console.error('Failed to stop bots via API, using fallback:', error);
-            
-            // Fallback behavior
-            activeBots.forEach(bot => {
-                bot.status = 'offline';
-            });
-            updateBotStats();
-            renderBotList();
-            alert('All bots have been stopped (offline mode)');
-        }
-    }
-}
-
-async function restartBots() {
-    if (confirm('Are you sure you want to restart all bots?')) {
-        try {
-            const response = await makeApiCall('/api/admin/bots/restart', {
-                method: 'POST',
-                body: JSON.stringify({ action: 'restart_all' })
-            });
-            
-            if (response.success) {
-                await loadBotStats();
-                updateBotStats();
-                renderBotList();
-                alert('All bots have been restarted');
-            } else {
-                throw new Error(response.message || 'Failed to restart bots');
-            }
-        } catch (error) {
-            console.error('Failed to restart bots via API, using fallback:', error);
-            
-            // Fallback behavior
-            activeBots.forEach(bot => {
-                bot.status = 'active';
-                bot.lastActivity = new Date().toLocaleTimeString();
-            });
-            updateBotStats();
-            renderBotList();
-            alert('All bots have been restarted (offline mode)');
-        }
-    }
-}
-
-async function refreshBotList() {
-    await loadBotStats();
-    updateBotStats();
-    renderBotList();
-}
-
-// Individual bot actions
-async function restartBot(botId) {
-    const bot = activeBots.find(b => b.id === botId);
-    if (bot) {
-        try {
-            const response = await makeApiCall('/api/admin/bots/restart', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    action: 'restart_single',
-                    bot_id: botId 
-                })
-            });
-            
-            if (response.success) {
-                await loadBotStats();
-                updateBotStats();
-                renderBotList();
-                alert(`Bot ${bot.name} has been restarted`);
-            } else {
-                throw new Error(response.message || 'Failed to restart bot');
-            }
-        } catch (error) {
-            console.error('Failed to restart bot via API, using fallback:', error);
-            
-            // Fallback behavior
-            bot.status = 'active';
-            bot.lastActivity = new Date().toLocaleTimeString();
-            updateBotStats();
-            renderBotList();
-            alert(`Bot ${bot.name} has been restarted (offline mode)`);
-        }
-    }
-}
-
-async function stopBot(botId) {
-    const bot = activeBots.find(b => b.id === botId);
-    if (bot && confirm(`Are you sure you want to stop ${bot.name}?`)) {
-        try {
-            const response = await makeApiCall('/api/admin/bots/stop', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    action: 'stop_single',
-                    bot_id: botId 
-                })
-            });
-            
-            if (response.success) {
-                await loadBotStats();
-                updateBotStats();
-                renderBotList();
-                alert(`Bot ${bot.name} has been stopped`);
-            } else {
-                throw new Error(response.message || 'Failed to stop bot');
-            }
-        } catch (error) {
-            console.error('Failed to stop bot via API, using fallback:', error);
-            
-            // Fallback behavior
-            bot.status = 'offline';
-            updateBotStats();
-            renderBotList();
-            alert(`Bot ${bot.name} has been stopped (offline mode)`);
-        }
-    }
-}
-
-// Preview configuration
-function previewConfig() {
-    const config = {
-        botCount: document.getElementById('botCount').value,
-        targetRoom: document.getElementById('targetRoom').selectedOptions[0]?.text || 'None selected',
-        chatFrequency: document.getElementById('chatFrequency').value,
-        moveFrequency: document.getElementById('moveFrequency').value,
-        distributionMode: document.getElementById('distributionMode').value
-    };
-    
-    const preview = `
-Bot Deployment Configuration:
-• Number of Bots: ${config.botCount}
-• Target Room: ${config.targetRoom}
-• Chat Frequency: Every ${config.chatFrequency} seconds
-• Move Frequency: Every ${config.moveFrequency} seconds
-• Distribution: ${config.distributionMode}
+    let tableHTML = `
+        <table class="bots-table">
+            <thead>
+                <tr>
+                    <th>Bot Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Room</th>
+                    <th>Uptime</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
     `;
     
-    alert(preview);
+    bots.forEach(bot => {
+        const statusClass = getBotStatusClass(bot.status);
+        const uptime = formatUptime(bot.uptime || 0);
+        
+        tableHTML += `
+            <tr>
+                <td>
+                    <div class="font-medium text-gray-900">${escapeHtml(bot.name)}</div>
+                    <div class="text-sm text-gray-500">ID: ${bot.id}</div>
+                </td>
+                <td><span class="bot-type">${escapeHtml(bot.type || 'Unknown')}</span></td>
+                <td><span class="bot-status ${statusClass}">${escapeHtml(bot.status || 'Unknown')}</span></td>
+                <td><span class="text-sm">${escapeHtml(bot.room || 'N/A')}</span></td>
+                <td><span class="text-sm">${uptime}</span></td>
+                <td>
+                    <div class="action-buttons">
+                        ${bot.status === 'online' ? 
+                            `<button class="action-btn btn-stop" onclick="stopBot('${bot.id}')">Stop</button>
+                             <button class="action-btn btn-restart" onclick="restartBot('${bot.id}')">Restart</button>` :
+                            `<button class="action-btn btn-start" onclick="startBot('${bot.id}')">Start</button>`
+                        }
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableHTML += '</tbody></table>';
+    botsContent.innerHTML = tableHTML;
 }
 
-// Load available rooms with optional API integration
-async function loadAvailableRooms() {
-    let rooms = [];
-    
+// Get bot status CSS class
+function getBotStatusClass(status) {
+    switch(status) {
+        case 'online':
+        case 'running':
+            return 'online';
+        case 'offline':
+        case 'stopped':
+            return 'offline';
+        case 'starting':
+        case 'loading':
+            return 'starting';
+        case 'error':
+        case 'failed':
+            return 'error';
+        default:
+            return 'offline';
+    }
+}
+
+// Format uptime
+function formatUptime(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+// Start a bot
+async function startBot(botId) {
     try {
-        // Try to fetch from API first
-        const response = await makeApiCall('/api/admin/rooms');
-        if (response.success && response.data) {
-            rooms = response.data;
+        const response = await fetch('/api/admin/bots/start', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ botId })
+        });
+        
+        if (response.ok) {
+            showToast('Bot started successfully', 'success');
+            loadBots();
         } else {
-            throw new Error('API response not successful');
+            throw new Error('Failed to start bot');
         }
     } catch (error) {
-        console.error('Failed to load rooms from API, using fallback data:', error);
-        // Fallback to hardcoded rooms when API is unavailable
-        rooms = [
-            { id: 1, name: 'General Chat', users: 25 },
-            { id: 2, name: 'Music Room', users: 18 },
-            { id: 3, name: 'Tech Talk', users: 12 },
-            { id: 4, name: 'Random Chat', users: 31 }
-        ];
+        console.error('Error starting bot:', error);
+        showToast('Error starting bot', 'error');
     }
-    
-    const select = document.getElementById('targetRoom');
-    select.innerHTML = '<option value="">Select Room</option>';
-    
-    rooms.forEach(room => {
-        const option = document.createElement('option');
-        option.value = room.id;
-        option.textContent = `${room.name} (${room.users || 0} users)`;
-        select.appendChild(option);
-    });
 }
 
-// Initialize
-document.addEventListener('DOMContentLoaded', async () => {
-    // Set up Socket.IO listeners first
-    setupBotSocketListeners();
-    
-    // Load initial data
-    await loadBotStats();
-    updateBotStats();
-    renderBotList();
-    await loadAvailableRooms();
-    
-    // If Socket.IO is connected, request real-time data
-    setTimeout(() => {
-        if (isSocketConnected) {
-            requestBotData();
-        }
-    }, 1000);
-    
-    // Auto-refresh with dynamic interval based on connection
-    setInterval(async () => {
-        if (isSocketConnected) {
-            // With Socket.IO, refresh less frequently (every 30 seconds)
-            // Real-time updates handle most changes
-            requestBotData();
+// Stop a bot
+async function stopBot(botId) {
+    try {
+        const response = await fetch('/api/admin/bots/stop', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ botId })
+        });
+        
+        if (response.ok) {
+            showToast('Bot stopped successfully', 'success');
+            loadBots();
         } else {
-            // Without Socket.IO, refresh more frequently (every 10 seconds)
-            await loadBotStats();
-            updateBotStats();
+            throw new Error('Failed to stop bot');
         }
-    }, isSocketConnected ? 30000 : 10000);
+    } catch (error) {
+        console.error('Error stopping bot:', error);
+        showToast('Error stopping bot', 'error');
+    }
+}
+
+// Restart a bot
+async function restartBot(botId) {
+    try {
+        const response = await fetch('/api/admin/bots/restart', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ botId })
+        });
+        
+        if (response.ok) {
+            showToast('Bot restarted successfully', 'success');
+            loadBots();
+        } else {
+            throw new Error('Failed to restart bot');
+        }
+    } catch (error) {
+        console.error('Error restarting bot:', error);
+        showToast('Error restarting bot', 'error');
+    }
+}
+
+// Handle add bot form submission
+document.getElementById('addBotForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        name: document.getElementById('botName').value,
+        type: document.getElementById('botType').value,
+        room: document.getElementById('botRoom').value,
+        interval: parseInt(document.getElementById('botInterval').value) || 60,
+        message: document.getElementById('botMessage').value
+    };
+    
+    try {
+        const response = await fetch('/api/admin/bots/start', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showToast('Bot created and started successfully', 'success');
+            document.getElementById('addBotForm').reset();
+            loadBots();
+        } else {
+            throw new Error('Failed to create bot');
+        }
+    } catch (error) {
+        console.error('Error creating bot:', error);
+        showToast('Error creating bot', 'error');
+    }
 });
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Load bots when page loads
+document.addEventListener('DOMContentLoaded', loadBots);
+
+// Auto-refresh every 10 seconds
+setInterval(loadBots, 10000);
 @endsection

@@ -1,217 +1,203 @@
-@extends('layouts.app')
+@extends('layouts.admin')
 
 @section('title', 'Admin Dashboard - h2ktalk.fun')
 
 @section('styles')
-.admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+/* Custom chart animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.admin-header h1 {
-    color: #ffffff;
-    font-size: 1.8rem;
+.fade-in-up {
+    animation: fadeInUp 0.3s ease-out;
 }
 
-.logout-btn {
-    background: rgba(220, 38, 38, 0.8);
-    border: 2px solid #dc2626;
-    padding: 8px 16px;
-    font-size: 0.9rem;
-}
-
-.logout-btn:hover {
-    background: #dc2626;
-    border-color: #dc2626;
-    color: #ffffff;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.stat-card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    padding: 1.5rem;
-}
-
-.stat-card h3 {
-    color: #ff4500;
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-value {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #ffffff;
-    margin-bottom: 0.5rem;
-}
-
-.stat-description {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.85rem;
-}
-
-.admin-section {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.admin-section h2 {
-    color: #ffffff;
-    margin-bottom: 1rem;
-    font-size: 1.3rem;
-}
-
-.admin-actions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-}
-
-.action-btn {
-    display: block;
-    text-align: center;
-    padding: 1rem;
-    background: rgba(255, 69, 0, 0.1);
-    border: 1px solid #ff4500;
-    border-radius: 4px;
-    color: #ffffff;
-    text-decoration: none;
+.stats-card {
     transition: all 0.2s ease;
 }
 
-.action-btn:hover {
-    background: rgba(255, 69, 0, 0.2);
-    border-color: #ff6600;
-}
-
-.loading-text {
-    text-align: center;
-    color: rgba(255, 255, 255, 0.7);
-    font-style: italic;
-}
-
-@media (max-width: 768px) {
-    .admin-header {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-    }
-    
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .admin-actions {
-        grid-template-columns: 1fr;
-    }
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 @endsection
 
 @section('content')
-<div class="admin-header">
-    <h1>🛠️ Admin Dashboard</h1>
-    <button class="btn logout-btn" onclick="logout()">Logout</button>
-</div>
-
-<div class="stats-grid">
-    <div class="stat-card">
-        <h3>Total Users</h3>
-        <div class="stat-value" id="totalUsers">-</div>
-        <div class="stat-description">Registered accounts</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Active Users</h3>
-        <div class="stat-value" id="activeUsers">-</div>
-        <div class="stat-description">Currently enabled accounts</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Admin Users</h3>
-        <div class="stat-value" id="adminUsers">-</div>
-        <div class="stat-description">Level 2+ administrators</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Online Users</h3>
-        <div class="stat-value" id="onlineUsers">-</div>
-        <div class="stat-description">Currently connected</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Active Rooms</h3>
-        <div class="stat-value" id="activeRooms">-</div>
-        <div class="stat-description">Rooms with users</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Total Connections</h3>
-        <div class="stat-value" id="totalConnections">-</div>
-        <div class="stat-description">Server connections</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Server Uptime</h3>
-        <div class="stat-value" id="serverUptime">-</div>
-        <div class="stat-description">Time since restart</div>
-    </div>
-    
-    <div class="stat-card">
-        <h3>Voice Sessions</h3>
-        <div class="stat-value" id="voiceSessions">-</div>
-        <div class="stat-description">Active voice users</div>
+<!-- Dashboard Header -->
+<div class="mb-8">
+    <div class="md:flex md:items-center md:justify-between">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                Dashboard
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">
+                Welcome back! Here's what's happening with your server.
+            </p>
+        </div>
+        <div class="mt-4 flex md:ml-4 md:mt-0">
+            <button type="button" 
+                    onclick="refreshDashboard()" 
+                    class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                <svg class="-ml-0.5 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Refresh
+            </button>
+        </div>
     </div>
 </div>
 
-<div class="admin-section">
-    <h2>📊 Server Status</h2>
-    <div id="serverStatus" class="loading-text">Loading server information...</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <!-- Total Users -->
+    <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0H21v-1a6 6 0 00-9-5.197"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                        <dd class="text-lg font-medium text-gray-900" id="totalUsers">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm text-gray-500">Registered accounts</div>
+        </div>
+    </div>
+
+    <!-- Active Users -->
+    <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Online Users</dt>
+                        <dd class="text-lg font-medium text-gray-900" id="onlineUsers">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm text-gray-500">Currently connected</div>
+        </div>
+    </div>
+
+    <!-- Active Rooms -->
+    <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-500 rounded-md flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Active Rooms</dt>
+                        <dd class="text-lg font-medium text-gray-900" id="activeRooms">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm text-gray-500">Rooms with users</div>
+        </div>
+    </div>
+
+    <!-- Server Uptime -->
+    <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-orange-500 rounded-md flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Server Uptime</dt>
+                        <dd class="text-lg font-medium text-gray-900" id="serverUptime">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm text-gray-500">Time since restart</div>
+        </div>
+    </div>
 </div>
 
-<div class="admin-section">
-    <h2>⚡ Quick Actions</h2>
-    <div class="admin-actions">
-        <a href="{{ route('admin.users') }}" class="action-btn">
-            👥 Manage Users
-        </a>
-        <a href="{{ route('admin.packet-logs') }}" class="action-btn">
-            📋 Packet Logs
-        </a>
-        <a href="{{ route('admin.voice-logs') }}" class="action-btn">
-            🎙️ Voice Logs
-        </a>
-        <a href="{{ route('admin.bot-management') }}" class="action-btn">
-            🤖 Bot Management
-        </a>
-        <a href="#" class="action-btn" onclick="viewEmailSubscriptions()">
-            📧 Email Subscriptions
-        </a>
-        <a href="#" class="action-btn" onclick="connectToChatServer()">
-            💬 Chat Server Status
-        </a>
+<!-- Server Status -->
+<div class="bg-white shadow rounded-lg mb-8">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Server Status</h3>
+        <div id="serverStatus" class="text-gray-500">Loading server information...</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="bg-white shadow rounded-lg">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Quick Actions</h3>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <a href="{{ route('admin.users') }}" 
+               class="relative block w-full rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                <svg class="mx-auto h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0H21v-1a6 6 0 00-9-5.197"></path>
+                </svg>
+                <span class="mt-2 block text-sm font-medium text-gray-900">Manage Users</span>
+                <span class="mt-1 block text-xs text-gray-500">View and edit user accounts</span>
+            </a>
+
+            <a href="{{ route('admin.packet-logs') }}" 
+               class="relative block w-full rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                <svg class="mx-auto h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span class="mt-2 block text-sm font-medium text-gray-900">Packet Logs</span>
+                <span class="mt-1 block text-xs text-gray-500">Monitor server communication</span>
+            </a>
+
+            <a href="{{ route('admin.bot-management') }}" 
+               class="relative block w-full rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                <svg class="mx-auto h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                <span class="mt-2 block text-sm font-medium text-gray-900">Bot Management</span>
+                <span class="mt-1 block text-xs text-gray-500">Control automated users</span>
+            </a>
+        </div>
     </div>
 </div>
 @endsection
 
 @section('scripts')
-let adminToken = localStorage.getItem('admin_token');
 let isSocketConnected = false;
 
 // Format uptime from seconds to readable format
@@ -232,20 +218,19 @@ function formatUptime(seconds) {
     return parts.join(' ');
 }
 
-// Check if user is logged in
-if (!adminToken) {
-    console.warn('⚠️ No admin token found, creating temporary token for development');
-    // For development/testing, create a temporary admin token
-    adminToken = 'admin-dev-token';
-    localStorage.setItem('admin_token', adminToken);
+// Refresh dashboard data
+function refreshDashboard() {
+    showToast('Refreshing dashboard data...', 'warning');
+    loadDashboardData();
 }
 
 // Socket.IO event handlers for dashboard
 function setupSocketListeners() {
     console.log('🔌 Setting up Socket.IO listeners...');
     
-    if (typeof io === 'undefined') {
-        console.warn('⚠️ Socket.IO library not available');
+    if (typeof io === 'undefined' || !io) {
+        console.warn('⚠️ Socket.IO library not available - using API fallback only');
+        updateConnectionStatus('disconnected', 'Real-time disabled');
         return;
     }
     
@@ -257,12 +242,14 @@ function setupSocketListeners() {
         window.dashboardSocket.on('connect', () => {
             console.log('✅ Dashboard connected to chat server');
             isSocketConnected = true;
+            updateConnectionStatus('connected', 'Chat server online');
             requestServerData();
         });
         
         window.dashboardSocket.on('disconnect', () => {
             console.log('❌ Dashboard disconnected from chat server');
             isSocketConnected = false;
+            updateConnectionStatus('disconnected', 'Chat server offline');
         });
         
         // Listen for server state updates
@@ -345,18 +332,8 @@ async function loadDashboardData() {
             // Update database-based stats
             console.log('📊 Updating database stats...');
             const totalUsersEl = document.getElementById('totalUsers');
-            const activeUsersEl = document.getElementById('activeUsers'); 
-            const adminUsersEl = document.getElementById('adminUsers');
-            
-            console.log('📊 Elements found:', {
-                totalUsers: !!totalUsersEl,
-                activeUsers: !!activeUsersEl,
-                adminUsers: !!adminUsersEl
-            });
             
             if (totalUsersEl) totalUsersEl.textContent = serverData.database?.users_total || 0;
-            if (activeUsersEl) activeUsersEl.textContent = serverData.database?.users_active || 0;
-            if (adminUsersEl) adminUsersEl.textContent = serverData.database?.admins || 0;
             
             // Update real-time server stats from Node.js
             console.log('📊 Updating server stats...');
@@ -395,48 +372,36 @@ async function loadDashboardData() {
             const isOnline = !serverData.error;
             
             statusDiv.innerHTML = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                    <div>
-                        <strong>Chat Server:</strong><br>
-                        Status: <span style="color: ${isOnline ? '#4ade80' : '#ef4444'};">${isOnline ? 'Online' : 'Offline'}</span><br>
-                        Port: ${serverData.server?.port || 5001}<br>
-                        Version: ${serverData.server?.version || '1.0.0'}
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-900">Chat Server</h4>
+                        <p class="mt-1 text-sm text-gray-600">Status: <span class="${isOnline ? 'text-green-600' : 'text-red-600'} font-medium">${isOnline ? 'Online' : 'Offline'}</span></p>
+                        <p class="text-sm text-gray-600">Port: ${serverData.server?.port || 5001}</p>
+                        <p class="text-sm text-gray-600">Version: ${serverData.server?.version || '1.0.0'}</p>
                     </div>
-                    <div>
-                        <strong>Voice Server:</strong><br>
-                        Status: <span style="color: ${serverData.voice ? '#4ade80' : '#ef4444'};">${serverData.voice ? 'Online' : 'Offline'}</span><br>
-                        Port: ${serverData.voice?.port || 2090}<br>
-                        Sessions: ${serverData.voice?.activeSessions || 0}
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-900">Voice Server</h4>
+                        <p class="mt-1 text-sm text-gray-600">Status: <span class="${serverData.voice ? 'text-green-600' : 'text-red-600'} font-medium">${serverData.voice ? 'Online' : 'Offline'}</span></p>
+                        <p class="text-sm text-gray-600">Port: ${serverData.voice?.port || 2090}</p>
+                        <p class="text-sm text-gray-600">Sessions: ${serverData.voice?.activeSessions || 0}</p>
                     </div>
-                    <div>
-                        <strong>Database:</strong><br>
-                        Status: <span style="color: #4ade80;">Connected</span><br>
-                        Users: ${serverData.database?.users_total || 0}<br>
-                        Active: ${serverData.database?.users_active || 0}
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-900">Database</h4>
+                        <p class="mt-1 text-sm text-gray-600">Status: <span class="text-green-600 font-medium">Connected</span></p>
+                        <p class="text-sm text-gray-600">Users: ${serverData.database?.users_total || 0}</p>
+                        <p class="text-sm text-gray-600">Active: ${serverData.database?.users_active || 0}</p>
                     </div>
-                    <div>
-                        <strong>Performance:</strong><br>
-                        CPU: ${serverData.performance?.cpu || 'N/A'}<br>
-                        Memory: ${serverData.performance?.memory || 'N/A'}<br>
-                        Uptime: ${serverData.stats?.uptime ? formatUptime(serverData.stats.uptime) : 'Unknown'}
-                    </div>
-                </div>
-                <div style="margin-top: 1rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-                        <div>
-                            <strong>Active Users:</strong><br>
-                            ${(serverData.users || []).slice(0, 3).map(user => `<span style="color: #4ade80;">${user.nickname || user.name}</span>`).join(', ')}
-                            ${(serverData.users || []).length > 3 ? `<span style="color: rgba(255,255,255,0.7);"> +${(serverData.users || []).length - 3} more</span>` : ''}
-                        </div>
-                        <div>
-                            <strong>Popular Rooms:</strong><br>
-                            ${(serverData.rooms || []).slice(0, 3).map(room => `<span style="color: #ff4500;">${room.name}</span> (${room.userCount})`).join('<br>')}
-                        </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-900">Performance</h4>
+                        <p class="mt-1 text-sm text-gray-600">CPU: ${serverData.performance?.cpu || 'N/A'}</p>
+                        <p class="text-sm text-gray-600">Memory: ${serverData.performance?.memory || 'N/A'}</p>
+                        <p class="text-sm text-gray-600">Uptime: ${serverData.stats?.uptime ? formatUptime(serverData.stats.uptime) : 'Unknown'}</p>
                     </div>
                 </div>
-                <p style="margin-top: 1rem; color: rgba(255, 255, 255, 0.7); font-style: italic;">
-                    ${serverData.error ? `⚠️ ${serverData.error}` : '✅ All systems operational'}
-                </p>
+                ${serverData.error ? 
+                    '<div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg"><p class="text-sm text-red-600">⚠️ ' + serverData.error + '</p></div>' : 
+                    '<div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg"><p class="text-sm text-green-600">✅ All systems operational</p></div>'
+                }
             `;
         }
         
@@ -464,51 +429,30 @@ async function loadDashboardData() {
         
         // Show fallback data when server is unavailable
         document.getElementById('totalUsers').textContent = '0';
-        document.getElementById('activeUsers').textContent = '0';
-        document.getElementById('adminUsers').textContent = '0';
         document.getElementById('onlineUsers').textContent = '0';
         document.getElementById('activeRooms').textContent = '0';
-        document.getElementById('totalConnections').textContent = '0';
         document.getElementById('serverUptime').textContent = 'Unknown';
-        document.getElementById('voiceSessions').textContent = '0';
         
         document.getElementById('serverStatus').innerHTML = 
-            '<span style="color: #ef4444;">⚠️ Unable to connect to chat server. Dashboard showing local data only.</span>';
+            '<div class="p-4 bg-red-50 border border-red-200 rounded-lg"><p class="text-sm text-red-600">⚠️ Unable to connect to chat server. Dashboard showing local data only.</p></div>';
+        
+        updateConnectionStatus('disconnected', 'Server offline');
+        showToast('Failed to connect to chat server', 'error');
     }
 }
 
-// Logout function
-async function logout() {
-    try {
-        await fetch('/api/auth/logout', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${adminToken}`,
-                'X-CSRF-TOKEN': token
-            }
-        });
-    } catch (error) {
-        console.error('Logout error:', error);
-    }
-    
-    localStorage.removeItem('admin_token');
-    window.location.href = '{{ route("admin.login") }}';
-}
 
 // Quick action functions
 function viewEmailSubscriptions() {
-    // TODO: Implement email subscriptions view
-    alert('Email subscriptions management - Coming soon!');
+    showToast('Email subscriptions management - Coming soon!', 'warning');
 }
 
 function viewServerLogs() {
-    // TODO: Implement server logs view
-    alert('Server logs view - Coming soon!');
+    showToast('Server logs view - Coming soon!', 'warning');
 }
 
 function connectToChatServer() {
-    // TODO: Implement chat server connection
-    alert('Chat server management - Coming soon!');
+    showToast('Chat server management - Coming soon!', 'warning');
 }
 
 // Load data when page loads

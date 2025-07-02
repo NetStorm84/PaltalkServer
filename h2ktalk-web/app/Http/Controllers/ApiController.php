@@ -137,18 +137,30 @@ class ApiController extends Controller
     public function getUsers(Request $request)
     {
         $users = User::select([
-            'id', 
-            'name', 
-            'first_name', 
-            'last_name', 
+            'uid as id',  // Use uid as the primary key
+            'first', 
+            'last', 
             'nickname', 
             'email', 
             'admin', 
-            'is_active', 
+            'listed', 
             'last_login', 
-            'created_at',
-            'paid1'
-        ])->orderBy('created_at', 'desc')->get();
+            'created',
+            'paid1',
+            'color',
+            'banners'
+        ])->orderBy('created', 'desc')->get();
+        
+        // Add computed attributes
+        $users = $users->map(function($user) {
+            $user->first_name = $user->first;
+            $user->last_name = $user->last;
+            $user->is_active = (bool) $user->listed;
+            $user->created_at = $user->created;
+            $user->color = $user->color ?: '000000000'; // Ensure color field exists
+            $user->banners = $user->banners ?: 'yes'; // Ensure banners field exists
+            return $user;
+        });
 
         return response()->json([
             'success' => true,
@@ -161,23 +173,161 @@ class ApiController extends Controller
      */
     public function updateUser(Request $request, $id)
     {
-        $user = User::findOrFail($id);
-        
-        $user->update($request->only([
-            'first_name',
-            'last_name', 
-            'nickname',
-            'email',
-            'admin',
-            'is_active',
-            'paid1'
-        ]));
+        try {
+            \Log::info('Update user request', [
+                'id' => $id,
+                'request_data' => $request->all()
+            ]);
+            
+            $user = User::where('uid', $id)->firstOrFail();
+            
+            // Map frontend field names to database field names
+            $updateData = [];
+            if ($request->has('first_name')) {
+                $updateData['first'] = $request->first_name;
+            }
+            if ($request->has('last_name')) {
+                $updateData['last'] = $request->last_name;
+            }
+            if ($request->has('nickname')) {
+                $updateData['nickname'] = $request->nickname;
+            }
+            if ($request->has('email')) {
+                $updateData['email'] = $request->email;
+            }
+            if ($request->has('admin')) {
+                $updateData['admin'] = $request->admin;
+            }
+            if ($request->has('is_active')) {
+                $updateData['listed'] = $request->is_active;
+            }
+            if ($request->has('paid1')) {
+                $paidLevel = (int) $request->paid1;
+                $updateData['paid1'] = $paidLevel;
+                
+                \Log::info('Setting paid1', [
+                    'old_value' => $user->paid1,
+                    'new_value' => $paidLevel
+                ]);
+            }
+            
+            if ($request->has('color')) {
+                $updateData['color'] = $request->color;
+                \Log::info('Setting manual color', [
+                    'old_color' => $user->color,
+                    'new_color' => $request->color
+                ]);
+            }
+            
+            if ($request->has('banners')) {
+                $updateData['banners'] = $request->banners;
+                \Log::info('Setting manual banners', [
+                    'old_banners' => $user->banners,
+                    'new_banners' => $request->banners
+                ]);
+            }
+            
+            \Log::info('Updating user with data', $updateData);
+            \Log::info('User fillable fields', $user->getFillable());
+            
+            // Try updating each field individually for debugging
+            foreach ($updateData as $field => $value) {
+                \Log::info("Setting {$field} to {$value}");
+                $user->{$field} = $value;
+            }
+            
+            // Force save without Laravel's mass assignment protection
+            $saved = $user->save();
+            \Log::info('Save result', ['saved' => $saved]);
+            
+            // If update failed, try direct SQL update
+            if (isset($updateData['paid1'])) {
+                $sqlUpdateData = [
+                    'paid1' => $updateData['paid1']
+                ];
+                
+                if (isset($updateData['color'])) {
+                    $sqlUpdateData['color'] = $updateData['color'];
+                }
+                
+                if (isset($updateData['banners'])) {
+                    $sqlUpdateData['banners'] = $updateData['banners'];
+                }
+                
+                $directUpdate = \DB::table('users')
+                    ->where('uid', $id)
+                    ->update($sqlUpdateData);
+                \Log::info('Direct SQL update result', [
+                    'rows_affected' => $directUpdate,
+                    'update_data' => $sqlUpdateData
+                ]);
+            }
+            
+            // Refresh the user to get updated values
+            $user->refresh();
+            
+            \Log::info('User after update', [
+                'paid1' => $user->paid1,
+                'email' => $user->email,
+                'color' => $user->color,
+                'all_attributes' => $user->getAttributes()
+            ]);
+            
+            // Double-check that color was actually updated
+            if (isset($updateData['paid1'])) {
+                $expectedColor = $updateData['color'] ?? 'not_set';
+                $actualColor = $user->color;
+                \Log::info('Color update verification', [
+                    'expected_color' => $expectedColor,
+                    'actual_color' => $actualColor,
+                    'colors_match' => $expectedColor === $actualColor
+                ]);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User updated successfully',
-            'user' => $user
-        ]);
+            // Notify the chat server to update in-memory user data
+            try {
+                $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+                $notifyData = [
+                    'action' => 'refresh_user_data',
+                    'userId' => $id,
+                    'updateData' => $updateData
+                ];
+                
+                $context = stream_context_create([
+                    'http' => [
+                        'method' => 'POST',
+                        'header' => 'Content-Type: application/json',
+                        'content' => json_encode($notifyData),
+                        'timeout' => 5
+                    ]
+                ]);
+                
+                // Try to notify chat server (don't fail if server is offline)
+                @file_get_contents($chatServerUrl . '/api/admin/refresh-user', false, $context);
+                
+            } catch (\Exception $e) {
+                \Log::info('Could not notify chat server of user update', ['error' => $e->getMessage()]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'User updated successfully',
+                'user' => $user,
+                'note' => 'User may need to reconnect to see changes in chat client'
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('User update failed', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to update user: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -185,7 +335,7 @@ class ApiController extends Controller
      */
     public function deleteUser($id)
     {
-        $user = User::findOrFail($id);
+        $user = User::where('uid', $id)->firstOrFail();
         $user->delete();
 
         return response()->json([
