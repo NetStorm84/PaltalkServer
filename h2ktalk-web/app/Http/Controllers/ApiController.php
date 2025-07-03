@@ -702,4 +702,258 @@ class ApiController extends Controller
             'php_version' => PHP_VERSION
         ]);
     }
+
+    /**
+     * Get rooms from Node.js server
+     */
+    public function getRooms()
+    {
+        try {
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $response = file_get_contents($chatServerUrl . '/api/rooms');
+            
+            if ($response === false) {
+                throw new \Exception('Failed to connect to chat server');
+            }
+            
+            return response($response)->header('Content-Type', 'application/json');
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Chat server not available: ' . $e->getMessage(),
+                'rooms' => []
+            ]);
+        }
+    }
+
+    /**
+     * Update room
+     */
+    public function updateRoom($id, Request $request)
+    {
+        try {
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            
+            $updateData = $request->only(['name', 'description', 'maxUsers', 'password', 'isPrivate']);
+            
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'PUT',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($updateData),
+                    'timeout' => 10
+                ]
+            ]);
+            
+            $response = file_get_contents($chatServerUrl . '/api/rooms/' . $id, false, $context);
+            
+            if ($response === false) {
+                throw new \Exception('Failed to connect to chat server');
+            }
+            
+            return response($response)->header('Content-Type', 'application/json');
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Chat server not available: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Delete room
+     */
+    public function deleteRoom($id)
+    {
+        try {
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'DELETE',
+                    'timeout' => 10
+                ]
+            ]);
+            
+            $response = file_get_contents($chatServerUrl . '/api/rooms/' . $id, false, $context);
+            
+            if ($response === false) {
+                throw new \Exception('Failed to connect to chat server');
+            }
+            
+            return response($response)->header('Content-Type', 'application/json');
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Chat server not available: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Close room (kick all users and disable)
+     */
+    public function closeRoom($id)
+    {
+        try {
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'timeout' => 10
+                ]
+            ]);
+            
+            $response = file_get_contents($chatServerUrl . '/api/rooms/' . $id . '/close', false, $context);
+            
+            if ($response === false) {
+                throw new \Exception('Failed to connect to chat server');
+            }
+            
+            return response($response)->header('Content-Type', 'application/json');
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Chat server not available: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Start chat server
+     */
+    public function startServer()
+    {
+        try {
+            // Check if server is already running
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $response = @file_get_contents($chatServerUrl . '/api/health');
+            
+            if ($response !== false) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Server is already running',
+                    'status' => 'running'
+                ]);
+            }
+            
+            // Start the server using PM2 for process management
+            $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv/h2ktalk-server');
+            $logFile = storage_path('logs/chat-server.log');
+            
+            // Use PM2 to start the server
+            $command = "cd {$serverPath} && pm2 start server.js --name h2ktalk-server --log {$logFile} 2>&1";
+            $output = shell_exec($command);
+            
+            // Give the server a moment to start
+            sleep(2);
+            
+            // Check if server started successfully
+            $response = @file_get_contents($chatServerUrl . '/api/health');
+            
+            if ($response !== false) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Server started successfully',
+                    'status' => 'running',
+                    'output' => $output
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Server failed to start properly',
+                    'output' => $output
+                ], 500);
+            }
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to start server: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Stop chat server
+     */
+    public function stopServer()
+    {
+        try {
+            // Use PM2 to stop the server
+            $command = "pm2 stop h2ktalk-server 2>&1";
+            $output = shell_exec($command);
+            
+            // Give the server a moment to stop
+            sleep(1);
+            
+            // Check if server stopped
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $response = @file_get_contents($chatServerUrl . '/api/health');
+            
+            if ($response === false) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Server stopped successfully',
+                    'status' => 'stopped',
+                    'output' => $output
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Server failed to stop properly',
+                    'output' => $output
+                ], 500);
+            }
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to stop server: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get server status
+     */
+    public function getServerStatus()
+    {
+        try {
+            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $response = @file_get_contents($chatServerUrl . '/api/health');
+            
+            if ($response !== false) {
+                $data = json_decode($response, true);
+                return response()->json([
+                    'success' => true,
+                    'status' => 'running',
+                    'health' => $data
+                ]);
+            } else {
+                // Check PM2 status
+                $pm2Status = shell_exec('pm2 jlist 2>/dev/null | grep h2ktalk-server');
+                $isInPm2 = !empty($pm2Status);
+                
+                return response()->json([
+                    'success' => true,
+                    'status' => 'stopped',
+                    'pm2_managed' => $isInPm2
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to check server status: ' . $e->getMessage(),
+                'status' => 'unknown'
+            ]);
+        }
+    }
 }

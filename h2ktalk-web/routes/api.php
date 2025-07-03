@@ -52,5 +52,16 @@ Route::middleware('simple-auth')->group(function () {
         Route::post('/admin/bots/start', [ApiController::class, 'startBot']);
         Route::post('/admin/bots/stop', [ApiController::class, 'stopBot']);
         Route::post('/admin/bots/restart', [ApiController::class, 'restartBot']);
+        
+        // Room management routes
+        Route::get('/admin/rooms', [ApiController::class, 'getRooms']);
+        Route::put('/admin/rooms/{id}', [ApiController::class, 'updateRoom']);
+        Route::delete('/admin/rooms/{id}', [ApiController::class, 'deleteRoom']);
+        Route::post('/admin/rooms/{id}/close', [ApiController::class, 'closeRoom']);
+        
+        // Server control routes
+        Route::post('/admin/server/start', [ApiController::class, 'startServer']);
+        Route::post('/admin/server/stop', [ApiController::class, 'stopServer']);
+        Route::get('/admin/server/status', [ApiController::class, 'getServerStatus']);
     });
 });
