@@ -8,7 +8,7 @@ const SERVER_CONFIG = {
     WEB_UI_PORT: 3000,
     SERVER_IP: process.env.SERVER_IP || '0.0.0.0', // Bind to all interfaces by default, override with env var if needed
     SERVER_KEY: 'XyF¦164473312518',
-    DATABASE_PATH: process.env.DB_PATH || 'h2ktalk-web/database.db'
+    DATABASE_PATH: process.env.DB_PATH || (process.env.NODE_ENV === 'production' ? '/var/www/html/h2ktalk.fun/h2ktalk-web/database.db' : 'h2ktalk-web/database.db')
 };
 
 const USER_PERMISSIONS = {

@@ -847,15 +847,15 @@ class ApiController extends Controller
             // Try to find the correct server path
             $possiblePaths = [
                 env('CHAT_SERVER_PATH'), // Check .env first
+                '/var/www/html/h2ktalk.fun', // Production path
                 '/Users/dan/Documents/Sites/serv', // Direct path for development
                 dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
-                '/var/www/html/h2ktalk.fun/serv', // Production path
                 dirname(dirname(dirname(__DIR__))) . '/serv'
             ];
             
             $serverPath = null;
             foreach ($possiblePaths as $path) {
-                if ($path && is_dir($path) && file_exists($path . '/package.json')) {
+                if ($path && is_dir($path) && file_exists($path . '/package.json') && file_exists($path . '/src/server.js')) {
                     $serverPath = $path;
                     break;
                 }
@@ -906,10 +906,10 @@ class ApiController extends Controller
                 if (file_exists($serverPath . '/start.sh')) {
                     // Make start.sh executable and use PM2 to run it
                     shell_exec("chmod +x {$serverPath}/start.sh");
-                    $command = "cd {$serverPath} && PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server --interpreter bash start.sh 2>&1";
+                    $command = "cd {$serverPath} && NODE_ENV=production PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server --interpreter bash start.sh 2>&1";
                 } else {
                         // Use PM2 to start the server with npm and set PM2_HOME
-                    $command = "cd {$serverPath} && PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server npm -- start 2>&1";
+                    $command = "cd {$serverPath} && NODE_ENV=production PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server npm -- start 2>&1";
                 }
                 $output = shell_exec($command) ?? 'PM2 start command failed';
                 
@@ -1006,9 +1006,9 @@ class ApiController extends Controller
                 // Use the start.sh script if available, otherwise npm start
                 if (file_exists($serverPath . '/start.sh')) {
                     shell_exec("chmod +x {$serverPath}/start.sh");
-                    $command = "cd {$serverPath} && nohup ./start.sh > {$logFile} 2>&1 & echo $!";
+                    $command = "cd {$serverPath} && NODE_ENV=production nohup ./start.sh > {$logFile} 2>&1 & echo $!";
                 } else {
-                    $command = "cd {$serverPath} && nohup npm start > {$logFile} 2>&1 & echo $!";
+                    $command = "cd {$serverPath} && NODE_ENV=production nohup npm start > {$logFile} 2>&1 & echo $!";
                 }
                 $pid = shell_exec($command) ?? '0';
                 
@@ -1069,15 +1069,15 @@ class ApiController extends Controller
             // Try to find the correct server path
             $possiblePaths = [
                 env('CHAT_SERVER_PATH'),
+                '/var/www/html/h2ktalk.fun/serv', // Production path
                 '/Users/dan/Documents/Sites/serv', // Direct path for development
                 dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
-                '/var/www/html/h2ktalk.fun/serv', // Production path
                 dirname(dirname(dirname(__DIR__))) . '/serv'
             ];
             
             $serverPath = null;
             foreach ($possiblePaths as $path) {
-                if ($path && is_dir($path) && file_exists($path . '/package.json')) {
+                if ($path && is_dir($path) && file_exists($path . '/package.json') && file_exists($path . '/src/server.js')) {
                     $serverPath = $path;
                     break;
                 }
