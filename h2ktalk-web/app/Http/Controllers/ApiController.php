@@ -1092,8 +1092,25 @@ class ApiController extends Controller
             if (!$serverPath) {
                 $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
             }
-            $command = "PM2_HOME={$serverPath}/.pm2 pm2 stop h2ktalk-server 2>&1";
-            $output = shell_exec($command) ?? 'PM2 stop command failed';
+            // Try multiple stop methods
+            $commands = [
+                "PM2_HOME={$serverPath}/.pm2 pm2 stop h2ktalk-server 2>&1",
+                "PM2_HOME=/tmp/.pm2 pm2 stop h2ktalk-server 2>&1",
+                "pm2 stop h2ktalk-server 2>&1",
+                "pkill -f 'node.*src/server.js' 2>&1",
+                "pkill -f 'npm.*start' 2>&1"
+            ];
+            
+            $output = "Attempting to stop server...\n";
+            foreach ($commands as $command) {
+                $result = shell_exec($command);
+                $output .= "Command: {$command}\nResult: " . ($result ?? 'No output') . "\n\n";
+                
+                // If command succeeded (contains certain success indicators), break
+                if ($result && (strpos($result, 'stopped') !== false || strpos($result, 'deleted') !== false)) {
+                    break;
+                }
+            }
             
             // Give the server a moment to stop
             sleep(1);
