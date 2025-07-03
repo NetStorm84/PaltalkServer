@@ -858,7 +858,7 @@ class ApiController extends Controller
             if (!empty($pm2Check)) {
                 // Ensure dependencies are installed and start the server
                 $installCommand = "cd {$serverPath} && npm install 2>&1";
-                $installOutput = shell_exec($installCommand);
+                $installOutput = shell_exec($installCommand) ?? 'Install command failed';
                 
                 // Stop any existing PM2 process with the same name first
                 shell_exec('pm2 delete h2ktalk-server 2>/dev/null');
@@ -872,10 +872,10 @@ class ApiController extends Controller
                     // Use PM2 to start the server with npm
                     $command = "cd {$serverPath} && pm2 start --name h2ktalk-server npm -- start 2>&1";
                 }
-                $output = shell_exec($command);
+                $output = shell_exec($command) ?? 'PM2 start command failed';
                 
                 // Also check PM2 status
-                $pm2Status = shell_exec('pm2 list 2>&1');
+                $pm2Status = shell_exec('pm2 list 2>&1') ?? 'PM2 status unavailable';
                 
                 // Give the server a moment to start
                 sleep(5);
@@ -884,6 +884,8 @@ class ApiController extends Controller
                 $response = @file_get_contents($chatServerUrl . '/api/health');
                 
                 // Also check if chat server is listening on port 5001
+                $errno = 0;
+                $errstr = '';
                 $chatServerCheck = @fsockopen('localhost', 5001, $errno, $errstr, 1);
                 $chatServerRunning = $chatServerCheck !== false;
                 if ($chatServerCheck) fclose($chatServerCheck);
@@ -911,27 +913,43 @@ class ApiController extends Controller
                         'healthUrl' => $chatServerUrl . '/api/health',
                         'webInterface' => $response !== false,
                         'chatServer' => $chatServerRunning,
-                        'chatServerError' => $errno . ': ' . $errstr
+                        'chatServerError' => ($errno ?? 0) . ': ' . ($errstr ?? 'Unknown error')
                     ], 500);
                 }
             } else {
                 // Fallback: start server directly with nohup
                 $logFile = storage_path('logs/chat-server.log');
+                $installOutput = 'PM2 not available - using fallback method';
+                
+                // Install dependencies first
+                $installCommand = "cd {$serverPath} && npm install 2>&1";
+                $installOutput .= "\n" . (shell_exec($installCommand) ?? 'Install failed');
+                
                 $command = "cd {$serverPath} && nohup npm start > {$logFile} 2>&1 & echo $!";
-                $pid = shell_exec($command);
+                $pid = shell_exec($command) ?? '0';
                 
                 // Give the server a moment to start
                 sleep(3);
                 
-                // Check if server started successfully
+                // Check if web interface started successfully
                 $response = @file_get_contents($chatServerUrl . '/api/health');
                 
-                if ($response !== false) {
+                // Also check if chat server is listening on port 5001
+                $errno = 0;
+                $errstr = '';
+                $chatServerCheck = @fsockopen('localhost', 5001, $errno, $errstr, 1);
+                $chatServerRunning = $chatServerCheck !== false;
+                if ($chatServerCheck) fclose($chatServerCheck);
+                
+                if ($response !== false || $chatServerRunning) {
                     return response()->json([
                         'success' => true,
                         'message' => 'Server started successfully (background process)',
                         'status' => 'running',
-                        'pid' => trim($pid)
+                        'pid' => trim($pid),
+                        'webInterface' => $response !== false,
+                        'chatServer' => $chatServerRunning,
+                        'installOutput' => $installOutput
                     ]);
                 } else {
                     return response()->json([
@@ -939,7 +957,11 @@ class ApiController extends Controller
                         'error' => 'Server failed to start properly',
                         'serverPath' => $serverPath,
                         'logFile' => $logFile,
-                        'pid' => trim($pid)
+                        'pid' => trim($pid),
+                        'installOutput' => $installOutput,
+                        'webInterface' => $response !== false,
+                        'chatServer' => $chatServerRunning,
+                        'chatServerError' => ($errno ?? 0) . ': ' . ($errstr ?? 'Unknown error')
                     ], 500);
                 }
             }
@@ -960,14 +982,14 @@ class ApiController extends Controller
         try {
             // Use PM2 to stop the server
             $command = "pm2 stop h2ktalk-server 2>&1";
-            $output = shell_exec($command);
+            $output = shell_exec($command) ?? 'PM2 stop command failed';
             
             // Give the server a moment to stop
             sleep(1);
             
             // Check if server stopped
             $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = @file_get_contents($chatServerUrl . '/api/server-state');
+            $response = @file_get_contents($chatServerUrl . '/api/health');
             
             if ($response === false) {
                 return response()->json([
