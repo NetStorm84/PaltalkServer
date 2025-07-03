@@ -32,6 +32,24 @@ class ApiController extends Controller
     }
 
     /**
+     * Get system diagnostics
+     */
+    public function systemDiagnostics()
+    {
+        return response()->json([
+            'php_version' => phpversion(),
+            'loaded_extensions' => get_loaded_extensions(),
+            'pdo_drivers' => \PDO::getAvailableDrivers(),
+            'sqlite_loaded' => extension_loaded('sqlite3'),
+            'pdo_sqlite_loaded' => extension_loaded('pdo_sqlite'),
+            'database_config' => [
+                'default' => config('database.default'),
+                'sqlite_database' => config('database.connections.sqlite.database')
+            ]
+        ]);
+    }
+
+    /**
      * Get server state for admin dashboard
      * Fetches real-time data from the Node.js chat server
      */

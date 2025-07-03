@@ -63,5 +63,6 @@ Route::middleware('simple-auth')->group(function () {
         Route::post('/admin/server/start', [ApiController::class, 'startServer']);
         Route::post('/admin/server/stop', [ApiController::class, 'stopServer']);
         Route::get('/admin/server/status', [ApiController::class, 'getServerStatus']);
+        Route::get('/admin/server/diagnostics', [ApiController::class, 'systemDiagnostics']);
     });
 });
