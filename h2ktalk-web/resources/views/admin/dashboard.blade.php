@@ -153,11 +153,49 @@
     </div>
 </div>
 
-<!-- Server Status -->
+<!-- Server Status & Controls -->
 <div class="bg-white shadow rounded-lg mb-8">
     <div class="px-4 py-5 sm:p-6">
-        <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Server Status</h3>
-        <div id="serverStatus" class="text-gray-500">Loading server information...</div>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Server Status & Controls</h3>
+            <div class="flex items-center space-x-2">
+                <div id="server-status-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
+                <span id="server-status-text" class="text-sm text-gray-500">Checking...</span>
+            </div>
+        </div>
+        
+        <div id="serverStatus" class="text-gray-500 mb-4">Loading server information...</div>
+        
+        <!-- Server Controls -->
+        <div class="flex space-x-3">
+            <button id="start-server-btn" 
+                    onclick="startServer()" 
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h12a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"></path>
+                </svg>
+                Start Server
+            </button>
+            
+            <button id="stop-server-btn" 
+                    onclick="stopServer()" 
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10h6v4H9z"></path>
+                </svg>
+                Stop Server
+            </button>
+            
+            <button id="restart-server-btn" 
+                    onclick="restartServer()" 
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Restart Server
+            </button>
+        </div>
     </div>
 </div>
 
@@ -376,9 +414,16 @@ async function loadDashboardData() {
                 }
             }
             
-            // Update server status display
+            // Update server status display and controls
             const statusDiv = document.getElementById('serverStatus');
             const isOnline = !serverData.error;
+            
+            // Update server status indicator
+            if (isOnline) {
+                updateServerStatus('running');
+            } else {
+                updateServerStatus('stopped');
+            }
             
             statusDiv.innerHTML = `
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -450,6 +495,124 @@ async function loadDashboardData() {
     }
 }
 
+
+// Server control functions
+async function startServer() {
+    const btn = document.getElementById('start-server-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    
+    try {
+        const response = await fetch('/api/admin/server/start', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'X-CSRF-TOKEN': token,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Server started successfully', 'success');
+            updateServerStatus('running');
+            setTimeout(loadDashboardData, 2000); // Refresh data after 2 seconds
+        } else {
+            showToast('Failed to start server: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('Error starting server: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Start Server';
+    }
+}
+
+async function stopServer() {
+    const btn = document.getElementById('stop-server-btn');
+    btn.disabled = true;
+    btn.textContent = 'Stopping...';
+    
+    try {
+        const response = await fetch('/api/admin/server/stop', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'X-CSRF-TOKEN': token,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Server stopped successfully', 'success');
+            updateServerStatus('stopped');
+            setTimeout(loadDashboardData, 2000); // Refresh data after 2 seconds
+        } else {
+            showToast('Failed to stop server: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('Error stopping server: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Stop Server';
+    }
+}
+
+async function restartServer() {
+    const btn = document.getElementById('restart-server-btn');
+    btn.disabled = true;
+    btn.textContent = 'Restarting...';
+    
+    try {
+        // Stop first
+        await stopServer();
+        // Wait a moment
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Then start
+        await startServer();
+        
+        showToast('Server restarted successfully', 'success');
+    } catch (error) {
+        showToast('Error restarting server: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Restart Server';
+    }
+}
+
+function updateServerStatus(status) {
+    const indicator = document.getElementById('server-status-indicator');
+    const text = document.getElementById('server-status-text');
+    const startBtn = document.getElementById('start-server-btn');
+    const stopBtn = document.getElementById('stop-server-btn');
+    const restartBtn = document.getElementById('restart-server-btn');
+    
+    // Reset all button states
+    startBtn.disabled = false;
+    stopBtn.disabled = false;
+    restartBtn.disabled = false;
+    
+    switch(status) {
+        case 'running':
+            indicator.className = 'w-3 h-3 rounded-full bg-green-500';
+            text.textContent = 'Server Running';
+            startBtn.disabled = true;
+            break;
+        case 'stopped':
+            indicator.className = 'w-3 h-3 rounded-full bg-red-500';
+            text.textContent = 'Server Stopped';
+            stopBtn.disabled = true;
+            restartBtn.disabled = true;
+            break;
+        default:
+            indicator.className = 'w-3 h-3 rounded-full bg-gray-400';
+            text.textContent = 'Status Unknown';
+            break;
+    }
+}
 
 // Quick action functions
 function viewEmailSubscriptions() {

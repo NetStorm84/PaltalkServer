@@ -516,10 +516,36 @@ function renderUsers() {
             Previous
         </button>`;
         
-        // Page numbers
-        for (let i = 1; i <= totalPages; i++) {
+        // Page numbers (show max 7 pages around current page)
+        const maxVisiblePages = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start if we're near the end
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // Show first page and ellipsis if needed
+        if (startPage > 1) {
+            tableHTML += `<button onclick="changePage(1)">1</button>`;
+            if (startPage > 2) {
+                tableHTML += `<span class="px-3 py-2 text-gray-500">...</span>`;
+            }
+        }
+        
+        // Show page range
+        for (let i = startPage; i <= endPage; i++) {
             const activeClass = i === currentPage ? 'active' : '';
             tableHTML += `<button class="${activeClass}" onclick="changePage(${i})">${i}</button>`;
+        }
+        
+        // Show last page and ellipsis if needed
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                tableHTML += `<span class="px-3 py-2 text-gray-500">...</span>`;
+            }
+            tableHTML += `<button onclick="changePage(${totalPages})">${totalPages}</button>`;
         }
         
         // Next button

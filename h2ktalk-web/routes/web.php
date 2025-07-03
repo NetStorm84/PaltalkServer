@@ -89,6 +89,10 @@ Route::prefix('admin')->group(function () {
     Route::get('/rooms', function () {
         return view('admin.rooms');
     })->name('admin.rooms');
+    
+    Route::get('/rooms/{id}/edit', function ($id) {
+        return view('admin.rooms.edit', compact('id'));
+    })->name('admin.rooms.edit');
 });
 
 // Add a login route that redirects to admin login

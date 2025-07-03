@@ -735,7 +735,10 @@ class ApiController extends Controller
         try {
             $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
             
-            $updateData = $request->only(['name', 'description', 'maxUsers', 'password', 'isPrivate']);
+            $updateData = $request->only([
+                'name', 'topic', 'category', 'type', 'voice', 'private', 
+                'locked', 'closed', 'password', 'mike', 'text', 'color'
+            ]);
             
             $context = stream_context_create([
                 'http' => [

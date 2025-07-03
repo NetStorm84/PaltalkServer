@@ -501,40 +501,7 @@
     </div>
 </div>
 
-<!-- Server Controls -->
-<div class="server-controls">
-    <div class="control-card">
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Chat Server Control</h3>
-                <div class="server-status">
-                    <div id="server-status-indicator" class="status-indicator"></div>
-                    <span id="server-status-text" class="text-sm text-gray-600">Checking server status...</span>
-                </div>
-            </div>
-            <div class="control-buttons">
-                <button id="start-server-btn" class="action-btn btn-start" onclick="startServer()" disabled>
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m2-10a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Start Server
-                </button>
-                <button id="stop-server-btn" class="action-btn btn-stop" onclick="stopServer()" disabled>
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Stop Server
-                </button>
-                <button id="restart-server-btn" class="action-btn btn-restart" onclick="restartServer()" disabled>
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    Restart Server
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Server controls moved to main dashboard -->
 
 <!-- Rooms Table Card -->
 <div class="bg-white shadow rounded-lg">
@@ -962,10 +929,36 @@ function renderRooms() {
             Previous
         </button>`;
         
-        // Page numbers
-        for (let i = 1; i <= totalPages; i++) {
+        // Page numbers (show max 7 pages around current page)
+        const maxVisiblePages = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start if we're near the end
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // Show first page and ellipsis if needed
+        if (startPage > 1) {
+            tableHTML += `<button onclick="changePage(1)">1</button>`;
+            if (startPage > 2) {
+                tableHTML += `<span class="px-3 py-2 text-gray-500">...</span>`;
+            }
+        }
+        
+        // Show page range
+        for (let i = startPage; i <= endPage; i++) {
             const activeClass = i === currentPage ? 'active' : '';
             tableHTML += `<button class="${activeClass}" onclick="changePage(${i})">${i}</button>`;
+        }
+        
+        // Show last page and ellipsis if needed
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                tableHTML += `<span class="px-3 py-2 text-gray-500">...</span>`;
+            }
+            tableHTML += `<button onclick="changePage(${totalPages})">${totalPages}</button>`;
         }
         
         // Next button
@@ -1032,67 +1025,11 @@ function viewRoom(roomId) {
 
 // Edit room
 function editRoom(roomId) {
-    const room = allRooms.find(r => r.id === roomId);
-    if (!room) return;
-    
-    currentEditRoomId = roomId;
-    
-    // Populate form
-    document.getElementById('edit-name').value = room.name || '';
-    document.getElementById('edit-description').value = room.description || '';
-    document.getElementById('edit-max-users').value = room.maxUsers || '';
-    document.getElementById('edit-password').value = '';
-    document.getElementById('edit-private').checked = room.isPrivate || false;
-    
-    // Show modal
-    document.getElementById('editModal').style.display = 'block';
+    // Redirect to the edit room page
+    window.location.href = `/admin/rooms/${roomId}/edit`;
 }
 
-// Close edit modal
-function closeEditModal() {
-    document.getElementById('editModal').style.display = 'none';
-    currentEditRoomId = null;
-}
-
-// Save room changes
-document.getElementById('editForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    if (!currentEditRoomId) return;
-    
-    const formData = {
-        name: document.getElementById('edit-name').value,
-        description: document.getElementById('edit-description').value,
-        maxUsers: parseInt(document.getElementById('edit-max-users').value) || null,
-        password: document.getElementById('edit-password').value,
-        isPrivate: document.getElementById('edit-private').checked
-    };
-    
-    try {
-        const response = await fetch(`/api/admin/rooms/${currentEditRoomId}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${adminToken}`,
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            showToast('Room updated successfully', 'success');
-            closeEditModal();
-            loadRooms(); // Reload rooms
-        } else {
-            showToast(data.error || 'Failed to update room', 'error');
-        }
-    } catch (error) {
-        console.error('Error updating room:', error);
-        showToast('Error updating room. Please try again.', 'error');
-    }
-});
+// Room edit functionality moved to separate page
 
 // Close room
 async function closeRoom(roomId, roomName) {
