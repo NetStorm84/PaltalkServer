@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 const { SERVER_CONFIG } = require('../config/constants');
 
 class DatabaseManager {
-    constructor(dbPath = 'database.db') {
+    constructor(dbPath = SERVER_CONFIG.DATABASE_PATH) {
         this.dbPath = dbPath;
         this.db = null;
         this.isConnected = false;

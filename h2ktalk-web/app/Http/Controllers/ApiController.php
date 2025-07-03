@@ -9,6 +9,15 @@ use Illuminate\Http\Request;
 class ApiController extends Controller
 {
     /**
+     * Get the chat server URL based on environment
+     */
+    private function getChatServerUrl()
+    {
+        // Use different URLs based on environment (Sail vs Production)
+        $defaultUrl = env('APP_ENV') === 'local' ? 'http://host.docker.internal:3000' : 'http://localhost:3000';
+        return env('CHAT_SERVER_URL', $defaultUrl);
+    }
+    /**
      * Get basic server statistics
      */
     public function stats()
@@ -57,7 +66,7 @@ class ApiController extends Controller
     {
         try {
             // Connect to the actual Node.js server API
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $chatServerUrl = $this->getChatServerUrl();
             $response = file_get_contents($chatServerUrl . '/api/server-state');
             
             if ($response === false) {
@@ -868,10 +877,11 @@ class ApiController extends Controller
             // Try to find the correct server path
             $possiblePaths = [
                 env('CHAT_SERVER_PATH'), // Check .env first
+                '/var/www/html', // Docker container root (where the entire server directory is mounted)
                 '/var/www/html/h2ktalk.fun', // Production path (no /serv subdirectory)
-                '/Users/dan/Documents/Sites/serv', // Direct path for development
-                dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
-                dirname(dirname(dirname(__DIR__))) . '/serv'
+                '/Users/dan/Documents/Sites/paltalk.fun/server', // Host path for development
+                dirname(dirname(dirname(dirname(dirname(__DIR__))))), // From h2ktalk-web/app/Http/Controllers go up to server root
+                dirname(dirname(dirname(__DIR__))) . '/..' // Go up from h2ktalk-web to server root
             ];
             
             $serverPath = null;
@@ -891,13 +901,25 @@ class ApiController extends Controller
             }
             
             if (!$serverPath) {
+                // Check if running in Laravel Sail (Docker)
+                if (env('LARAVEL_SAIL') == 1) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Server management not available in Docker environment',
+                        'message' => 'Please start the Node.js server manually on the host system using: npm start',
+                        'environment' => 'Docker/Sail',
+                        'suggestion' => 'Run "npm start" in the server directory on your host machine'
+                    ], 400);
+                }
+                
                 return response()->json([
                     'success' => false,
                     'error' => 'Server directory not found in any expected location',
                     'debugInfo' => $debugInfo,
                     'envPath' => env('CHAT_SERVER_PATH'),
                     'currentDir' => __DIR__,
-                    'webRoot' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'
+                    'webRoot' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown',
+                    'environment' => 'Production'
                 ], 404);
             }
             
@@ -1093,10 +1115,11 @@ class ApiController extends Controller
             // Try to find the correct server path
             $possiblePaths = [
                 env('CHAT_SERVER_PATH'), // Check .env first
+                '/var/www/html', // Docker container root (where the entire server directory is mounted)
                 '/var/www/html/h2ktalk.fun', // Production path (no /serv subdirectory)
-                '/Users/dan/Documents/Sites/serv', // Direct path for development
-                dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
-                dirname(dirname(dirname(__DIR__))) . '/serv'
+                '/Users/dan/Documents/Sites/paltalk.fun/server', // Host path for development
+                dirname(dirname(dirname(dirname(dirname(__DIR__))))), // From h2ktalk-web/app/Http/Controllers go up to server root
+                dirname(dirname(dirname(__DIR__))) . '/..' // Go up from h2ktalk-web to server root
             ];
             
             $serverPath = null;
@@ -1108,6 +1131,16 @@ class ApiController extends Controller
             }
             
             if (!$serverPath) {
+                // Check if running in Laravel Sail (Docker)
+                if (env('LARAVEL_SAIL') == 1) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Server management not available in Docker environment',
+                        'message' => 'Please stop the Node.js server manually on the host system',
+                        'environment' => 'Docker/Sail',
+                        'suggestion' => 'Use Ctrl+C or kill the npm process on your host machine'
+                    ], 400);
+                }
                 $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
             }
             // Try multiple stop methods
@@ -1181,10 +1214,11 @@ class ApiController extends Controller
                 // Try to find the correct server path
                 $possiblePaths = [
                     env('CHAT_SERVER_PATH'),
-                    dirname(dirname(dirname(dirname(__DIR__)))) . '/serv',
-                    '/var/www/html/h2ktalk.fun/serv',
-                    dirname(dirname(dirname(__DIR__))) . '/serv',
-                    '/Users/dan/Documents/Sites/serv'
+                    '/var/www/html', // Docker container root
+                    '/var/www/html/h2ktalk.fun',
+                    '/Users/dan/Documents/Sites/paltalk.fun/server',
+                    dirname(dirname(dirname(dirname(dirname(__DIR__))))), // Server root
+                    dirname(dirname(dirname(__DIR__))) . '/..'
                 ];
                 
                 $serverPath = null;

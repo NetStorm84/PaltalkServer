@@ -6,8 +6,8 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-// Database setup
-const dbPath = path.join(__dirname, 'database.db');
+// Database setup - use main database
+const dbPath = path.join(__dirname, '../../../h2ktalk-web/database/database.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 // Initialize database tables

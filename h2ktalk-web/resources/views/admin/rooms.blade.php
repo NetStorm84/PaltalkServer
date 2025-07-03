@@ -654,30 +654,30 @@ function updateServerStatus(status, health = null) {
     const stopBtn = document.getElementById('stop-server-btn');
     const restartBtn = document.getElementById('restart-server-btn');
     
-    // Reset button states
-    startBtn.disabled = false;
-    stopBtn.disabled = false;
-    restartBtn.disabled = false;
+    // Reset button states (only if elements exist)
+    if (startBtn) startBtn.disabled = false;
+    if (stopBtn) stopBtn.disabled = false;
+    if (restartBtn) restartBtn.disabled = false;
     
     switch(status) {
         case 'running':
-            indicator.className = 'status-indicator running';
-            text.textContent = 'Server is running';
-            startBtn.disabled = true;
+            if (indicator) indicator.className = 'status-indicator running';
+            if (text) text.textContent = 'Server is running';
+            if (startBtn) startBtn.disabled = true;
             if (health) {
                 // Load rooms if server is running
                 loadRooms();
             }
             break;
         case 'stopped':
-            indicator.className = 'status-indicator stopped';
-            text.textContent = 'Server is stopped';
-            stopBtn.disabled = true;
-            restartBtn.disabled = true;
+            if (indicator) indicator.className = 'status-indicator stopped';
+            if (text) text.textContent = 'Server is stopped';
+            if (stopBtn) stopBtn.disabled = true;
+            if (restartBtn) restartBtn.disabled = true;
             break;
         default:
-            indicator.className = 'status-indicator';
-            text.textContent = 'Server status unknown';
+            if (indicator) indicator.className = 'status-indicator';
+            if (text) text.textContent = 'Server status unknown';
             break;
     }
 }
@@ -685,6 +685,8 @@ function updateServerStatus(status, health = null) {
 // Start server
 async function startServer() {
     const startBtn = document.getElementById('start-server-btn');
+    if (!startBtn) return; // Exit if button doesn't exist
+    
     startBtn.disabled = true;
     startBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-1"></div>Starting...';
     
@@ -723,6 +725,8 @@ async function stopServer() {
     }
     
     const stopBtn = document.getElementById('stop-server-btn');
+    if (!stopBtn) return; // Exit if button doesn't exist
+    
     stopBtn.disabled = true;
     stopBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-1"></div>Stopping...';
     
@@ -764,6 +768,8 @@ async function restartServer() {
     }
     
     const restartBtn = document.getElementById('restart-server-btn');
+    if (!restartBtn) return; // Exit if button doesn't exist
+    
     restartBtn.disabled = true;
     restartBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-1"></div>Restarting...';
     

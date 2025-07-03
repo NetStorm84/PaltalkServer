@@ -14,7 +14,7 @@ fi
 mkdir -p logs backups
 
 # Check if database exists, create if not
-if [ ! -f "database.db" ]; then
+if [ ! -f "h2ktalk-web/database/database.sqlite" ]; then
     echo "🗄️ Creating database..."
     node setup/database.js
 fi
