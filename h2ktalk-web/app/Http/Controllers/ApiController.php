@@ -850,14 +850,22 @@ class ApiController extends Controller
             // Try to find the correct server path
             $possiblePaths = [
                 env('CHAT_SERVER_PATH'), // Check .env first
-                '/var/www/html/h2ktalk.fun/serv', // Production path
+                '/var/www/html/h2ktalk.fun', // Production path (no /serv subdirectory)
                 '/Users/dan/Documents/Sites/serv', // Direct path for development
                 dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
                 dirname(dirname(dirname(__DIR__))) . '/serv'
             ];
             
             $serverPath = null;
+            $debugInfo = [];
             foreach ($possiblePaths as $path) {
+                $debugInfo[] = [
+                    'path' => $path,
+                    'is_dir' => $path ? is_dir($path) : false,
+                    'has_package' => $path && file_exists($path . '/package.json'),
+                    'has_server' => $path && file_exists($path . '/src/server.js')
+                ];
+                
                 if ($path && is_dir($path) && file_exists($path . '/package.json') && file_exists($path . '/src/server.js')) {
                     $serverPath = $path;
                     break;
@@ -868,15 +876,10 @@ class ApiController extends Controller
                 return response()->json([
                     'success' => false,
                     'error' => 'Server directory not found in any expected location',
-                    'checkedPaths' => array_filter($possiblePaths),
+                    'debugInfo' => $debugInfo,
+                    'envPath' => env('CHAT_SERVER_PATH'),
                     'currentDir' => __DIR__,
-                    'webRoot' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown',
-                    'suggestions' => [
-                        'Create the server directory: mkdir -p /var/www/html/h2ktalk.fun/serv',
-                        'Copy the Node.js server files to /var/www/html/h2ktalk.fun/serv/',
-                        'Set CHAT_SERVER_PATH=/var/www/html/h2ktalk.fun/serv in your .env file',
-                        'Make sure package.json exists in the server directory'
-                    ]
+                    'webRoot' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'
                 ], 404);
             }
             

@@ -8,7 +8,15 @@ const SERVER_CONFIG = {
     WEB_UI_PORT: 3000,
     SERVER_IP: process.env.SERVER_IP || '0.0.0.0', // Bind to all interfaces by default, override with env var if needed
     SERVER_KEY: 'XyF¦164473312518',
-    DATABASE_PATH: process.env.DB_PATH || (process.env.NODE_ENV === 'production' ? '/var/www/html/h2ktalk.fun/h2ktalk-web/database/database.sqlite' : 'h2ktalk-web/database/database.sqlite')
+    DATABASE_PATH: process.env.DB_PATH || (process.env.NODE_ENV === 'production' ? '/var/www/html/h2ktalk.fun/h2ktalk-web/database/database.sqlite' : 'h2ktalk-web/database/database.sqlite'),
+    // MySQL configuration for production when SQLite driver is not available
+    MYSQL_CONFIG: {
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: process.env.DB_PORT || 3306,
+        database: process.env.DB_DATABASE || 'h2ktalk',
+        username: process.env.DB_USERNAME || 'root',
+        password: process.env.DB_PASSWORD || ''
+    }
 };
 
 const USER_PERMISSIONS = {
