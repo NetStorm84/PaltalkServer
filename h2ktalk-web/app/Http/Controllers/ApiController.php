@@ -844,21 +844,39 @@ class ApiController extends Controller
             }
             
             // Start the server using PM2 for process management  
-            $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
+            // Try to find the correct server path
+            $possiblePaths = [
+                env('CHAT_SERVER_PATH'), // Check .env first
+                '/Users/dan/Documents/Sites/serv', // Direct path for development
+                dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
+                '/var/www/html/h2ktalk.fun/serv', // Production path
+                dirname(dirname(dirname(__DIR__))) . '/serv'
+            ];
             
-            // Check if server directory exists
-            if (!is_dir($serverPath)) {
+            $serverPath = null;
+            foreach ($possiblePaths as $path) {
+                if ($path && is_dir($path) && file_exists($path . '/package.json')) {
+                    $serverPath = $path;
+                    break;
+                }
+            }
+            
+            if (!$serverPath) {
                 return response()->json([
                     'success' => false,
-                    'error' => 'Server directory not found',
-                    'serverPath' => $serverPath,
+                    'error' => 'Server directory not found in any expected location',
+                    'checkedPaths' => array_filter($possiblePaths),
                     'currentDir' => __DIR__,
+                    'webRoot' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown',
                     'suggestions' => [
-                        'Set CHAT_SERVER_PATH in .env file',
-                        'Make sure the server directory exists'
+                        'Create the server directory: mkdir -p /var/www/html/h2ktalk.fun/serv',
+                        'Copy the Node.js server files to /var/www/html/h2ktalk.fun/serv/',
+                        'Set CHAT_SERVER_PATH=/var/www/html/h2ktalk.fun/serv in your .env file',
+                        'Make sure package.json exists in the server directory'
                     ]
                 ], 404);
             }
+            
             
             // Ensure logs directory exists
             $logDir = storage_path('logs');
@@ -952,13 +970,23 @@ class ApiController extends Controller
                     ], 404);
                 }
                 
-                // Install dependencies first
-                $installCommand = "cd {$serverPath} && npm install 2>&1";
+                // Install dependencies first - try with better permissions
+                $installCommand = "cd {$serverPath} && npm install --production --ignore-scripts 2>&1";
                 $installResult = shell_exec($installCommand);
                 $installOutput .= "\n" . ($installResult ?? 'Install failed');
                 
-                // Check if install was successful
-                if (!is_dir($serverPath . '/node_modules')) {
+                // If that fails, try basic install
+                if (!is_dir($serverPath . '/node_modules') || !glob($serverPath . '/node_modules/*')) {
+                    $installCommand = "cd {$serverPath} && npm ci --production 2>&1";
+                    $installResult2 = shell_exec($installCommand);
+                    $installOutput .= "\nRetry: " . ($installResult2 ?? 'Second install failed');
+                }
+                
+                // Check if install was successful (even if some packages failed)
+                $hasNodeModules = is_dir($serverPath . '/node_modules') && count(glob($serverPath . '/node_modules/*')) > 0;
+                $hasRequiredModules = file_exists($serverPath . '/node_modules/express') && file_exists($serverPath . '/node_modules/socket.io');
+                
+                if (!$hasNodeModules) {
                     return response()->json([
                         'success' => false,
                         'error' => 'npm install failed - node_modules directory not created',
@@ -967,7 +995,7 @@ class ApiController extends Controller
                         'suggestions' => [
                             'Check if Node.js and npm are installed',
                             'Check file permissions in server directory',
-                            'Try running npm install manually'
+                            'Try running: sudo chown -R www-data:www-data ' . dirname($serverPath)
                         ]
                     ], 500);
                 }
@@ -1038,7 +1066,26 @@ class ApiController extends Controller
     {
         try {
             // Use PM2 to stop the server
-            $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
+            // Try to find the correct server path
+            $possiblePaths = [
+                env('CHAT_SERVER_PATH'),
+                '/Users/dan/Documents/Sites/serv', // Direct path for development
+                dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
+                '/var/www/html/h2ktalk.fun/serv', // Production path
+                dirname(dirname(dirname(__DIR__))) . '/serv'
+            ];
+            
+            $serverPath = null;
+            foreach ($possiblePaths as $path) {
+                if ($path && is_dir($path) && file_exists($path . '/package.json')) {
+                    $serverPath = $path;
+                    break;
+                }
+            }
+            
+            if (!$serverPath) {
+                $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
+            }
             $command = "PM2_HOME={$serverPath}/.pm2 pm2 stop h2ktalk-server 2>&1";
             $output = shell_exec($command) ?? 'PM2 stop command failed';
             
@@ -1090,7 +1137,26 @@ class ApiController extends Controller
                 ]);
             } else {
                 // Check PM2 status
-                $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
+                // Try to find the correct server path
+                $possiblePaths = [
+                    env('CHAT_SERVER_PATH'),
+                    dirname(dirname(dirname(dirname(__DIR__)))) . '/serv',
+                    '/var/www/html/h2ktalk.fun/serv',
+                    dirname(dirname(dirname(__DIR__))) . '/serv',
+                    '/Users/dan/Documents/Sites/serv'
+                ];
+                
+                $serverPath = null;
+                foreach ($possiblePaths as $path) {
+                    if ($path && is_dir($path) && file_exists($path . '/package.json')) {
+                        $serverPath = $path;
+                        break;
+                    }
+                }
+                
+                if (!$serverPath) {
+                    $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
+                }
                 $pm2Status = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 jlist 2>/dev/null | grep h2ktalk-server");
                 $isInPm2 = !empty($pm2Status);
                 
