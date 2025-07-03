@@ -832,8 +832,8 @@ class ApiController extends Controller
     {
         try {
             // Check if server is already running
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = @file_get_contents($chatServerUrl . '/api/server-state');
+            $chatServerUrl = 'http://localhost:3000'; // Always use localhost for health checks
+            $response = @file_get_contents($chatServerUrl . '/api/health');
             
             if ($response !== false) {
                 return response()->json([
@@ -852,30 +852,37 @@ class ApiController extends Controller
                 mkdir($logDir, 0755, true);
             }
             
-            // Check if PM2 is available
+            // Check if PM2 is available and working
             $pm2Check = shell_exec('which pm2 2>/dev/null');
+            $pm2Working = false;
             
             if (!empty($pm2Check)) {
+                // Test if PM2 can work without permission issues
+                $pm2Test = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 list 2>&1");
+                $pm2Working = !str_contains($pm2Test, 'EACCES') && !str_contains($pm2Test, 'permission denied');
+            }
+            
+            if (!empty($pm2Check) && $pm2Working) {
                 // Ensure dependencies are installed and start the server
                 $installCommand = "cd {$serverPath} && npm install 2>&1";
                 $installOutput = shell_exec($installCommand) ?? 'Install command failed';
                 
                 // Stop any existing PM2 process with the same name first
-                shell_exec('pm2 delete h2ktalk-server 2>/dev/null');
+                shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 delete h2ktalk-server 2>/dev/null");
                 
                 // Try using the existing start script first
                 if (file_exists($serverPath . '/start.sh')) {
                     // Make start.sh executable and use PM2 to run it
                     shell_exec("chmod +x {$serverPath}/start.sh");
-                    $command = "cd {$serverPath} && pm2 start --name h2ktalk-server --interpreter bash start.sh 2>&1";
+                    $command = "cd {$serverPath} && PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server --interpreter bash start.sh 2>&1";
                 } else {
-                    // Use PM2 to start the server with npm
-                    $command = "cd {$serverPath} && pm2 start --name h2ktalk-server npm -- start 2>&1";
+                        // Use PM2 to start the server with npm and set PM2_HOME
+                    $command = "cd {$serverPath} && PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server npm -- start 2>&1";
                 }
                 $output = shell_exec($command) ?? 'PM2 start command failed';
                 
                 // Also check PM2 status
-                $pm2Status = shell_exec('pm2 list 2>&1') ?? 'PM2 status unavailable';
+                $pm2Status = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 list 2>&1") ?? 'PM2 status unavailable';
                 
                 // Give the server a moment to start
                 sleep(5);
@@ -919,13 +926,23 @@ class ApiController extends Controller
             } else {
                 // Fallback: start server directly with nohup
                 $logFile = storage_path('logs/chat-server.log');
-                $installOutput = 'PM2 not available - using fallback method';
+                $installOutput = $pm2Check ? 'PM2 has permission issues - using fallback method' : 'PM2 not available - using fallback method';
                 
                 // Install dependencies first
                 $installCommand = "cd {$serverPath} && npm install 2>&1";
-                $installOutput .= "\n" . (shell_exec($installCommand) ?? 'Install failed');
+                $installResult = shell_exec($installCommand);
+                $installOutput .= "\n" . ($installResult ?? 'Install failed');
                 
-                $command = "cd {$serverPath} && nohup npm start > {$logFile} 2>&1 & echo $!";
+                // Kill any existing node processes for this server
+                shell_exec("pkill -f 'node.*src/server.js' 2>/dev/null");
+                
+                // Use the start.sh script if available, otherwise npm start
+                if (file_exists($serverPath . '/start.sh')) {
+                    shell_exec("chmod +x {$serverPath}/start.sh");
+                    $command = "cd {$serverPath} && nohup ./start.sh > {$logFile} 2>&1 & echo $!";
+                } else {
+                    $command = "cd {$serverPath} && nohup npm start > {$logFile} 2>&1 & echo $!";
+                }
                 $pid = shell_exec($command) ?? '0';
                 
                 // Give the server a moment to start
@@ -981,14 +998,15 @@ class ApiController extends Controller
     {
         try {
             // Use PM2 to stop the server
-            $command = "pm2 stop h2ktalk-server 2>&1";
+            $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv');
+            $command = "PM2_HOME={$serverPath}/.pm2 pm2 stop h2ktalk-server 2>&1";
             $output = shell_exec($command) ?? 'PM2 stop command failed';
             
             // Give the server a moment to stop
             sleep(1);
             
             // Check if server stopped
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $chatServerUrl = 'http://localhost:3000'; // Always use localhost for health checks
             $response = @file_get_contents($chatServerUrl . '/api/health');
             
             if ($response === false) {
@@ -1020,7 +1038,7 @@ class ApiController extends Controller
     public function getServerStatus()
     {
         try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
+            $chatServerUrl = 'http://localhost:3000'; // Always use localhost for health checks
             $response = @file_get_contents($chatServerUrl . '/api/health');
             
             if ($response !== false) {
@@ -1032,7 +1050,8 @@ class ApiController extends Controller
                 ]);
             } else {
                 // Check PM2 status
-                $pm2Status = shell_exec('pm2 jlist 2>/dev/null | grep h2ktalk-server');
+                $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv');
+                $pm2Status = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 jlist 2>/dev/null | grep h2ktalk-server");
                 $isInPm2 = !empty($pm2Status);
                 
                 return response()->json([
