@@ -856,29 +856,62 @@ class ApiController extends Controller
             $pm2Check = shell_exec('which pm2 2>/dev/null');
             
             if (!empty($pm2Check)) {
-                // Use PM2 to start the server
-                $command = "cd {$serverPath} && pm2 start --name h2ktalk-server npm -- start 2>&1";
+                // Ensure dependencies are installed and start the server
+                $installCommand = "cd {$serverPath} && npm install 2>&1";
+                $installOutput = shell_exec($installCommand);
+                
+                // Stop any existing PM2 process with the same name first
+                shell_exec('pm2 delete h2ktalk-server 2>/dev/null');
+                
+                // Try using the existing start script first
+                if (file_exists($serverPath . '/start.sh')) {
+                    // Make start.sh executable and use PM2 to run it
+                    shell_exec("chmod +x {$serverPath}/start.sh");
+                    $command = "cd {$serverPath} && pm2 start --name h2ktalk-server --interpreter bash start.sh 2>&1";
+                } else {
+                    // Use PM2 to start the server with npm
+                    $command = "cd {$serverPath} && pm2 start --name h2ktalk-server npm -- start 2>&1";
+                }
                 $output = shell_exec($command);
                 
-                // Give the server a moment to start
-                sleep(3);
+                // Also check PM2 status
+                $pm2Status = shell_exec('pm2 list 2>&1');
                 
-                // Check if server started successfully
+                // Give the server a moment to start
+                sleep(5);
+                
+                // Check if web interface started successfully (port 3000)
                 $response = @file_get_contents($chatServerUrl . '/api/health');
                 
-                if ($response !== false) {
+                // Also check if chat server is listening on port 5001
+                $chatServerCheck = @fsockopen('localhost', 5001, $errno, $errstr, 1);
+                $chatServerRunning = $chatServerCheck !== false;
+                if ($chatServerCheck) fclose($chatServerCheck);
+                
+                if ($response !== false || $chatServerRunning) {
                     return response()->json([
                         'success' => true,
                         'message' => 'Server started successfully with PM2',
                         'status' => 'running',
-                        'output' => $output
+                        'output' => $output,
+                        'pm2Status' => $pm2Status,
+                        'installOutput' => $installOutput,
+                        'webInterface' => $response !== false,
+                        'chatServer' => $chatServerRunning,
+                        'ports' => ['web' => 3000, 'chat' => 5001]
                     ]);
                 } else {
                     return response()->json([
                         'success' => false,
                         'error' => 'Server failed to start properly with PM2',
                         'output' => $output,
-                        'serverPath' => $serverPath
+                        'pm2Status' => $pm2Status,
+                        'installOutput' => $installOutput,
+                        'serverPath' => $serverPath,
+                        'healthUrl' => $chatServerUrl . '/api/health',
+                        'webInterface' => $response !== false,
+                        'chatServer' => $chatServerRunning,
+                        'chatServerError' => $errno . ': ' . $errstr
                     ], 500);
                 }
             } else {
