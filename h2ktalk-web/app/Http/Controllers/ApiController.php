@@ -843,8 +843,22 @@ class ApiController extends Controller
                 ]);
             }
             
-            // Start the server using PM2 for process management
-            $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv');
+            // Start the server using PM2 for process management  
+            $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
+            
+            // Check if server directory exists
+            if (!is_dir($serverPath)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Server directory not found',
+                    'serverPath' => $serverPath,
+                    'currentDir' => __DIR__,
+                    'suggestions' => [
+                        'Set CHAT_SERVER_PATH in .env file',
+                        'Make sure the server directory exists'
+                    ]
+                ], 404);
+            }
             
             // Ensure logs directory exists
             $logDir = storage_path('logs');
@@ -928,10 +942,35 @@ class ApiController extends Controller
                 $logFile = storage_path('logs/chat-server.log');
                 $installOutput = $pm2Check ? 'PM2 has permission issues - using fallback method' : 'PM2 not available - using fallback method';
                 
+                // Check if package.json exists
+                if (!file_exists($serverPath . '/package.json')) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'package.json not found in server directory',
+                        'serverPath' => $serverPath,
+                        'files' => array_slice(scandir($serverPath), 0, 10)
+                    ], 404);
+                }
+                
                 // Install dependencies first
                 $installCommand = "cd {$serverPath} && npm install 2>&1";
                 $installResult = shell_exec($installCommand);
                 $installOutput .= "\n" . ($installResult ?? 'Install failed');
+                
+                // Check if install was successful
+                if (!is_dir($serverPath . '/node_modules')) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'npm install failed - node_modules directory not created',
+                        'serverPath' => $serverPath,
+                        'installOutput' => $installOutput,
+                        'suggestions' => [
+                            'Check if Node.js and npm are installed',
+                            'Check file permissions in server directory',
+                            'Try running npm install manually'
+                        ]
+                    ], 500);
+                }
                 
                 // Kill any existing node processes for this server
                 shell_exec("pkill -f 'node.*src/server.js' 2>/dev/null");
@@ -978,7 +1017,8 @@ class ApiController extends Controller
                         'installOutput' => $installOutput,
                         'webInterface' => $response !== false,
                         'chatServer' => $chatServerRunning,
-                        'chatServerError' => ($errno ?? 0) . ': ' . ($errstr ?? 'Unknown error')
+                        'chatServerError' => ($errno ?? 0) . ': ' . ($errstr ?? 'Unknown error'),
+                        'logTail' => file_exists($logFile) ? array_slice(file($logFile, FILE_IGNORE_NEW_LINES), -10) : ['Log file not found']
                     ], 500);
                 }
             }
@@ -998,7 +1038,7 @@ class ApiController extends Controller
     {
         try {
             // Use PM2 to stop the server
-            $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv');
+            $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
             $command = "PM2_HOME={$serverPath}/.pm2 pm2 stop h2ktalk-server 2>&1";
             $output = shell_exec($command) ?? 'PM2 stop command failed';
             
@@ -1050,7 +1090,7 @@ class ApiController extends Controller
                 ]);
             } else {
                 // Check PM2 status
-                $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv');
+                $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
                 $pm2Status = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 jlist 2>/dev/null | grep h2ktalk-server");
                 $isInPm2 = !empty($pm2Status);
                 
