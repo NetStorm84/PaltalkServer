@@ -1074,8 +1074,8 @@ class ApiController extends Controller
             // Use PM2 to stop the server
             // Try to find the correct server path
             $possiblePaths = [
-                env('CHAT_SERVER_PATH'),
-                '/var/www/html/h2ktalk.fun/serv', // Production path
+                env('CHAT_SERVER_PATH'), // Check .env first
+                '/var/www/html/h2ktalk.fun', // Production path (no /serv subdirectory)
                 '/Users/dan/Documents/Sites/serv', // Direct path for development
                 dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
                 dirname(dirname(dirname(__DIR__))) . '/serv'
