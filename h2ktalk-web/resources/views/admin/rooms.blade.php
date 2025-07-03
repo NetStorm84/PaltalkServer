@@ -1127,6 +1127,10 @@ window.onclick = function(event) {
 
 // Initial load - will be called when server status check is complete
 document.addEventListener('DOMContentLoaded', function() {
-    // Server status check will trigger room loading if server is running
+    console.log('🏠 Rooms page initializing...');
+    console.log('🔑 Admin token present:', !!window.adminToken);
+    
+    // Load rooms immediately
+    loadRooms();
 });
 @endsection
