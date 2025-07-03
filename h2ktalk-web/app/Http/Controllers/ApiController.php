@@ -847,7 +847,7 @@ class ApiController extends Controller
             // Try to find the correct server path
             $possiblePaths = [
                 env('CHAT_SERVER_PATH'), // Check .env first
-                '/var/www/html/h2ktalk.fun', // Production path
+                '/var/www/html/h2ktalk.fun/serv', // Production path
                 '/Users/dan/Documents/Sites/serv', // Direct path for development
                 dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/serv', // From h2ktalk-web/app/Http/Controllers go up to serv
                 dirname(dirname(dirname(__DIR__))) . '/serv'
