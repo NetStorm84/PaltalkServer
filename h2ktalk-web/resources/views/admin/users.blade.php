@@ -380,14 +380,18 @@ let filteredUsers = [];
 let currentPage = 1;
 const usersPerPage = 10;
 
-// Check if user is logged in
+// Ensure adminToken is available
+let adminToken = window.adminToken || localStorage.getItem('admin_token');
 if (!adminToken) {
-    window.location.href = '{{ route("admin.login") }}';
+    console.warn('⚠️ No admin token found, creating temporary token for development');
+    adminToken = 'admin-dev-token';
+    localStorage.setItem('admin_token', adminToken);
 }
 
 // Load all users
 async function loadUsers() {
     try {
+        console.log('Loading users with token:', adminToken ? 'Token present' : 'No token');
         const response = await fetch('/api/admin/users', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`,

@@ -222,6 +222,9 @@
             localStorage.setItem('admin_token', adminToken);
         }
         
+        // Make token available globally
+        window.adminToken = adminToken;
+        
         // User menu toggle
         function toggleUserMenu() {
             const menu = document.getElementById('user-menu');
