@@ -381,20 +381,18 @@ let currentPage = 1;
 const usersPerPage = 10;
 
 // Ensure adminToken is available
-let adminToken = window.adminToken || localStorage.getItem('admin_token');
-if (!adminToken) {
-    console.warn('⚠️ No admin token found, creating temporary token for development');
-    adminToken = 'admin-dev-token';
-    localStorage.setItem('admin_token', adminToken);
+if (typeof window.adminToken === 'undefined') {
+    window.adminToken = localStorage.getItem('admin_token') || 'admin-dev-token';
+    localStorage.setItem('admin_token', window.adminToken);
 }
 
 // Load all users
 async function loadUsers() {
     try {
-        console.log('Loading users with token:', adminToken ? 'Token present' : 'No token');
+        console.log('Loading users with token:', window.adminToken ? 'Token present' : 'No token');
         const response = await fetch('/api/admin/users', {
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -655,7 +653,7 @@ async function deleteUser(userId, nickname) {
         const response = await fetch(`/api/admin/users/${userId}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });

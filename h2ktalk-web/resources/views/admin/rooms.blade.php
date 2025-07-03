@@ -589,8 +589,10 @@ const roomsPerPage = 10;
 let currentEditRoomId = null;
 
 // Check if user is logged in
-if (!adminToken) {
-    window.location.href = '{{ route("admin.login") }}';
+// Ensure adminToken is available
+if (typeof window.adminToken === 'undefined') {
+    window.adminToken = localStorage.getItem('admin_token') || 'admin-dev-token';
+    localStorage.setItem('admin_token', window.adminToken);
 }
 
 // Load server status on page load
@@ -601,7 +603,7 @@ async function loadRooms() {
     try {
         const response = await fetch('/api/admin/rooms', {
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -629,7 +631,7 @@ async function checkServerStatus() {
     try {
         const response = await fetch('/api/admin/server/status', {
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -694,7 +696,7 @@ async function startServer() {
         const response = await fetch('/api/admin/server/start', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -734,7 +736,7 @@ async function stopServer() {
         const response = await fetch('/api/admin/server/stop', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -778,7 +780,7 @@ async function restartServer() {
         await fetch('/api/admin/server/stop', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -790,7 +792,7 @@ async function restartServer() {
         const response = await fetch('/api/admin/server/start', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -1047,7 +1049,7 @@ async function closeRoom(roomId, roomName) {
         const response = await fetch(`/api/admin/rooms/${roomId}/close`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
@@ -1076,7 +1078,7 @@ async function deleteRoom(roomId, roomName) {
         const response = await fetch(`/api/admin/rooms/${roomId}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${adminToken}`,
+                'Authorization': `Bearer ${window.adminToken}`,
                 'Accept': 'application/json'
             }
         });
