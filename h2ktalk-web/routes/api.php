@@ -6,6 +6,7 @@ use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\EmailNotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ApiController;
+use App\Http\Controllers\StreamController;
 
 // Registration routes
 Route::post('/register', [RegistrationController::class, 'register']);
@@ -65,4 +66,12 @@ Route::middleware('simple-auth')->group(function () {
         Route::get('/admin/server/status', [ApiController::class, 'getServerStatus']);
         Route::get('/admin/server/diagnostics', [ApiController::class, 'systemDiagnostics']);
     });
+});
+
+// SSE endpoint outside middleware to handle auth internally via query param
+Route::get('/admin/dashboard/stream', [StreamController::class, 'dashboardStream']);
+
+// Test endpoint to verify API is working
+Route::get('/test', function() {
+    return response()->json(['status' => 'API working', 'time' => now()]);
 });

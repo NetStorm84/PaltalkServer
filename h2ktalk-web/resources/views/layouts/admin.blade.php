@@ -13,38 +13,12 @@
     <!-- Tailwind CSS via CDN for rapid prototyping -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Socket.IO (load from Node.js server directly) -->
+    <!-- Note: Socket.IO has been removed - using API-only communication -->
     <script>
-        // Load Socket.IO from the Node.js server for real-time features
-        (function() {
-            const socketUrl = '{{ env("CHAT_SERVER_SOCKET_URL", "http://localhost:3000") }}';
-            
-            fetch(socketUrl + '/socket.io/socket.io.js', { method: 'HEAD' })
-                .then(response => {
-                    if (response.ok) {
-                        const script = document.createElement('script');
-                        script.src = socketUrl + '/socket.io/socket.io.js';
-                        script.async = true;
-                        script.onload = function() {
-                            console.log('✅ Socket.IO loaded from:', socketUrl);
-                            // Store the socket URL for dashboard connections
-                            window.CHAT_SERVER_URL = socketUrl;
-                        };
-                        script.onerror = function() {
-                            console.warn('❌ Socket.IO failed to load from:', socketUrl);
-                            window.io = undefined;
-                        };
-                        document.head.appendChild(script);
-                    } else {
-                        console.warn('⚠️ Socket.IO not available at:', socketUrl);
-                        window.io = undefined;
-                    }
-                })
-                .catch((error) => {
-                    console.warn('⚠️ Cannot reach Socket.IO server at:', socketUrl, error.message);
-                    window.io = undefined;
-                });
-        })();
+        // Set up global variables for dashboard communication
+        window.CHAT_SERVER_URL = null; // No Socket.IO connection
+        window.io = undefined; // Socket.IO not available
+        console.log('ℹ️ Socket.IO disabled - using API-only communication');
     </script>
     
     <style>
@@ -226,8 +200,9 @@
             localStorage.setItem('admin_token', adminToken);
         }
         
-        // Make token available globally
+        // Make tokens available globally
         window.adminToken = adminToken;
+        window.token = token;
         
         // User menu toggle
         function toggleUserMenu() {

@@ -4,18 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\EmailNotification;
+use App\Services\ChatServerService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class ApiController extends Controller
 {
-    /**
-     * Get the chat server URL based on environment
-     */
-    private function getChatServerUrl()
+    protected $chatServerService;
+
+    public function __construct(ChatServerService $chatServerService)
     {
-        // Use different URLs based on environment (Sail vs Production)
-        $defaultUrl = env('APP_ENV') === 'local' ? 'http://host.docker.internal:3000' : 'http://localhost:3000';
-        return env('CHAT_SERVER_URL', $defaultUrl);
+        $this->chatServerService = $chatServerService;
     }
     /**
      * Get basic server statistics
@@ -65,15 +65,8 @@ class ApiController extends Controller
     public function serverState()
     {
         try {
-            // Connect to the actual Node.js server API
-            $chatServerUrl = $this->getChatServerUrl();
-            $response = file_get_contents($chatServerUrl . '/api/server-state');
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            $chatServerData = json_decode($response, true);
+            // Get data from chat server via internal API
+            $chatServerData = $this->chatServerService->getServerState();
             
             // Get comprehensive database stats
             $totalUsers = User::count();
@@ -88,7 +81,7 @@ class ApiController extends Controller
                     'admins' => $adminUsers,
                     'email_notifications' => EmailNotification::active()->count()
                 ],
-                'chat_server_url' => $chatServerUrl,
+                'chat_server_available' => $this->chatServerService->isAvailable(),
                 'timestamp' => now()->toISOString()
             ]);
             
@@ -201,7 +194,7 @@ class ApiController extends Controller
     public function updateUser(Request $request, $id)
     {
         try {
-            \Log::info('Update user request', [
+            Log::info('Update user request', [
                 'id' => $id,
                 'request_data' => $request->all()
             ]);
@@ -232,7 +225,7 @@ class ApiController extends Controller
                 $paidLevel = (int) $request->paid1;
                 $updateData['paid1'] = $paidLevel;
                 
-                \Log::info('Setting paid1', [
+                Log::info('Setting paid1', [
                     'old_value' => $user->paid1,
                     'new_value' => $paidLevel
                 ]);
@@ -240,7 +233,7 @@ class ApiController extends Controller
             
             if ($request->has('color')) {
                 $updateData['color'] = $request->color;
-                \Log::info('Setting manual color', [
+                Log::info('Setting manual color', [
                     'old_color' => $user->color,
                     'new_color' => $request->color
                 ]);
@@ -248,24 +241,24 @@ class ApiController extends Controller
             
             if ($request->has('banners')) {
                 $updateData['banners'] = $request->banners;
-                \Log::info('Setting manual banners', [
+                Log::info('Setting manual banners', [
                     'old_banners' => $user->banners,
                     'new_banners' => $request->banners
                 ]);
             }
             
-            \Log::info('Updating user with data', $updateData);
-            \Log::info('User fillable fields', $user->getFillable());
+            Log::info('Updating user with data', $updateData);
+            Log::info('User fillable fields', $user->getFillable());
             
             // Try updating each field individually for debugging
             foreach ($updateData as $field => $value) {
-                \Log::info("Setting {$field} to {$value}");
+                Log::info("Setting {$field} to {$value}");
                 $user->{$field} = $value;
             }
             
             // Force save without Laravel's mass assignment protection
             $saved = $user->save();
-            \Log::info('Save result', ['saved' => $saved]);
+            Log::info('Save result', ['saved' => $saved]);
             
             // If update failed, try direct SQL update
             if (isset($updateData['paid1'])) {
@@ -281,10 +274,10 @@ class ApiController extends Controller
                     $sqlUpdateData['banners'] = $updateData['banners'];
                 }
                 
-                $directUpdate = \DB::table('users')
+                $directUpdate = DB::table('users')
                     ->where('uid', $id)
                     ->update($sqlUpdateData);
-                \Log::info('Direct SQL update result', [
+                Log::info('Direct SQL update result', [
                     'rows_affected' => $directUpdate,
                     'update_data' => $sqlUpdateData
                 ]);
@@ -293,7 +286,7 @@ class ApiController extends Controller
             // Refresh the user to get updated values
             $user->refresh();
             
-            \Log::info('User after update', [
+            Log::info('User after update', [
                 'paid1' => $user->paid1,
                 'email' => $user->email,
                 'color' => $user->color,
@@ -304,7 +297,7 @@ class ApiController extends Controller
             if (isset($updateData['paid1'])) {
                 $expectedColor = $updateData['color'] ?? 'not_set';
                 $actualColor = $user->color;
-                \Log::info('Color update verification', [
+                Log::info('Color update verification', [
                     'expected_color' => $expectedColor,
                     'actual_color' => $actualColor,
                     'colors_match' => $expectedColor === $actualColor
@@ -313,27 +306,9 @@ class ApiController extends Controller
 
             // Notify the chat server to update in-memory user data
             try {
-                $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-                $notifyData = [
-                    'action' => 'refresh_user_data',
-                    'userId' => $id,
-                    'updateData' => $updateData
-                ];
-                
-                $context = stream_context_create([
-                    'http' => [
-                        'method' => 'POST',
-                        'header' => 'Content-Type: application/json',
-                        'content' => json_encode($notifyData),
-                        'timeout' => 5
-                    ]
-                ]);
-                
-                // Try to notify chat server (don't fail if server is offline)
-                @file_get_contents($chatServerUrl . '/api/admin/refresh-user', false, $context);
-                
+                $this->chatServerService->refreshUserData($id, $updateData);
             } catch (\Exception $e) {
-                \Log::info('Could not notify chat server of user update', ['error' => $e->getMessage()]);
+                Log::info('Could not notify chat server of user update', ['error' => $e->getMessage()]);
             }
             
             return response()->json([
@@ -344,7 +319,7 @@ class ApiController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('User update failed', [
+            Log::error('User update failed', [
                 'id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -372,31 +347,24 @@ class ApiController extends Controller
     }
 
     /**
-     * Get packet logs from Node.js server
+     * Get packet logs from chat server
      */
     public function getPacketLogs(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $filter = $request->get('filter', 'all');
-            $limit = $request->get('limit', 100);
-            
-            $url = $chatServerUrl . '/api/logs/packets?filter=' . urlencode($filter) . '&limit=' . $limit;
-            $response = file_get_contents($url);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $filter = $request->get('filter', 'all');
+        $limit = $request->get('limit', 100);
+        
+        $result = $this->chatServerService->getPacketLogs($filter, $limit);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage(),
+                'error' => $result['error'],
                 'logs' => []
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -404,38 +372,16 @@ class ApiController extends Controller
      */
     public function clearPacketLogs()
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            
-            // Use cURL for better control over headers
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $chatServerUrl . '/api/logs/clear-packets');
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Authorization: Bearer admin-temp-token', // Use a proper admin token
-                'X-Admin-Access: true' // Additional admin header
-            ]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, '{}');
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response, $httpCode)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $result = $this->chatServerService->clearPacketLogs();
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -443,30 +389,21 @@ class ApiController extends Controller
      */
     public function exportPacketLogs(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $format = $request->get('format', 'json');
-            
-            $url = $chatServerUrl . '/api/logs/export-packets?format=' . urlencode($format);
-            $response = file_get_contents($url);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            $contentType = $format === 'csv' ? 'text/csv' : 'application/json';
-            $filename = 'packet-logs-' . date('Y-m-d-H-i-s') . '.' . $format;
-            
-            return response($response)
-                ->header('Content-Type', $contentType)
-                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
-            
-        } catch (\Exception $e) {
+        $format = $request->get('format', 'json');
+        $result = $this->chatServerService->exportPacketLogs($format);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        $filename = 'packet-logs-' . date('Y-m-d-H-i-s') . '.' . $format;
+        
+        return response($result['data'])
+            ->header('Content-Type', $result['contentType'])
+            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
     }
 
     /**
@@ -474,20 +411,12 @@ class ApiController extends Controller
      */
     public function getVoiceStats()
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = file_get_contents($chatServerUrl . '/api/voice/stats');
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $result = $this->chatServerService->getVoiceStats();
+        
+        if (isset($result['error'])) {
             return response()->json([
                 'success' => false,
-                'error' => 'Voice server not available: ' . $e->getMessage(),
+                'error' => $result['error'],
                 'stats' => [
                     'activeSessions' => 0,
                     'totalBandwidth' => 0,
@@ -495,6 +424,8 @@ class ApiController extends Controller
                 ]
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -502,26 +433,18 @@ class ApiController extends Controller
      */
     public function getVoiceLogs(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $limit = $request->get('limit', 100);
-            
-            $url = $chatServerUrl . '/api/voice/logs?limit=' . $limit;
-            $response = file_get_contents($url);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $limit = $request->get('limit', 100);
+        $result = $this->chatServerService->getVoiceLogs($limit);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Voice server not available: ' . $e->getMessage(),
+                'error' => $result['error'],
                 'logs' => []
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -529,32 +452,17 @@ class ApiController extends Controller
      */
     public function muteUser(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $userId = $request->get('userId');
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode(['userId' => $userId])
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/voice/mute', false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $userId = $request->get('userId');
+        $result = $this->chatServerService->muteUser($userId);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Voice server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -562,32 +470,17 @@ class ApiController extends Controller
      */
     public function kickUser(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $userId = $request->get('userId');
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode(['userId' => $userId])
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/voice/kick', false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $userId = $request->get('userId');
+        $result = $this->chatServerService->kickUser($userId);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Voice server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -595,20 +488,12 @@ class ApiController extends Controller
      */
     public function getBotStats()
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = file_get_contents($chatServerUrl . '/api/bots/stats');
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $result = $this->chatServerService->getBotStats();
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Bot server not available: ' . $e->getMessage(),
+                'error' => $result['error'],
                 'stats' => [
                     'activeBots' => 0,
                     'totalBots' => 0,
@@ -616,6 +501,8 @@ class ApiController extends Controller
                 ]
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -623,32 +510,10 @@ class ApiController extends Controller
      */
     public function startBot(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $botConfig = $request->all();
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode($botConfig)
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/bots/start', false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Bot server not available: ' . $e->getMessage()
-            ]);
-        }
+        $botConfig = $request->all();
+        $result = $this->chatServerService->startBots($botConfig);
+        
+        return response()->json($result);
     }
 
     /**
@@ -656,65 +521,30 @@ class ApiController extends Controller
      */
     public function stopBot(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $botId = $request->get('botId');
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode(['botId' => $botId])
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/bots/stop', false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Bot server not available: ' . $e->getMessage()
-            ]);
-        }
+        $result = $this->chatServerService->stopBots();
+        return response()->json($result);
     }
 
     /**
-     * Restart a bot
+     * Restart a bot - for now, just stop and start
      */
     public function restartBot(Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $botId = $request->get('botId');
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode(['botId' => $botId])
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/bots/restart', false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Bot server not available: ' . $e->getMessage()
-            ]);
+        // First stop all bots
+        $stopResult = $this->chatServerService->stopBots();
+        
+        if (!$stopResult['success']) {
+            return response()->json($stopResult);
         }
+        
+        // Wait a moment then start them again
+        sleep(1);
+        
+        // Get default config for restart
+        $config = $request->all();
+        $startResult = $this->chatServerService->startBots($config);
+        
+        return response()->json($startResult);
     }
 
     /**
@@ -731,27 +561,21 @@ class ApiController extends Controller
     }
 
     /**
-     * Get rooms from Node.js server
+     * Get rooms from chat server
      */
     public function getRooms()
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = file_get_contents($chatServerUrl . '/api/rooms');
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $result = $this->chatServerService->getRooms();
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage(),
+                'error' => $result['error'],
                 'rooms' => []
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -759,37 +583,21 @@ class ApiController extends Controller
      */
     public function updateRoom($id, Request $request)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            
-            $updateData = $request->only([
-                'name', 'topic', 'category', 'type', 'voice', 'private', 
-                'locked', 'closed', 'password', 'mike', 'text', 'color'
-            ]);
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'PUT',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode($updateData),
-                    'timeout' => 10
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/rooms/' . $id, false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $updateData = $request->only([
+            'name', 'topic', 'category', 'type', 'voice', 'private', 
+            'locked', 'closed', 'password', 'mike', 'text', 'color'
+        ]);
+        
+        $result = $this->chatServerService->updateRoom($id, $updateData);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -797,30 +605,16 @@ class ApiController extends Controller
      */
     public function deleteRoom($id)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'DELETE',
-                    'timeout' => 10
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/rooms/' . $id, false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $result = $this->chatServerService->deleteRoom($id);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        return response()->json($result);
     }
 
     /**
@@ -828,428 +622,16 @@ class ApiController extends Controller
      */
     public function closeRoom($id)
     {
-        try {
-            $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'timeout' => 10
-                ]
-            ]);
-            
-            $response = file_get_contents($chatServerUrl . '/api/rooms/' . $id . '/close', false, $context);
-            
-            if ($response === false) {
-                throw new \Exception('Failed to connect to chat server');
-            }
-            
-            return response($response)->header('Content-Type', 'application/json');
-            
-        } catch (\Exception $e) {
+        $result = $this->chatServerService->closeRoom($id);
+        
+        if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'Chat server not available: ' . $e->getMessage()
+                'error' => $result['error']
             ]);
         }
+        
+        return response()->json($result);
     }
 
-    /**
-     * Start chat server
-     */
-    public function startServer()
-    {
-        try {
-            // Check if server is already running
-            $chatServerUrl = 'http://localhost:3000'; // Always use localhost for health checks
-            $response = @file_get_contents($chatServerUrl . '/api/health');
-            
-            if ($response !== false) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Server is already running',
-                    'status' => 'running'
-                ]);
-            }
-            
-            // Start the server using PM2 for process management  
-            // Try to find the correct server path
-            $possiblePaths = [
-                env('CHAT_SERVER_PATH'), // Check .env first
-                '/var/www/html', // Docker container root (where the entire server directory is mounted)
-                '/var/www/html/h2ktalk.fun', // Production path (no /serv subdirectory)
-                '/Users/dan/Documents/Sites/paltalk.fun/server', // Host path for development
-                dirname(dirname(dirname(dirname(dirname(__DIR__))))), // From h2ktalk-web/app/Http/Controllers go up to server root
-                dirname(dirname(dirname(__DIR__))) . '/..' // Go up from h2ktalk-web to server root
-            ];
-            
-            $serverPath = null;
-            $debugInfo = [];
-            foreach ($possiblePaths as $path) {
-                $debugInfo[] = [
-                    'path' => $path,
-                    'is_dir' => $path ? is_dir($path) : false,
-                    'has_package' => $path && file_exists($path . '/package.json'),
-                    'has_server' => $path && file_exists($path . '/src/server.js')
-                ];
-                
-                if ($path && is_dir($path) && file_exists($path . '/package.json') && file_exists($path . '/src/server.js')) {
-                    $serverPath = $path;
-                    break;
-                }
-            }
-            
-            if (!$serverPath) {
-                // Check if running in Laravel Sail (Docker)
-                if (env('LARAVEL_SAIL') == 1 || env('APP_ENV') === 'local') {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'Server management not available in Docker environment',
-                        'message' => 'The Node.js server should be started manually on the host system. Please run "npm start" in the server directory.',
-                        'environment' => 'Docker/Sail',
-                        'suggestion' => 'Run "npm start" in: ' . env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/paltalk.fun/server'),
-                        'currentStatus' => 'Use the refresh button to check if the server is running'
-                    ], 400);
-                }
-                
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Server directory not found in any expected location',
-                    'debugInfo' => $debugInfo,
-                    'envPath' => env('CHAT_SERVER_PATH'),
-                    'currentDir' => __DIR__,
-                    'webRoot' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown',
-                    'environment' => 'Production'
-                ], 404);
-            }
-            
-            
-            // Ensure logs directory exists
-            $logDir = storage_path('logs');
-            if (!is_dir($logDir)) {
-                mkdir($logDir, 0755, true);
-            }
-            
-            // Check if PM2 is available and working
-            $pm2Check = shell_exec('which pm2 2>/dev/null');
-            $pm2Working = false;
-            
-            if (!empty($pm2Check)) {
-                // Test if PM2 can work without permission issues
-                $pm2Test = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 list 2>&1");
-                $pm2Working = !str_contains($pm2Test, 'EACCES') && !str_contains($pm2Test, 'permission denied');
-            }
-            
-            if (!empty($pm2Check) && $pm2Working) {
-                // Ensure dependencies are installed and start the server
-                $installCommand = "cd {$serverPath} && npm install 2>&1";
-                $installOutput = shell_exec($installCommand) ?? 'Install command failed';
-                
-                // Stop any existing PM2 process with the same name first
-                shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 delete h2ktalk-server 2>/dev/null");
-                
-                // Try using the existing start script first
-                if (file_exists($serverPath . '/start.sh')) {
-                    // Make start.sh executable and use PM2 to run it
-                    shell_exec("chmod +x {$serverPath}/start.sh");
-                    $command = "cd {$serverPath} && NODE_ENV=production PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server --interpreter bash start.sh 2>&1";
-                } else {
-                        // Use PM2 to start the server with npm and set PM2_HOME
-                    $command = "cd {$serverPath} && NODE_ENV=production PM2_HOME={$serverPath}/.pm2 pm2 start --name h2ktalk-server npm -- start 2>&1";
-                }
-                $output = shell_exec($command) ?? 'PM2 start command failed';
-                
-                // Also check PM2 status
-                $pm2Status = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 list 2>&1") ?? 'PM2 status unavailable';
-                
-                // Give the server a moment to start
-                sleep(5);
-                
-                // Check if web interface started successfully (port 3000)
-                $response = @file_get_contents($chatServerUrl . '/api/health');
-                
-                // Also check if chat server is listening on port 5001
-                $errno = 0;
-                $errstr = '';
-                $chatServerCheck = @fsockopen('localhost', 5001, $errno, $errstr, 1);
-                $chatServerRunning = $chatServerCheck !== false;
-                if ($chatServerCheck) fclose($chatServerCheck);
-                
-                if ($response !== false || $chatServerRunning) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Server started successfully with PM2',
-                        'status' => 'running',
-                        'output' => $output,
-                        'pm2Status' => $pm2Status,
-                        'installOutput' => $installOutput,
-                        'webInterface' => $response !== false,
-                        'chatServer' => $chatServerRunning,
-                        'ports' => ['web' => 3000, 'chat' => 5001]
-                    ]);
-                } else {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'Server failed to start properly with PM2',
-                        'output' => $output,
-                        'pm2Status' => $pm2Status,
-                        'installOutput' => $installOutput,
-                        'serverPath' => $serverPath,
-                        'healthUrl' => $chatServerUrl . '/api/health',
-                        'webInterface' => $response !== false,
-                        'chatServer' => $chatServerRunning,
-                        'chatServerError' => ($errno ?? 0) . ': ' . ($errstr ?? 'Unknown error')
-                    ], 500);
-                }
-            } else {
-                // Fallback: start server directly with nohup
-                $logFile = storage_path('logs/chat-server.log');
-                $installOutput = $pm2Check ? 'PM2 has permission issues - using fallback method' : 'PM2 not available - using fallback method';
-                
-                // Check if package.json exists
-                if (!file_exists($serverPath . '/package.json')) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'package.json not found in server directory',
-                        'serverPath' => $serverPath,
-                        'files' => array_slice(scandir($serverPath), 0, 10)
-                    ], 404);
-                }
-                
-                // Install dependencies first - try with better permissions
-                $installCommand = "cd {$serverPath} && npm install --production --ignore-scripts 2>&1";
-                $installResult = shell_exec($installCommand);
-                $installOutput .= "\n" . ($installResult ?? 'Install failed');
-                
-                // If that fails, try basic install
-                if (!is_dir($serverPath . '/node_modules') || !glob($serverPath . '/node_modules/*')) {
-                    $installCommand = "cd {$serverPath} && npm ci --production 2>&1";
-                    $installResult2 = shell_exec($installCommand);
-                    $installOutput .= "\nRetry: " . ($installResult2 ?? 'Second install failed');
-                }
-                
-                // Check if install was successful (even if some packages failed)
-                $hasNodeModules = is_dir($serverPath . '/node_modules') && count(glob($serverPath . '/node_modules/*')) > 0;
-                $hasRequiredModules = file_exists($serverPath . '/node_modules/express') && file_exists($serverPath . '/node_modules/socket.io');
-                
-                if (!$hasNodeModules) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'npm install failed - node_modules directory not created',
-                        'serverPath' => $serverPath,
-                        'installOutput' => $installOutput,
-                        'suggestions' => [
-                            'Check if Node.js and npm are installed',
-                            'Check file permissions in server directory',
-                            'Try running: sudo chown -R www-data:www-data ' . dirname($serverPath)
-                        ]
-                    ], 500);
-                }
-                
-                // Kill any existing node processes for this server
-                shell_exec("pkill -f 'node.*src/server.js' 2>/dev/null");
-                
-                // Use the start.sh script if available, otherwise npm start
-                if (file_exists($serverPath . '/start.sh')) {
-                    shell_exec("chmod +x {$serverPath}/start.sh");
-                    $command = "cd {$serverPath} && NODE_ENV=production nohup ./start.sh > {$logFile} 2>&1 & echo $!";
-                } else {
-                    $command = "cd {$serverPath} && NODE_ENV=production nohup npm start > {$logFile} 2>&1 & echo $!";
-                }
-                $pid = shell_exec($command) ?? '0';
-                
-                // Give the server a moment to start
-                sleep(3);
-                
-                // Check if web interface started successfully
-                $response = @file_get_contents($chatServerUrl . '/api/health');
-                
-                // Also check if chat server is listening on port 5001
-                $errno = 0;
-                $errstr = '';
-                $chatServerCheck = @fsockopen('localhost', 5001, $errno, $errstr, 1);
-                $chatServerRunning = $chatServerCheck !== false;
-                if ($chatServerCheck) fclose($chatServerCheck);
-                
-                if ($response !== false || $chatServerRunning) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Server started successfully (background process)',
-                        'status' => 'running',
-                        'pid' => trim($pid),
-                        'webInterface' => $response !== false,
-                        'chatServer' => $chatServerRunning,
-                        'installOutput' => $installOutput
-                    ]);
-                } else {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'Server failed to start properly',
-                        'serverPath' => $serverPath,
-                        'logFile' => $logFile,
-                        'pid' => trim($pid),
-                        'installOutput' => $installOutput,
-                        'webInterface' => $response !== false,
-                        'chatServer' => $chatServerRunning,
-                        'chatServerError' => ($errno ?? 0) . ': ' . ($errstr ?? 'Unknown error'),
-                        'logTail' => file_exists($logFile) ? array_slice(file($logFile, FILE_IGNORE_NEW_LINES), -10) : ['Log file not found']
-                    ], 500);
-                }
-            }
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to start server: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Stop chat server
-     */
-    public function stopServer()
-    {
-        try {
-            // Use PM2 to stop the server
-            // Try to find the correct server path
-            $possiblePaths = [
-                env('CHAT_SERVER_PATH'), // Check .env first
-                '/var/www/html', // Docker container root (where the entire server directory is mounted)
-                '/var/www/html/h2ktalk.fun', // Production path (no /serv subdirectory)
-                '/Users/dan/Documents/Sites/paltalk.fun/server', // Host path for development
-                dirname(dirname(dirname(dirname(dirname(__DIR__))))), // From h2ktalk-web/app/Http/Controllers go up to server root
-                dirname(dirname(dirname(__DIR__))) . '/..' // Go up from h2ktalk-web to server root
-            ];
-            
-            $serverPath = null;
-            foreach ($possiblePaths as $path) {
-                if ($path && is_dir($path) && file_exists($path . '/package.json') && file_exists($path . '/src/server.js')) {
-                    $serverPath = $path;
-                    break;
-                }
-            }
-            
-            if (!$serverPath) {
-                // Check if running in Laravel Sail (Docker)
-                if (env('LARAVEL_SAIL') == 1 || env('APP_ENV') === 'local') {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'Server management not available in Docker environment',
-                        'message' => 'The Node.js server should be stopped manually on the host system. Use Ctrl+C in the terminal where it\'s running.',
-                        'environment' => 'Docker/Sail',
-                        'suggestion' => 'Stop the server in: ' . env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/paltalk.fun/server'),
-                        'currentStatus' => 'Use the refresh button to check server status'
-                    ], 400);
-                }
-                $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
-            }
-            // Try multiple stop methods
-            $commands = [
-                "PM2_HOME={$serverPath}/.pm2 pm2 stop h2ktalk-server 2>&1",
-                "PM2_HOME=/tmp/.pm2 pm2 stop h2ktalk-server 2>&1",
-                "pm2 stop h2ktalk-server 2>&1",
-                "pkill -f 'node.*src/server.js' 2>&1",
-                "pkill -f 'npm.*start' 2>&1"
-            ];
-            
-            $output = "Attempting to stop server...\n";
-            foreach ($commands as $command) {
-                $result = shell_exec($command);
-                $output .= "Command: {$command}\nResult: " . ($result ?? 'No output') . "\n\n";
-                
-                // If command succeeded (contains certain success indicators), break
-                if ($result && (strpos($result, 'stopped') !== false || strpos($result, 'deleted') !== false)) {
-                    break;
-                }
-            }
-            
-            // Give the server a moment to stop
-            sleep(1);
-            
-            // Check if server stopped
-            $chatServerUrl = 'http://localhost:3000'; // Always use localhost for health checks
-            $response = @file_get_contents($chatServerUrl . '/api/health');
-            
-            if ($response === false) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Server stopped successfully',
-                    'status' => 'stopped',
-                    'output' => $output
-                ]);
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Server failed to stop properly',
-                    'output' => $output
-                ], 500);
-            }
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to stop server: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get server status
-     */
-    public function getServerStatus()
-    {
-        try {
-            $chatServerUrl = 'http://localhost:3000'; // Always use localhost for health checks
-            $response = @file_get_contents($chatServerUrl . '/api/health');
-            
-            if ($response !== false) {
-                $data = json_decode($response, true);
-                return response()->json([
-                    'success' => true,
-                    'status' => 'running',
-                    'health' => $data
-                ]);
-            } else {
-                // Check PM2 status
-                // Try to find the correct server path
-                $possiblePaths = [
-                    env('CHAT_SERVER_PATH'),
-                    '/var/www/html', // Docker container root
-                    '/var/www/html/h2ktalk.fun',
-                    '/Users/dan/Documents/Sites/paltalk.fun/server',
-                    dirname(dirname(dirname(dirname(dirname(__DIR__))))), // Server root
-                    dirname(dirname(dirname(__DIR__))) . '/..'
-                ];
-                
-                $serverPath = null;
-                foreach ($possiblePaths as $path) {
-                    if ($path && is_dir($path) && file_exists($path . '/package.json')) {
-                        $serverPath = $path;
-                        break;
-                    }
-                }
-                
-                if (!$serverPath) {
-                    $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');
-                }
-                $pm2Status = shell_exec("PM2_HOME={$serverPath}/.pm2 pm2 jlist 2>/dev/null | grep h2ktalk-server");
-                $isInPm2 = !empty($pm2Status);
-                
-                return response()->json([
-                    'success' => true,
-                    'status' => 'stopped',
-                    'pm2_managed' => $isInPm2
-                ]);
-            }
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to check server status: ' . $e->getMessage(),
-                'status' => 'unknown'
-            ]);
-        }
-    }
 }

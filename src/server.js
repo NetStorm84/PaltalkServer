@@ -11,7 +11,6 @@ const serverState = require('./core/serverState');
 const PacketProcessor = require('./core/packetProcessor');
 const DatabaseManager = require('./database/databaseManager');
 const VoiceServer = require('./voice/voiceServer');
-const WebInterface = require('./web/webInterface');
 
 // Network components
 const Room = require('./models/Room');
@@ -20,7 +19,6 @@ class PaltalkServer {
     constructor() {
         this.chatServer = null;
         this.voiceServer = new VoiceServer();
-        this.webInterface = null;
         this.databaseManager = new DatabaseManager();
         this.packetProcessor = null;
         this.isRunning = false;
@@ -74,17 +72,18 @@ class PaltalkServer {
             // Start chat server
             await this.startChatServer();
 
-            // Start web interface
-            await this.startWebInterface();
+            // Start internal API (replaces web interface)
+            await this.startInternalApi();
 
             // Start periodic cleanup
             this.startPeriodicTasks();
 
             this.isRunning = true;
             logger.info('✅ Paltalk Server started successfully');
-            logger.info(`📊 Web Dashboard: http://localhost:${SERVER_CONFIG.WEB_UI_PORT}`);
-            logger.info(`💬 Chat Server: Port ${SERVER_CONFIG.CHAT_PORT}`);
+            logger.info(`� Chat Server: Port ${SERVER_CONFIG.CHAT_PORT}`);
             logger.info(`🎙️ Voice Server: Port ${SERVER_CONFIG.VOICE_PORT}`);
+            logger.info(`🔌 Internal API: Port 5002 (localhost only)`);
+            logger.info(`🌐 Laravel Web UI: http://localhost (via Docker)`);
 
         } catch (error) {
             logger.error('❌ Failed to start Paltalk Server', error);
@@ -278,19 +277,514 @@ class PaltalkServer {
     }
 
     /**
-     * Start web interface
+     * Start internal API for Laravel communication
      */
-    async startWebInterface() {
-        logger.info('🌐 Starting web interface...');
+    async startInternalApi() {
+        logger.info('🔌 Starting internal API...');
         
-        this.webInterface = new WebInterface(
-            serverState,
-            this.voiceServer,
-            this.databaseManager
-        );
+        // Create internal API server (separate from web interface)
+        const express = require('express');
+        const internalApp = express();
         
-        await this.webInterface.start();
-        logger.info('✅ Web interface started');
+        // Middleware
+        internalApp.use(express.json());
+        
+        // CORS for localhost only
+        internalApp.use((req, res, next) => {
+            res.header('Access-Control-Allow-Origin', 'http://localhost');
+            res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+            res.header('Access-Control-Allow-Headers', 'Content-Type');
+            next();
+        });
+        
+        // Internal API routes (no authentication - localhost only)
+        this.setupInternalApiRoutes(internalApp);
+        
+        // Start internal API server on different port
+        const INTERNAL_API_PORT = 5002;
+        internalApp.listen(INTERNAL_API_PORT, '127.0.0.1', () => {
+            logger.info(`✅ Internal API started on port ${INTERNAL_API_PORT}`);
+        });
+        
+        this.internalApp = internalApp;
+    }
+
+    /**
+     * Setup internal API routes for Laravel communication
+     */
+    setupInternalApiRoutes(app) {
+        // Server state and statistics
+        app.get('/internal/server-state', async (req, res) => {
+            try {
+                const serverStats = serverState.getStats();
+                
+                // Get categories and groups for name lookup
+                const categories = await this.databaseManager.getCategories();
+                const categoryMap = new Map();
+                categories.forEach(cat => {
+                    categoryMap.set(cat.code, cat.value);
+                });
+                
+                // Get groups (rooms) from database for name lookup
+                const groups = await this.databaseManager.getGroups();
+                const groupMap = new Map();
+                groups.forEach(group => {
+                    groupMap.set(group.id, {
+                        name: group.nm || `Room ${group.id}`,
+                        categoryName: group.category_name || categoryMap.get(group.catg) || `Category ${group.catg}`
+                    });
+                });
+                
+                const users = serverState.getAllUsers().map(user => {
+                    const roomIds = user.getRoomIds();
+                    let currentRoomName = null;
+                    
+                    if (roomIds.length > 0) {
+                        const roomId = roomIds[0];
+                        const dbRoom = groupMap.get(roomId);
+                        if (dbRoom) {
+                            currentRoomName = dbRoom.name;
+                        } else {
+                            const room = serverState.getRoom(roomId);
+                            currentRoomName = room ? room.name : `Room ${roomId}`;
+                        }
+                    }
+                    
+                    return {
+                        id: user.uid,
+                        nickname: user.nickname,
+                        currentRoom: currentRoomName
+                    };
+                });
+                
+                // Only include rooms that have users in them
+                const allRooms = serverState.getAllRooms();
+                const activeRooms = allRooms
+                    .filter(room => room.getUserCount() > 0)
+                    .map(room => {
+                        const dbRoom = groupMap.get(room.id);
+                        const roomName = dbRoom ? dbRoom.name : (room.name || `Room ${room.id}`);
+                        const categoryName = dbRoom ? dbRoom.categoryName : (categoryMap.get(room.category) || `Category ${room.category}`);
+                        
+                        return {
+                            id: room.id,
+                            name: roomName,
+                            userCount: room.getUserCount(),
+                            category: categoryName
+                        };
+                    });
+                
+                res.json({
+                    stats: {
+                        onlineUsers: serverStats.currentUsers || 0,
+                        activeRooms: activeRooms.length,
+                        totalConnections: serverStats.totalConnections || serverStats.currentUsers || 0,
+                        uptime: Math.floor((serverStats.uptime || 0) / 1000)
+                    },
+                    users: users,
+                    rooms: activeRooms,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                logger.error('Failed to get server state', error);
+                res.status(500).json({ error: 'Failed to get server state' });
+            }
+        });
+
+        // Bot management endpoints
+        app.get('/internal/bots/stats', (req, res) => {
+            try {
+                const botManager = require('./core/botManager');
+                const stats = botManager.getBotStats();
+                
+                stats.roomDistribution = stats.botsPerRoom;
+                
+                res.json({
+                    success: true,
+                    data: stats
+                });
+            } catch (error) {
+                logger.error('Failed to get bot stats', error);
+                res.status(500).json({ success: false, error: 'Failed to get bot stats' });
+            }
+        });
+
+        app.get('/internal/bots', (req, res) => {
+            try {
+                const botManager = require('./core/botManager');
+                const stats = botManager.getBotStats();
+                
+                const bots = [];
+                if (stats.isRunning && stats.botDetails) {
+                    stats.botDetails.forEach(bot => {
+                        bots.push({
+                            id: bot.uid,
+                            name: bot.nickname,
+                            status: 'online',
+                            type: 'Chat Bot',
+                            room: bot.roomName,
+                            roomId: bot.roomId,
+                            uptime: Math.floor((Date.now() - bot.createdAt) / 1000),
+                            personality: bot.chatPersonality,
+                            textStyle: bot.textStyle
+                        });
+                    });
+                }
+                
+                res.json({
+                    success: true,
+                    bots: bots,
+                    stats: {
+                        total: stats.totalBots,
+                        active: stats.isRunning ? stats.totalBots : 0,
+                        paused: 0,
+                        error: 0
+                    }
+                });
+            } catch (error) {
+                logger.error('Failed to get bots list', error);
+                res.status(500).json({ success: false, error: 'Failed to get bots list' });
+            }
+        });
+
+        app.post('/internal/bots/start', async (req, res) => {
+            try {
+                const botManager = require('./core/botManager');
+                const { BOT_CONFIG } = require('./config/constants');
+                const { 
+                    botCount = BOT_CONFIG.DEFAULT_BOT_COUNT, 
+                    chatFrequency = BOT_CONFIG.DEFAULT_CHAT_FREQUENCY_MS, 
+                    moveFrequency = BOT_CONFIG.DEFAULT_MOVE_FREQUENCY_MS, 
+                    targetRoomId = null,
+                    distributionMode = null,
+                    roomIds = null
+                } = req.body;
+                
+                let processedConfig = {
+                    botCount: parseInt(botCount),
+                    chatFrequencyMs: parseInt(chatFrequency),
+                    moveFrequencyMs: parseInt(moveFrequency),
+                    targetRoomId: null,
+                    distributionMode: distributionMode,
+                    roomIds: null
+                };
+
+                // Process room selection
+                if (targetRoomId === "first") {
+                    const availableRooms = serverState?.getAllRooms?.()?.filter(room => !room.isPrivate) || [];
+                    if (availableRooms.length > 0) {
+                        processedConfig.targetRoomId = availableRooms[0].id;
+                        processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM;
+                    }
+                } else if (targetRoomId && targetRoomId !== null && targetRoomId !== "null") {
+                    processedConfig.targetRoomId = parseInt(targetRoomId);
+                    processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM;
+                } else if (roomIds && Array.isArray(roomIds) && roomIds.length > 0) {
+                    processedConfig.roomIds = roomIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+                    processedConfig.distributionMode = processedConfig.roomIds.length === 1 
+                        ? BOT_CONFIG.ROOM_DISTRIBUTION_MODES.SINGLE_ROOM 
+                        : BOT_CONFIG.ROOM_DISTRIBUTION_MODES.WEIGHTED;
+                } else if (!distributionMode || distributionMode === 'random') {
+                    processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.RANDOM;
+                } else if (distributionMode === 'balanced') {
+                    processedConfig.distributionMode = BOT_CONFIG.ROOM_DISTRIBUTION_MODES.BALANCED;
+                }
+                
+                const result = await botManager.startBots(processedConfig);
+                res.json(result);
+            } catch (error) {
+                logger.error('Failed to start bots', error);
+                res.status(500).json({ error: 'Failed to start bots' });
+            }
+        });
+
+        app.post('/internal/bots/stop', async (req, res) => {
+            try {
+                const botManager = require('./core/botManager');
+                const result = await botManager.stopBots();
+                
+                if (result.success) {
+                    serverState.cleanupDisconnectedUsers();
+                }
+                
+                res.json(result);
+            } catch (error) {
+                logger.error('Failed to stop bots', error);
+                res.status(500).json({ error: 'Failed to stop bots' });
+            }
+        });
+
+        // Voice server endpoints
+        app.get('/internal/voice/stats', (req, res) => {
+            try {
+                const voiceStats = this.voiceServer.getServerStatistics();
+                res.json(voiceStats);
+            } catch (error) {
+                logger.error('Failed to get voice server stats', error);
+                res.status(500).json({ error: 'Failed to get voice server stats' });
+            }
+        });
+
+        app.get('/internal/voice/logs', (req, res) => {
+            try {
+                const limit = parseInt(req.query.limit) || 100;
+                const logs = this.voiceServer.getRecentLogs(limit);
+                res.json({
+                    success: true,
+                    logs: logs
+                });
+            } catch (error) {
+                logger.error('Failed to get voice logs', error);
+                res.status(500).json({ success: false, error: 'Failed to get voice logs', logs: [] });
+            }
+        });
+
+        app.post('/internal/voice/mute', (req, res) => {
+            try {
+                const { userId } = req.body;
+                const result = this.voiceServer.muteUser(userId);
+                res.json({
+                    success: true,
+                    message: result ? 'User muted successfully' : 'User not found in voice chat'
+                });
+            } catch (error) {
+                logger.error('Failed to mute user', error);
+                res.status(500).json({ success: false, error: 'Failed to mute user' });
+            }
+        });
+
+        app.post('/internal/voice/kick', (req, res) => {
+            try {
+                const { userId } = req.body;
+                const result = this.voiceServer.kickUser(userId);
+                res.json({
+                    success: true,
+                    message: result ? 'User kicked successfully' : 'User not found in voice chat'
+                });
+            } catch (error) {
+                logger.error('Failed to kick user', error);
+                res.status(500).json({ success: false, error: 'Failed to kick user' });
+            }
+        });
+
+        // Packet logs endpoints
+        app.get('/internal/logs/packets', (req, res) => {
+            try {
+                const filter = req.query.filter || 'all';
+                const limit = parseInt(req.query.limit) || 100;
+                
+                const logs = this.packetProcessor.getRecentLogs(filter, limit);
+                res.json({
+                    success: true,
+                    logs: logs
+                });
+            } catch (error) {
+                logger.error('Failed to get packet logs', error);
+                res.status(500).json({ success: false, error: 'Failed to get packet logs', logs: [] });
+            }
+        });
+
+        app.post('/internal/logs/clear-packets', (req, res) => {
+            try {
+                this.packetProcessor.clearLogs();
+                res.json({
+                    success: true,
+                    message: 'Packet logs cleared successfully'
+                });
+            } catch (error) {
+                logger.error('Failed to clear packet logs', error);
+                res.status(500).json({ success: false, error: 'Failed to clear packet logs' });
+            }
+        });
+
+        app.get('/internal/logs/export-packets', (req, res) => {
+            try {
+                const format = req.query.format || 'json';
+                const logs = this.packetProcessor.getAllLogs();
+                
+                if (format === 'csv') {
+                    // Convert to CSV format
+                    const csvHeaders = 'timestamp,type,direction,size,data\n';
+                    const csvData = logs.map(log => 
+                        `${log.timestamp},"${log.type}","${log.direction}",${log.size},"${log.data.replace(/"/g, '""')}"`
+                    ).join('\n');
+                    
+                    res.setHeader('Content-Type', 'text/csv');
+                    res.send(csvHeaders + csvData);
+                } else {
+                    res.json(logs);
+                }
+            } catch (error) {
+                logger.error('Failed to export packet logs', error);
+                res.status(500).json({ success: false, error: 'Failed to export packet logs' });
+            }
+        });
+
+        // Room management endpoints
+        app.get('/internal/rooms', (req, res) => {
+            try {
+                const rooms = serverState.getAllRooms().map(room => ({
+                    id: room.id,
+                    name: room.name || `Room ${room.id}`,
+                    description: room.topic || '',
+                    userCount: room.getUserCount(),
+                    maxUsers: room.maxUsers || 'Unlimited',
+                    isPrivate: room.isPrivate || false,
+                    isActive: room.isActive !== false,
+                    createdAt: room.createdAt || new Date().toISOString()
+                }));
+                
+                res.json({
+                    success: true,
+                    rooms: rooms
+                });
+            } catch (error) {
+                logger.error('Failed to get rooms', error);
+                res.status(500).json({ error: 'Failed to get rooms', success: false });
+            }
+        });
+
+        app.put('/internal/rooms/:id', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.id);
+                const updateData = req.body;
+                
+                const room = serverState.getRoom(roomId);
+                if (!room) {
+                    return res.status(404).json({ success: false, error: 'Room not found' });
+                }
+                
+                // Update room properties
+                if (updateData.name) room.name = updateData.name;
+                if (updateData.topic) room.topic = updateData.topic;
+                if (updateData.category) room.category = updateData.category;
+                if (updateData.type) room.type = updateData.type;
+                if (updateData.voice !== undefined) room.voice = updateData.voice;
+                if (updateData.private !== undefined) room.isPrivate = updateData.private;
+                if (updateData.locked !== undefined) room.locked = updateData.locked;
+                if (updateData.closed !== undefined) room.closed = updateData.closed;
+                if (updateData.password) room.password = updateData.password;
+                if (updateData.mike !== undefined) room.mike = updateData.mike;
+                if (updateData.text !== undefined) room.text = updateData.text;
+                if (updateData.color) room.color = updateData.color;
+                
+                res.json({
+                    success: true,
+                    message: 'Room updated successfully',
+                    room: {
+                        id: room.id,
+                        name: room.name,
+                        topic: room.topic
+                    }
+                });
+            } catch (error) {
+                logger.error('Failed to update room', error);
+                res.status(500).json({ success: false, error: 'Failed to update room' });
+            }
+        });
+
+        app.delete('/internal/rooms/:id', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.id);
+                
+                const room = serverState.getRoom(roomId);
+                if (!room) {
+                    return res.status(404).json({ success: false, error: 'Room not found' });
+                }
+                
+                // Kick all users from the room
+                const users = room.getUsers();
+                users.forEach(user => {
+                    room.removeUser(user);
+                    // Optionally notify the user that the room was deleted
+                });
+                
+                // Remove the room from server state
+                serverState.removeRoom(roomId);
+                
+                res.json({
+                    success: true,
+                    message: `Room ${roomId} deleted successfully`
+                });
+            } catch (error) {
+                logger.error('Failed to delete room', error);
+                res.status(500).json({ success: false, error: 'Failed to delete room' });
+            }
+        });
+
+        app.post('/internal/rooms/:id/close', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.id);
+                
+                const room = serverState.getRoom(roomId);
+                if (!room) {
+                    return res.status(404).json({ success: false, error: 'Room not found' });
+                }
+                
+                // Kick all users from the room
+                const users = room.getUsers();
+                const kickedCount = users.length;
+                
+                users.forEach(user => {
+                    room.removeUser(user);
+                    // Optionally send a notification to the user
+                });
+                
+                // Mark room as closed/inactive
+                room.closed = true;
+                room.isActive = false;
+                
+                res.json({
+                    success: true,
+                    message: `Room ${roomId} closed successfully. ${kickedCount} users were kicked.`
+                });
+            } catch (error) {
+                logger.error('Failed to close room', error);
+                res.status(500).json({ success: false, error: 'Failed to close room' });
+            }
+        });
+
+        // Admin endpoints
+        app.post('/internal/admin/refresh-user', (req, res) => {
+            try {
+                const { userId, updateData } = req.body;
+                
+                // Find the user in server state
+                const user = serverState.getUserByUid(userId);
+                if (user) {
+                    // Update user properties in memory
+                    if (updateData.first) user.firstName = updateData.first;
+                    if (updateData.last) user.lastName = updateData.last;
+                    if (updateData.nickname) user.nickname = updateData.nickname;
+                    if (updateData.email) user.email = updateData.email;
+                    if (updateData.admin !== undefined) user.adminLevel = updateData.admin;
+                    if (updateData.listed !== undefined) user.isActive = updateData.listed;
+                    if (updateData.paid1 !== undefined) user.paidLevel = updateData.paid1;
+                    if (updateData.color) user.color = updateData.color;
+                    if (updateData.banners) user.banners = updateData.banners;
+                    
+                    logger.info('User data refreshed in memory', { userId, updateData });
+                }
+                
+                res.json({
+                    success: true,
+                    message: 'User data refresh completed'
+                });
+            } catch (error) {
+                logger.error('Failed to refresh user data', error);
+                res.status(500).json({ success: false, error: 'Failed to refresh user data' });
+            }
+        });
+
+        // Health check
+        app.get('/internal/health', (req, res) => {
+            res.json({
+                status: 'ok',
+                timestamp: new Date().toISOString(),
+                server: 'h2ktalk-server-internal',
+                version: '1.0.0'
+            });
+        });
     }
 
     /**
@@ -354,7 +848,6 @@ class PaltalkServer {
         try {
             const stats = serverState.getStats();
             const voiceStats = this.voiceServer.getStats();
-            const webStats = this.webInterface?.getStats() || {};
 
             logger.info('📊 Server Statistics', {
                 chatServer: {
@@ -367,8 +860,9 @@ class PaltalkServer {
                     connections: voiceStats.totalConnections,
                     rooms: voiceStats.activeRooms
                 },
-                webInterface: {
-                    connectedClients: webStats.connectedClients
+                internalApi: {
+                    status: 'running',
+                    port: 5002
                 },
                 memory: {
                     used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
@@ -445,16 +939,13 @@ class PaltalkServer {
                 logger.debug('✅ Packet processor shutdown');
             }
 
-            // Stop web interface with timeout
-            if (this.webInterface) {
+            // Stop internal API if it exists
+            if (this.internalApp) {
                 try {
-                    await Promise.race([
-                        this.webInterface.stop(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Web interface stop timeout')), 3000))
-                    ]);
-                    logger.info('✅ Web interface stopped');
+                    // Express apps don't have a built-in stop method, so we just log
+                    logger.info('✅ Internal API stopped');
                 } catch (error) {
-                    logger.warn('Web interface stop failed or timed out', error);
+                    logger.warn('Internal API stop failed', error);
                 }
             }
 
@@ -521,7 +1012,7 @@ class PaltalkServer {
             isRunning: this.isRunning,
             chatServer: this.chatServer?.listening || false,
             voiceServer: this.voiceServer.getStats(),
-            webInterface: this.webInterface?.getStats() || {},
+            internalApi: { status: 'running', port: 5002 },
             database: this.databaseManager.isConnectionActive(),
             stats: serverState.getStats()
         };

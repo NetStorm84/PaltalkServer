@@ -55,7 +55,7 @@
 </div>
 
 <!-- Stats Grid -->
-<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 mb-8">
     <!-- Total Users -->
     <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
         <div class="p-5">
@@ -128,6 +128,30 @@
         </div>
     </div>
 
+    <!-- Voice Sessions -->
+    <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-red-500 rounded-md flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Voice Sessions</dt>
+                        <dd class="text-lg font-medium text-gray-900" id="voiceSessions">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm text-gray-500">Active voice calls</div>
+        </div>
+    </div>
+
     <!-- Server Uptime -->
     <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
         <div class="p-5">
@@ -151,13 +175,37 @@
             <div class="text-sm text-gray-500">Time since restart</div>
         </div>
     </div>
+
+    <!-- Voice Sessions -->
+    <div class="stats-card bg-white overflow-hidden shadow rounded-lg fade-in-up">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-red-500 rounded-md flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Voice Sessions</dt>
+                        <dd class="text-lg font-medium text-gray-900" id="voiceSessions">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm text-gray-500">Active voice chats</div>
+        </div>
+    </div>
 </div>
 
-<!-- Server Status & Controls -->
+<!-- Chat Server Status -->
 <div class="bg-white shadow rounded-lg mb-8">
     <div class="px-4 py-5 sm:p-6">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-medium leading-6 text-gray-900">Server Status & Controls</h3>
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Chat Server Status</h3>
             <div class="flex items-center space-x-2">
                 <div id="server-status-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
                 <span id="server-status-text" class="text-sm text-gray-500">Checking...</span>
@@ -166,35 +214,81 @@
         
         <div id="serverStatus" class="text-gray-500 mb-4">Loading server information...</div>
         
-        <!-- Server Controls -->
-        <div class="flex space-x-3">
-            <button id="start-server-btn" 
-                    onclick="startServer()" 
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h12a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"></path>
+        <!-- Info about new architecture -->
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">
+                        New Architecture
+                    </h3>
+                    <div class="mt-2 text-sm text-blue-700">
+                        <p>Laravel now handles all web interface functionality directly through the chat server's internal API. The separate Node.js web interface has been removed for simplified architecture.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Rooms Management -->
+<div class="bg-white shadow rounded-lg mb-8">
+    <div class="px-4 py-5 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Active Rooms</h3>
+            <div class="flex space-x-2">
+                <button onclick="refreshRooms()" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </button>
+                <a href="{{ route('admin.rooms') }}" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    View All
+                </a>
+            </div>
+        </div>
+        
+        <div id="roomsList" class="space-y-3">
+            <div class="text-center py-8 text-gray-500">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                 </svg>
-                Start Server
-            </button>
-            
-            <button id="stop-server-btn" 
-                    onclick="stopServer()" 
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10h6v4H9z"></path>
+                <p class="mt-2">Loading rooms...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Users Management -->
+<div class="bg-white shadow rounded-lg mb-8">
+    <div class="px-4 py-5 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Online Users</h3>
+            <div class="flex space-x-2">
+                <button onclick="refreshUsers()" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </button>
+                <a href="{{ route('admin.users') }}" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    Manage All
+                </a>
+            </div>
+        </div>
+        
+        <div id="usersList" class="space-y-3">
+            <div class="text-center py-8 text-gray-500">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0H21v-1a6 6 0 00-9-5.197"></path>
                 </svg>
-                Stop Server
-            </button>
-            
-            <button id="restart-server-btn" 
-                    onclick="restartServer()" 
-                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-                Restart Server
-            </button>
+                <p class="mt-2">Loading users...</p>
+            </div>
         </div>
     </div>
 </div>
@@ -203,7 +297,7 @@
 <div class="bg-white shadow rounded-lg">
     <div class="px-4 py-5 sm:p-6">
         <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Quick Actions</h3>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <a href="{{ route('admin.users') }}" 
                class="relative block w-full rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
                 <svg class="mx-auto h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,6 +340,7 @@
 
 @section('scripts')
 let isSocketConnected = false;
+let eventSource = null;
 
 // Format uptime from seconds to readable format
 function formatUptime(seconds) {
@@ -265,94 +360,189 @@ function formatUptime(seconds) {
     return parts.join(' ');
 }
 
+// Initialize Server-Sent Events for real-time updates
+function initializeRealTimeUpdates() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    try {
+        // Pass token as query parameter since SSE can't send headers
+        const sseUrl = `/api/admin/dashboard/stream?token=${encodeURIComponent(adminToken)}`;
+        eventSource = new EventSource(sseUrl);
+        
+        eventSource.onopen = function() {
+            console.log('📡 Real-time connection established');
+            updateConnectionStatus('connected', 'Real-time updates active');
+            isSocketConnected = true;
+            setupRefreshInterval();
+        };
+        
+        eventSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'dashboard_update') {
+                    console.log('📊 Real-time update received:', data);
+                    
+                    // Update server stats
+                    if (data.server && data.server.stats) {
+                        updateDashboardStats(data.server);
+                    }
+                    
+                    // Update rooms if provided
+                    if (data.rooms && data.rooms.rooms) {
+                        displayRooms(data.rooms.rooms);
+                    }
+                    
+                    // Update users if provided in server data
+                    if (data.server && data.server.users) {
+                        displayOnlineUsers(data.server.users);
+                    }
+                } else if (data.type === 'error') {
+                    console.warn('📡 SSE Error:', data.message);
+                }
+            } catch (e) {
+                console.error('📡 Failed to parse SSE data:', e);
+            }
+        };
+        
+        eventSource.onerror = function(event) {
+            console.warn('📡 Real-time connection error, falling back to polling');
+            updateConnectionStatus('disconnected', 'Using API polling');
+            isSocketConnected = false;
+            setupRefreshInterval();
+            
+            // Retry connection after 10 seconds
+            setTimeout(() => {
+                if (!isSocketConnected) {
+                    console.log('📡 Retrying real-time connection...');
+                    initializeRealTimeUpdates();
+                }
+            }, 10000);
+        };
+        
+    } catch (e) {
+        console.error('📡 Failed to initialize real-time updates:', e);
+        updateConnectionStatus('disconnected', 'Using API polling');
+        isSocketConnected = false;
+        setupRefreshInterval();
+    }
+}
+
+// Update dashboard stats from real-time data
+function updateDashboardStats(serverData) {
+    // Update database-based stats
+    const totalUsersEl = document.getElementById('totalUsers');
+    if (totalUsersEl) totalUsersEl.textContent = serverData.database?.users_total || 0;
+    
+    // Update real-time server stats
+    if (serverData.stats) {
+        const onlineUsersEl = document.getElementById('onlineUsers');
+        const activeRoomsEl = document.getElementById('activeRooms');
+        const serverUptimeEl = document.getElementById('serverUptime');
+        
+        if (onlineUsersEl) onlineUsersEl.textContent = serverData.stats.onlineUsers || 0;
+        if (activeRoomsEl) activeRoomsEl.textContent = serverData.stats.activeRooms || 0;
+        if (serverUptimeEl) serverUptimeEl.textContent = formatUptime(serverData.stats.uptime || 0);
+    }
+    
+    // Update server status display
+    const statusDiv = document.getElementById('serverStatus');
+    const isOnline = !serverData.error;
+    
+    if (statusDiv) {
+        statusDiv.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-gray-900">Chat Server</h4>
+                    <p class="mt-1 text-sm text-gray-600">Status: <span class="${isOnline ? 'text-green-600' : 'text-red-600'} font-medium">${isOnline ? 'Online' : 'Offline'}</span></p>
+                    <p class="text-sm text-gray-600">Port: ${serverData.server?.port || 5001}</p>
+                    <p class="text-sm text-gray-600">Version: ${serverData.server?.version || '1.0.0'}</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-gray-900">Voice Server</h4>
+                    <p class="mt-1 text-sm text-gray-600">Status: <span class="${serverData.voice ? 'text-green-600' : 'text-red-600'} font-medium">${serverData.voice ? 'Online' : 'Offline'}</span></p>
+                    <p class="text-sm text-gray-600">Port: ${serverData.voice?.port || 2090}</p>
+                    <p class="text-sm text-gray-600">Sessions: ${serverData.voice?.activeSessions || 0}</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-gray-900">Database</h4>
+                    <p class="mt-1 text-sm text-gray-600">Status: <span class="text-green-600 font-medium">Connected</span></p>
+                    <p class="text-sm text-gray-600">Users: ${serverData.database?.users_total || 0}</p>
+                    <p class="text-sm text-gray-600">Active: ${serverData.database?.users_active || 0}</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-gray-900">Performance</h4>
+                    <p class="mt-1 text-sm text-gray-600">CPU: ${serverData.performance?.cpu || 'N/A'}</p>
+                    <p class="text-sm text-gray-600">Memory: ${serverData.performance?.memory || 'N/A'}</p>
+                    <p class="mt-2 text-sm text-gray-600">Uptime: ${serverData.stats?.uptime ? formatUptime(serverData.stats.uptime) : 'Unknown'}</p>
+                </div>
+            </div>
+            ${serverData.error ? 
+                '<div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg"><p class="text-sm text-red-600">⚠️ ' + serverData.error + '</p></div>' : 
+                '<div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg"><p class="text-sm text-green-600">✅ All systems operational • Real-time updates active</p></div>'
+            }
+        `;
+    }
+}
+
 // Refresh dashboard data
 function refreshDashboard() {
     showToast('Refreshing dashboard data...', 'warning');
     loadDashboardData();
+    loadRoomsData();
+    loadOnlineUsers();
 }
 
-// Socket.IO event handlers for dashboard
-function setupSocketListeners() {
-    console.log('🔌 Setting up Socket.IO listeners...');
+// Update connection status indicator
+function updateConnectionStatus(status, message) {
+    const indicator = document.getElementById('server-status-indicator');
+    const text = document.getElementById('server-status-text');
     
-    if (typeof io === 'undefined' || !io) {
-        console.warn('⚠️ Socket.IO library not available - using API fallback only');
-        updateConnectionStatus('disconnected', 'Real-time disabled');
+    if (!indicator || !text) {
+        console.warn('⚠️ Connection status elements not found');
         return;
     }
     
-    try {
-        // Try to connect to Node.js server for real-time updates
-        const chatServerUrl = window.CHAT_SERVER_URL || 'http://localhost:3000';
-        console.log('🔌 Connecting to Socket.IO at:', chatServerUrl);
-        window.dashboardSocket = io(chatServerUrl);
-        
-        window.dashboardSocket.on('connect', () => {
-            console.log('✅ Dashboard connected to chat server');
-            isSocketConnected = true;
-            updateConnectionStatus('connected', 'Chat server online');
-            requestServerData();
-        });
-        
-        window.dashboardSocket.on('disconnect', () => {
-            console.log('❌ Dashboard disconnected from chat server');
-            isSocketConnected = false;
-            updateConnectionStatus('disconnected', 'Chat server offline');
-        });
-        
-        // Listen for server state updates
-        window.dashboardSocket.on('server-state-update', (data) => {
-            console.log('📊 Real-time server state update:', data);
-            updateDashboardFromSocket(data);
-        });
-        
-        // Error handling
-        window.dashboardSocket.on('connect_error', (error) => {
-            console.warn('❌ Dashboard Socket.IO connection error:', error.message);
-            isSocketConnected = false;
-        });
-        
-    } catch (error) {
-        console.error('❌ Failed to initialize Socket.IO for dashboard:', error);
-        isSocketConnected = false;
+    // Reset classes
+    indicator.className = 'w-3 h-3 rounded-full';
+    
+    switch(status) {
+        case 'connected':
+            indicator.classList.add('bg-green-500');
+            text.textContent = message || 'Connected';
+            text.className = 'text-sm text-green-600';
+            break;
+        case 'disconnected':
+            indicator.classList.add('bg-gray-400');
+            text.textContent = message || 'Disconnected';
+            text.className = 'text-sm text-gray-500';
+            break;
+        default:
+            indicator.classList.add('bg-yellow-500');
+            text.textContent = message || 'Unknown';
+            text.className = 'text-sm text-yellow-600';
     }
 }
 
-// Request server data via Socket.IO
+// Note: Socket.IO functionality removed - Laravel uses API-only communication
+function setupSocketListeners() {
+    console.log('📊 Dashboard using API-only communication (Socket.IO removed)');
+    isSocketConnected = false;
+    updateConnectionStatus('disconnected', 'Using API polling');
+}
+
+// Request server data via API (Socket.IO removed)
 function requestServerData() {
-    if (window.dashboardSocket && isSocketConnected) {
-        window.dashboardSocket.emit('requestServerState', {});
-        console.log('📡 Requested real-time server state via Socket.IO');
-    }
+    console.log('📡 Using API-only communication for server data');
+    loadDashboardData();
 }
 
-// Update dashboard from Socket.IO data
+// Update dashboard from API data (Socket.IO functionality removed)
 function updateDashboardFromSocket(data) {
-    console.log('🔄 Updating dashboard with Socket.IO data:', data);
-    
-    if (data.database) {
-        document.getElementById('totalUsers').textContent = data.database.users_total || 0;
-        document.getElementById('activeUsers').textContent = data.database.users_active || 0;
-        document.getElementById('adminUsers').textContent = data.database.admins || 0;
-    }
-    
-    if (data.stats) {
-        document.getElementById('onlineUsers').textContent = data.stats.onlineUsers || 0;
-        document.getElementById('activeRooms').textContent = data.stats.activeRooms || 0;
-        document.getElementById('totalConnections').textContent = data.stats.totalConnections || 0;
-    }
-    
-    if (data.stats && data.stats.uptime !== undefined) {
-        document.getElementById('serverUptime').textContent = formatUptime(data.stats.uptime);
-    } else {
-        document.getElementById('serverUptime').textContent = 'Unknown';
-    }
-    
-    if (data.voice) {
-        document.getElementById('voiceSessions').textContent = data.voice.activeSessions || 0;
-    } else {
-        document.getElementById('voiceSessions').textContent = 0;
-    }
+    console.log('🔄 Note: Socket.IO functionality has been removed - using API polling instead');
+    // This function is kept for compatibility but no longer used
 }
 
 // Load dashboard data
@@ -450,7 +640,7 @@ async function loadDashboardData() {
                         <h4 class="font-medium text-gray-900">Performance</h4>
                         <p class="mt-1 text-sm text-gray-600">CPU: ${serverData.performance?.cpu || 'N/A'}</p>
                         <p class="text-sm text-gray-600">Memory: ${serverData.performance?.memory || 'N/A'}</p>
-                        <p class="text-sm text-gray-600">Uptime: ${serverData.stats?.uptime ? formatUptime(serverData.stats.uptime) : 'Unknown'}</p>
+                        <p class="mt-2 text-sm text-gray-600">Uptime: ${serverData.stats?.uptime ? formatUptime(serverData.stats.uptime) : 'Unknown'}</p>
                     </div>
                 </div>
                 ${serverData.error ? 
@@ -496,136 +686,232 @@ async function loadDashboardData() {
     }
 }
 
-
-// Server control functions
-async function startServer() {
-    const btn = document.getElementById('start-server-btn');
-    btn.disabled = true;
-    btn.textContent = 'Starting...';
-    
+// Load rooms data
+async function loadRoomsData() {
     try {
-        const response = await fetch('/api/admin/server/start', {
-            method: 'POST',
+        const response = await fetch('/api/admin/rooms', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`,
                 'X-CSRF-TOKEN': token,
-                'Content-Type': 'application/json'
+                'Accept': 'application/json'
             }
         });
         
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast('Server started successfully', 'success');
-            updateServerStatus('running');
-            setTimeout(loadDashboardData, 2000); // Refresh data after 2 seconds
+        if (response.ok) {
+            const data = await response.json();
+            displayRooms(data.rooms || []);
         } else {
-            showToast('Failed to start server: ' + data.error, 'error');
+            throw new Error(`HTTP ${response.status}`);
         }
     } catch (error) {
-        showToast('Error starting server: ' + error.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Start Server';
+        console.error('Error loading rooms:', error);
+        document.getElementById('roomsList').innerHTML = 
+            '<div class="text-center py-8 text-red-500"><p>Failed to load rooms: ' + error.message + '</p></div>';
     }
 }
 
-async function stopServer() {
-    const btn = document.getElementById('stop-server-btn');
-    btn.disabled = true;
-    btn.textContent = 'Stopping...';
+// Display rooms in the dashboard
+function displayRooms(rooms) {
+    const roomsList = document.getElementById('roomsList');
     
+    if (rooms.length === 0) {
+        roomsList.innerHTML = 
+            '<div class="text-center py-8 text-gray-500"><p>No active rooms</p></div>';
+        return;
+    }
+    
+    const roomsHtml = rooms.slice(0, 5).map(room => `
+        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-3">
+                <div class="flex-shrink-0">
+                    <div class="w-2 h-2 ${room.userCount > 0 ? 'bg-green-400' : 'bg-gray-400'} rounded-full"></div>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">${escapeHtml(room.name || 'Unnamed Room')}</p>
+                    <p class="text-sm text-gray-500">${room.userCount || 0} users • ${room.type || 'public'}</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${room.userCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                    ${room.userCount > 0 ? 'Active' : 'Empty'}
+                </span>
+                <button onclick="manageRoom('${room.id}')" class="text-blue-600 hover:text-blue-900 text-sm">
+                    Manage
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    roomsList.innerHTML = roomsHtml;
+    
+    if (rooms.length > 5) {
+        roomsList.innerHTML += `
+            <div class="text-center pt-4">
+                <a href="/admin/rooms" class="text-blue-600 hover:text-blue-900 text-sm font-medium">
+                    View all ${rooms.length} rooms →
+                </a>
+            </div>
+        `;
+    }
+}
+
+// Load online users data
+async function loadOnlineUsers() {
     try {
-        const response = await fetch('/api/admin/server/stop', {
-            method: 'POST',
+        const response = await fetch('/api/server-state', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`,
                 'X-CSRF-TOKEN': token,
-                'Content-Type': 'application/json'
+                'Accept': 'application/json'
             }
         });
         
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast('Server stopped successfully', 'success');
-            updateServerStatus('stopped');
-            setTimeout(loadDashboardData, 2000); // Refresh data after 2 seconds
+        if (response.ok) {
+            const data = await response.json();
+            displayOnlineUsers(data.users || []);
         } else {
-            showToast('Failed to stop server: ' + data.error, 'error');
+            throw new Error(`HTTP ${response.status}`);
         }
     } catch (error) {
-        showToast('Error stopping server: ' + error.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Stop Server';
+        console.error('Error loading online users:', error);
+        document.getElementById('usersList').innerHTML = 
+            '<div class="text-center py-8 text-red-500"><p>Failed to load users: ' + error.message + '</p></div>';
     }
 }
 
-async function restartServer() {
-    const btn = document.getElementById('restart-server-btn');
-    btn.disabled = true;
-    btn.textContent = 'Restarting...';
+// Display online users in the dashboard
+function displayOnlineUsers(users) {
+    const usersList = document.getElementById('usersList');
     
-    try {
-        // Stop first
-        await stopServer();
-        // Wait a moment
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        // Then start
-        await startServer();
-        
-        showToast('Server restarted successfully', 'success');
-    } catch (error) {
-        showToast('Error restarting server: ' + error.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Restart Server';
+    if (users.length === 0) {
+        usersList.innerHTML = 
+            '<div class="text-center py-8 text-gray-500"><p>No users online</p></div>';
+        return;
+    }
+    
+    const usersHtml = users.slice(0, 5).map(user => `
+        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-3">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span class="text-xs font-medium text-white">${(user.nickname || user.name || 'U').charAt(0).toUpperCase()}</span>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">${escapeHtml(user.nickname || user.name || 'Unknown User')}</p>
+                    <p class="text-sm text-gray-500">Room: ${escapeHtml(user.currentRoom || 'None')} • Admin: ${user.isAdmin ? 'Yes' : 'No'}</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Online
+                </span>
+                <button onclick="manageUser('${user.id}')" class="text-blue-600 hover:text-blue-900 text-sm">
+                    Manage
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    usersList.innerHTML = usersHtml;
+    
+    if (users.length > 5) {
+        usersList.innerHTML += `
+            <div class="text-center pt-4">
+                <a href="/admin/users" class="text-blue-600 hover:text-blue-900 text-sm font-medium">
+                    View all ${users.length} users →
+                </a>
+            </div>
+        `;
     }
 }
 
+// Refresh functions
+function refreshRooms() {
+    loadRoomsData();
+    showToast('Refreshing rooms...', 'info');
+}
+
+function refreshUsers() {
+    loadOnlineUsers();
+    showToast('Refreshing users...', 'info');
+}
+
+// Management functions
+function manageRoom(roomId) {
+    window.location.href = `/admin/rooms?room=${roomId}`;
+}
+
+function manageUser(userId) {
+    window.location.href = `/admin/users?user=${userId}`;
+}
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Toast notification system
+function showToast(message, type = 'info') {
+    // Create toast element if it doesn't exist
+    let toast = document.getElementById('dashboard-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'dashboard-toast';
+        toast.className = 'fixed top-4 right-4 z-50 hidden';
+        document.body.appendChild(toast);
+    }
+    
+    // Set toast content and styling
+    const typeColors = {
+        'info': 'bg-blue-500',
+        'success': 'bg-green-500',
+        'warning': 'bg-yellow-500',
+        'error': 'bg-red-500'
+    };
+    
+    toast.innerHTML = `
+        <div class="${typeColors[type] || typeColors.info} text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2 animate-slide-down">
+            <span>${escapeHtml(message)}</span>
+            <button onclick="hideToast()" class="ml-2 text-white hover:text-gray-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    `;
+    
+    // Show toast
+    toast.classList.remove('hidden');
+    
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+        hideToast();
+    }, 4000);
+}
+
+function hideToast() {
+    const toast = document.getElementById('dashboard-toast');
+    if (toast) {
+        toast.classList.add('hidden');
+    }
+}
+
+
+// Note: Server management functions removed as we no longer manage the Node.js WebInterface
+// The chat server is managed independently
+
+// Legacy server status update function (kept for compatibility)
 function updateServerStatus(status) {
-    const indicator = document.getElementById('server-status-indicator');
-    const text = document.getElementById('server-status-text');
-    const startBtn = document.getElementById('start-server-btn');
-    const stopBtn = document.getElementById('stop-server-btn');
-    const restartBtn = document.getElementById('restart-server-btn');
-    
-    // Reset all button states
-    startBtn.disabled = false;
-    stopBtn.disabled = false;
-    restartBtn.disabled = false;
-    
-    switch(status) {
-        case 'running':
-            indicator.className = 'w-3 h-3 rounded-full bg-green-500';
-            text.textContent = 'Server Running';
-            startBtn.disabled = true;
-            break;
-        case 'stopped':
-            indicator.className = 'w-3 h-3 rounded-full bg-red-500';
-            text.textContent = 'Server Stopped';
-            stopBtn.disabled = true;
-            restartBtn.disabled = true;
-            break;
-        default:
-            indicator.className = 'w-3 h-3 rounded-full bg-gray-400';
-            text.textContent = 'Status Unknown';
-            break;
-    }
-}
-
-// Quick action functions
-function viewEmailSubscriptions() {
-    showToast('Email subscriptions management - Coming soon!', 'warning');
-}
-
-function viewServerLogs() {
-    showToast('Server logs view - Coming soon!', 'warning');
-}
-
-function connectToChatServer() {
-    showToast('Chat server management - Coming soon!', 'warning');
+    // This function is kept for compatibility but server controls have been removed
+    console.log('Server status update (legacy):', status);
 }
 
 // Load data when page loads
@@ -634,22 +920,21 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('🔑 Admin token present:', !!adminToken);
     console.log('🎫 CSRF token present:', !!token);
     
-    // Set up Socket.IO listeners first
-    setupSocketListeners();
+    // Set initial connection status
+    updateConnectionStatus('disconnected', 'Connecting...');
     
-    // Load initial data via API (fallback)
+    // Load initial data via API
     console.log('📊 Loading initial dashboard data...');
     loadDashboardData();
+    loadRoomsData();
+    loadOnlineUsers();
     
-    // If Socket.IO is connected, request real-time data
-    setTimeout(() => {
-        if (isSocketConnected) {
-            console.log('🔌 Socket.IO connected, requesting real-time data...');
-            requestServerData();
-        } else {
-            console.log('🔌 Socket.IO not connected, using API only');
-        }
-    }, 1000);
+    // Start real-time updates
+    console.log('📡 Initializing real-time updates...');
+    initializeRealTimeUpdates();
+    
+    // Start refresh interval (will be adjusted based on real-time connection)
+    setupRefreshInterval();
 });
 
 // Refresh data periodically with dynamic interval based on connection status
@@ -660,22 +945,29 @@ function setupRefreshInterval() {
         clearInterval(refreshInterval);
     }
     
-    const interval = isSocketConnected ? 60000 : 15000; // 60s with Socket.IO, 15s without
+    const interval = isSocketConnected ? 60000 : 15000; // 60s with real-time, 15s without
     
     refreshInterval = setInterval(() => {
         if (isSocketConnected) {
-            // With Socket.IO, refresh less frequently
-            // Real-time updates handle most data changes
-            requestServerData();
+            // With real-time updates, just occasionally refresh rooms/users
+            // The SSE handles most data updates
+            console.log('📊 Light refresh (real-time active)');
         } else {
-            // Without Socket.IO, refresh more frequently
+            // Without real-time, refresh all data more frequently
+            console.log('📊 Full refresh (polling mode)');
             loadDashboardData();
+            loadRoomsData();
+            loadOnlineUsers();
         }
     }, interval);
     
-    console.log(`📊 Dashboard refresh interval set to ${interval/1000}s (Socket.IO: ${isSocketConnected ? 'connected' : 'disconnected'})`);
+    console.log(`📊 Dashboard refresh interval set to ${interval/1000}s (Real-time: ${isSocketConnected ? 'connected' : 'disconnected'})`);
 }
 
-// Start initial refresh interval
-setupRefreshInterval();
+// Clean up on page unload
+window.addEventListener('beforeunload', () => {
+    if (eventSource) {
+        eventSource.close();
+    }
+});
 @endsection
