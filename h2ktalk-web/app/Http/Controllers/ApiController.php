@@ -833,7 +833,7 @@ class ApiController extends Controller
         try {
             // Check if server is already running
             $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = @file_get_contents($chatServerUrl . '/api/health');
+            $response = @file_get_contents($chatServerUrl . '/api/server-state');
             
             if ($response !== false) {
                 return response()->json([
@@ -844,32 +844,71 @@ class ApiController extends Controller
             }
             
             // Start the server using PM2 for process management
-            $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv/h2ktalk-server');
-            $logFile = storage_path('logs/chat-server.log');
+            $serverPath = env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/serv');
             
-            // Use PM2 to start the server
-            $command = "cd {$serverPath} && pm2 start server.js --name h2ktalk-server --log {$logFile} 2>&1";
-            $output = shell_exec($command);
+            // Ensure logs directory exists
+            $logDir = storage_path('logs');
+            if (!is_dir($logDir)) {
+                mkdir($logDir, 0755, true);
+            }
             
-            // Give the server a moment to start
-            sleep(2);
+            // Check if PM2 is available
+            $pm2Check = shell_exec('which pm2 2>/dev/null');
             
-            // Check if server started successfully
-            $response = @file_get_contents($chatServerUrl . '/api/health');
-            
-            if ($response !== false) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Server started successfully',
-                    'status' => 'running',
-                    'output' => $output
-                ]);
+            if (!empty($pm2Check)) {
+                // Use PM2 to start the server
+                $command = "cd {$serverPath} && pm2 start --name h2ktalk-server npm -- start 2>&1";
+                $output = shell_exec($command);
+                
+                // Give the server a moment to start
+                sleep(3);
+                
+                // Check if server started successfully
+                $response = @file_get_contents($chatServerUrl . '/api/health');
+                
+                if ($response !== false) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Server started successfully with PM2',
+                        'status' => 'running',
+                        'output' => $output
+                    ]);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Server failed to start properly with PM2',
+                        'output' => $output,
+                        'serverPath' => $serverPath
+                    ], 500);
+                }
             } else {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Server failed to start properly',
-                    'output' => $output
-                ], 500);
+                // Fallback: start server directly with nohup
+                $logFile = storage_path('logs/chat-server.log');
+                $command = "cd {$serverPath} && nohup npm start > {$logFile} 2>&1 & echo $!";
+                $pid = shell_exec($command);
+                
+                // Give the server a moment to start
+                sleep(3);
+                
+                // Check if server started successfully
+                $response = @file_get_contents($chatServerUrl . '/api/health');
+                
+                if ($response !== false) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Server started successfully (background process)',
+                        'status' => 'running',
+                        'pid' => trim($pid)
+                    ]);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Server failed to start properly',
+                        'serverPath' => $serverPath,
+                        'logFile' => $logFile,
+                        'pid' => trim($pid)
+                    ], 500);
+                }
             }
             
         } catch (\Exception $e) {
@@ -895,7 +934,7 @@ class ApiController extends Controller
             
             // Check if server stopped
             $chatServerUrl = env('CHAT_SERVER_URL', 'http://localhost:3000');
-            $response = @file_get_contents($chatServerUrl . '/api/health');
+            $response = @file_get_contents($chatServerUrl . '/api/server-state');
             
             if ($response === false) {
                 return response()->json([

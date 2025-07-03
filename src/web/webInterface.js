@@ -1110,6 +1110,146 @@ class WebInterface {
             }
         });
 
+        // Health check endpoint
+        this.app.get('/api/health', (req, res) => {
+            try {
+                res.json({
+                    status: 'ok',
+                    timestamp: new Date().toISOString(),
+                    server: 'h2ktalk-server',
+                    version: '1.0.0'
+                });
+            } catch (error) {
+                logger.error('Health check failed', error);
+                res.status(500).json({ error: 'Health check failed' });
+            }
+        });
+
+        // Room management endpoints
+        this.app.get('/api/rooms', (req, res) => {
+            try {
+                const rooms = this.serverState.getAllRooms().map(room => ({
+                    id: room.id,
+                    name: room.name || `Room ${room.id}`,
+                    description: room.topic || '',
+                    userCount: room.getUserCount(),
+                    maxUsers: room.maxUsers || 'Unlimited',
+                    isPrivate: room.isPrivate || false,
+                    isActive: room.isActive !== false,
+                    createdAt: room.createdAt || new Date().toISOString()
+                }));
+                
+                res.json({
+                    success: true,
+                    rooms: rooms
+                });
+            } catch (error) {
+                logger.error('Failed to get rooms', error);
+                res.status(500).json({ error: 'Failed to get rooms', success: false });
+            }
+        });
+
+        this.app.put('/api/rooms/:id', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.id);
+                const { name, description, maxUsers, password, isPrivate } = req.body;
+                
+                const room = this.serverState.getRoom(roomId);
+                if (!room) {
+                    return res.status(404).json({ error: 'Room not found', success: false });
+                }
+                
+                // Update room properties
+                if (name) room.name = name;
+                if (description !== undefined) room.topic = description;
+                if (maxUsers !== undefined) room.maxUsers = maxUsers;
+                if (password !== undefined) room.password = password;
+                if (isPrivate !== undefined) room.isPrivate = isPrivate;
+                
+                logger.info('Room updated', { roomId, name, description, maxUsers, isPrivate });
+                
+                res.json({
+                    success: true,
+                    message: 'Room updated successfully',
+                    room: {
+                        id: room.id,
+                        name: room.name,
+                        description: room.topic,
+                        userCount: room.getUserCount(),
+                        maxUsers: room.maxUsers,
+                        isPrivate: room.isPrivate
+                    }
+                });
+            } catch (error) {
+                logger.error('Failed to update room', error);
+                res.status(500).json({ error: 'Failed to update room', success: false });
+            }
+        });
+
+        this.app.delete('/api/rooms/:id', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.id);
+                
+                const room = this.serverState.getRoom(roomId);
+                if (!room) {
+                    return res.status(404).json({ error: 'Room not found', success: false });
+                }
+                
+                // Remove all users from room first
+                const users = room.getUsers();
+                users.forEach(user => {
+                    room.removeUser(user);
+                });
+                
+                // Remove room from server state
+                this.serverState.removeRoom(roomId);
+                
+                logger.info('Room deleted', { roomId, name: room.name });
+                
+                res.json({
+                    success: true,
+                    message: 'Room deleted successfully'
+                });
+            } catch (error) {
+                logger.error('Failed to delete room', error);
+                res.status(500).json({ error: 'Failed to delete room', success: false });
+            }
+        });
+
+        this.app.post('/api/rooms/:id/close', (req, res) => {
+            try {
+                const roomId = parseInt(req.params.id);
+                
+                const room = this.serverState.getRoom(roomId);
+                if (!room) {
+                    return res.status(404).json({ error: 'Room not found', success: false });
+                }
+                
+                // Kick all users from the room
+                const users = room.getUsers();
+                const userCount = users.length;
+                
+                users.forEach(user => {
+                    room.removeUser(user);
+                    // Optionally send a message to the user about room closure
+                });
+                
+                // Mark room as inactive
+                room.isActive = false;
+                
+                logger.info('Room closed', { roomId, name: room.name, usersKicked: userCount });
+                
+                res.json({
+                    success: true,
+                    message: `Room closed successfully. ${userCount} users were removed.`,
+                    usersKicked: userCount
+                });
+            } catch (error) {
+                logger.error('Failed to close room', error);
+                res.status(500).json({ error: 'Failed to close room', success: false });
+            }
+        });
+
         // ...existing code...
     }
 
