@@ -454,28 +454,46 @@ if (!adminToken) {
 }
 
 // WebSocket connection for real-time updates
-const botSocket = io();
+let botSocket = null;
 let isConnected = false;
 
-botSocket.on('connect', () => {
-    isConnected = true;
-    updateConnectionStatus(true);
-    addLog('Connected to bot server', 'info');
-});
+// Initialize Socket.IO connection when available
+function initBotSocket() {
+    if (typeof io !== 'undefined' && window.CHAT_SERVER_URL) {
+        try {
+            botSocket = io(window.CHAT_SERVER_URL);
+            
+            botSocket.on('connect', () => {
+                isConnected = true;
+                updateConnectionStatus(true);
+                addLog('Connected to bot server', 'info');
+            });
 
-botSocket.on('disconnect', () => {
-    isConnected = false;
-    updateConnectionStatus(false);
-    addLog('Disconnected from bot server', 'error');
-});
+            botSocket.on('disconnect', () => {
+                isConnected = false;
+                updateConnectionStatus(false);
+                addLog('Disconnected from bot server', 'error');
+            });
 
-botSocket.on('bot_update', (data) => {
-    updateBotInList(data);
-});
+            botSocket.on('bot_update', (data) => {
+                updateBotInList(data);
+            });
 
-botSocket.on('bot_log', (data) => {
-    addLog(`[${data.botName}] ${data.message}`, data.level || 'info');
-});
+            botSocket.on('bot_log', (data) => {
+                addLog(`[${data.botName}] ${data.message}`, data.level || 'info');
+            });
+        } catch (error) {
+            console.warn('Failed to initialize bot Socket.IO connection:', error);
+            addLog('Socket.IO connection failed - using API only', 'warning');
+        }
+    } else {
+        console.log('Socket.IO not available - bot management will use API only');
+        addLog('Real-time features disabled - using API only', 'warning');
+    }
+}
+
+// Initialize when DOM is ready
+setTimeout(initBotSocket, 1000);
 
 // Update connection status
 function updateConnectionStatus(connected) {

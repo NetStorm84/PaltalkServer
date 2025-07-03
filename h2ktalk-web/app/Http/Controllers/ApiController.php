@@ -902,13 +902,14 @@ class ApiController extends Controller
             
             if (!$serverPath) {
                 // Check if running in Laravel Sail (Docker)
-                if (env('LARAVEL_SAIL') == 1) {
+                if (env('LARAVEL_SAIL') == 1 || env('APP_ENV') === 'local') {
                     return response()->json([
                         'success' => false,
                         'error' => 'Server management not available in Docker environment',
-                        'message' => 'Please start the Node.js server manually on the host system using: npm start',
+                        'message' => 'The Node.js server should be started manually on the host system. Please run "npm start" in the server directory.',
                         'environment' => 'Docker/Sail',
-                        'suggestion' => 'Run "npm start" in the server directory on your host machine'
+                        'suggestion' => 'Run "npm start" in: ' . env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/paltalk.fun/server'),
+                        'currentStatus' => 'Use the refresh button to check if the server is running'
                     ], 400);
                 }
                 
@@ -1132,13 +1133,14 @@ class ApiController extends Controller
             
             if (!$serverPath) {
                 // Check if running in Laravel Sail (Docker)
-                if (env('LARAVEL_SAIL') == 1) {
+                if (env('LARAVEL_SAIL') == 1 || env('APP_ENV') === 'local') {
                     return response()->json([
                         'success' => false,
                         'error' => 'Server management not available in Docker environment',
-                        'message' => 'Please stop the Node.js server manually on the host system',
+                        'message' => 'The Node.js server should be stopped manually on the host system. Use Ctrl+C in the terminal where it\'s running.',
                         'environment' => 'Docker/Sail',
-                        'suggestion' => 'Use Ctrl+C or kill the npm process on your host machine'
+                        'suggestion' => 'Stop the server in: ' . env('CHAT_SERVER_PATH', '/Users/dan/Documents/Sites/paltalk.fun/server'),
+                        'currentStatus' => 'Use the refresh button to check server status'
                     ], 400);
                 }
                 $serverPath = env('CHAT_SERVER_PATH', dirname(dirname(dirname(__DIR__))) . '/serv');

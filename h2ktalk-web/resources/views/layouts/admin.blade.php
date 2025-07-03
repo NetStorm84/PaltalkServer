@@ -13,31 +13,35 @@
     <!-- Tailwind CSS via CDN for rapid prototyping -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Socket.IO (load asynchronously and handle errors gracefully) -->
+    <!-- Socket.IO (load from Node.js server directly) -->
     <script>
-        // Load Socket.IO asynchronously without blocking page load
+        // Load Socket.IO from the Node.js server for real-time features
         (function() {
-            fetch('/socket.io/socket.io.js', { method: 'HEAD' })
+            const socketUrl = '{{ env("CHAT_SERVER_SOCKET_URL", "http://localhost:3000") }}';
+            
+            fetch(socketUrl + '/socket.io/socket.io.js', { method: 'HEAD' })
                 .then(response => {
                     if (response.ok) {
                         const script = document.createElement('script');
-                        script.src = '/socket.io/socket.io.js';
+                        script.src = socketUrl + '/socket.io/socket.io.js';
                         script.async = true;
                         script.onload = function() {
-                            console.log('Socket.IO loaded successfully');
+                            console.log('✅ Socket.IO loaded from:', socketUrl);
+                            // Store the socket URL for dashboard connections
+                            window.CHAT_SERVER_URL = socketUrl;
                         };
                         script.onerror = function() {
-                            console.warn('Socket.IO failed to load');
+                            console.warn('❌ Socket.IO failed to load from:', socketUrl);
                             window.io = undefined;
                         };
                         document.head.appendChild(script);
                     } else {
-                        console.warn('Socket.IO not available - real-time features disabled');
+                        console.warn('⚠️ Socket.IO not available at:', socketUrl);
                         window.io = undefined;
                     }
                 })
-                .catch(() => {
-                    console.warn('Socket.IO server not running - real-time features disabled');
+                .catch((error) => {
+                    console.warn('⚠️ Cannot reach Socket.IO server at:', socketUrl, error.message);
                     window.io = undefined;
                 });
         })();

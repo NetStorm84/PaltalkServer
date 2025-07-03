@@ -283,7 +283,8 @@ function setupSocketListeners() {
     
     try {
         // Try to connect to Node.js server for real-time updates
-        const chatServerUrl = 'http://localhost:3000';
+        const chatServerUrl = window.CHAT_SERVER_URL || 'http://localhost:3000';
+        console.log('🔌 Connecting to Socket.IO at:', chatServerUrl);
         window.dashboardSocket = io(chatServerUrl);
         
         window.dashboardSocket.on('connect', () => {
