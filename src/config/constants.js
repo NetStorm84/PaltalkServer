@@ -7,6 +7,7 @@ const SERVER_CONFIG = {
     VOICE_PORT: 2090,
     WEB_UI_PORT: 3000,
     SERVER_IP: process.env.SERVER_IP || '0.0.0.0', // Bind to all interfaces by default, override with env var if needed
+    VOICE_SERVER_IP: process.env.VOICE_SERVER_IP || process.env.SERVER_IP || '127.0.0.1', // IP address for voice server connections
     SERVER_KEY: 'XyF¦164473312518',
     DATABASE_PATH: process.env.DB_PATH || (process.env.NODE_ENV === 'production' ? '/var/www/html/h2ktalk.fun/h2ktalk-web/database/database.sqlite' : 'h2ktalk-web/database/database.sqlite'),
     // MySQL configuration for production when SQLite driver is not available

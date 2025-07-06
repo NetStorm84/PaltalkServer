@@ -220,6 +220,10 @@ class PacketProcessor {
                 case PACKET_TYPES.INVITE_OUT:
                     await this.handleInviteOut(socket, payload);
                     break;
+                
+                case PACKET_TYPES.ECHO:
+                    await this.handleEcho(socket, payload);
+                    break;
 
                 // Handle unknown packet types that might be causing reconnections
                 case -2121:
@@ -2026,11 +2030,48 @@ class PacketProcessor {
 
         // Send voice server info if voice room
         if (room.isVoice) {
-            const ipHex = Utils.ipToHex(SERVER_CONFIG.SERVER_IP);
-            const voiceBuffer = Buffer.from(
-                roomIdHex + ipHex + '0001869f' + '0000' + '082a',
-                'hex'
-            );
+            const voiceServerIp = SERVER_CONFIG.VOICE_SERVER_IP;
+            logger.debug('Voice server IP configuration', {
+                voiceServerIp,
+                envVoiceServerIp: process.env.VOICE_SERVER_IP,
+                serverIp: SERVER_CONFIG.SERVER_IP,
+                roomId: room.id,
+                voicePort: SERVER_CONFIG.VOICE_PORT
+            });
+            
+            if (!voiceServerIp) {
+                logger.error('Voice server IP not configured', {
+                    roomId: room.id,
+                    voiceServerIp,
+                    envVoiceServerIp: process.env.VOICE_SERVER_IP
+                });
+                return;
+            }
+            
+            const ipHex = Utils.ipToHex(voiceServerIp);
+            const voicePortHex = Utils.decToHex(SERVER_CONFIG.VOICE_PORT, 2); // 2090 -> 082a
+            
+            // ROOM_MEDIA_SERVER packet format:
+            // Room ID (4 bytes) + IP (4 bytes) + Unknown1 (4 bytes) + Unknown2 (2 bytes) + Voice Port (2 bytes)
+            const voiceBuffer = Buffer.concat([
+                Buffer.from(roomIdHex, 'hex'),        // Room ID
+                Buffer.from(ipHex, 'hex'),            // Voice server IP
+                Buffer.from('0001869f', 'hex'),       // Unknown data (protocol specific)
+                Buffer.from('0000', 'hex'),           // Unknown data
+                Buffer.from(voicePortHex, 'hex')      // Voice server port
+            ]);
+            
+            logger.info('Sending ROOM_MEDIA_SERVER packet', {
+                roomId: room.id,
+                roomIdHex,
+                voiceServerIp,
+                ipHex,
+                voicePort: SERVER_CONFIG.VOICE_PORT,
+                voicePortHex,
+                bufferHex: voiceBuffer.toString('hex'),
+                module: 'voice'
+            });
+            
             sendPacket(socket, PACKET_TYPES.ROOM_MEDIA_SERVER, voiceBuffer, socket.id);
             
             // Notify voice server about user joining voice room
@@ -2632,6 +2673,35 @@ class PacketProcessor {
      * @param {Socket} socket 
      * @param {Buffer} payload 
      */
+    async handleEcho(socket, payload) {
+        // Handle ECHO packet - server sends ECHO (0x0837), client must respond with ECHO_RESPONSE (-2103)
+        // Based on Gaim plugin: pt_send_packet(ptd,PACKET_ECHO_RESPONSE,waitbuf,waitlen);
+        
+        logger.debug('ECHO packet received', {
+            socketId: socket.id,
+            payloadLength: payload.length,
+            payloadHex: payload.toString('hex'),
+            module: 'packetProcessor'
+        });
+
+        try {
+            // Send ECHO_RESPONSE back to client with the same payload
+            sendPacket(socket, PACKET_TYPES.ECHO_RESPONSE, payload, socket.id);
+            
+            logger.debug('ECHO_RESPONSE sent', {
+                socketId: socket.id,
+                responseLength: payload.length,
+                module: 'packetProcessor'
+            });
+            
+        } catch (error) {
+            logger.error('Failed to send ECHO_RESPONSE', error, {
+                socketId: socket.id,
+                module: 'packetProcessor'
+            });
+        }
+    }
+
     async handleInviteOut(socket, payload) {
         const user = serverState.getUserBySocketId(socket.id);
         if (!user) return;

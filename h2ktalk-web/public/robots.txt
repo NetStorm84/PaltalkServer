@@ -10,7 +10,13 @@ Disallow: /admin/
 Disallow: /api/
 
 # Sitemap
-Sitemap: http://localhost:8000/sitemap.xml
+Sitemap: https://paltalk.fun/sitemap.xml
+
+# Block additional sensitive paths
+Disallow: /storage/
+Disallow: /vendor/
+Disallow: /*.log$
+Disallow: /.env
 
 # Crawl delay (be nice to the server)
 Crawl-delay: 1

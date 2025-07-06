@@ -13,12 +13,14 @@ class Utils {
     }
 
     /**
-     * Convert decimal to hexadecimal (padded to 8 characters)
+     * Convert decimal to hexadecimal (padded to specified bytes)
      * @param {number} decimal 
+     * @param {number} bytes - Number of bytes to pad to (default 4 for 8 hex chars)
      * @returns {string}
      */
-    static decToHex(decimal) {
-        return parseInt(decimal).toString(16).padStart(8, '0');
+    static decToHex(decimal, bytes = 4) {
+        const hexChars = bytes * 2;
+        return parseInt(decimal).toString(16).padStart(hexChars, '0');
     }
 
     /**
@@ -58,9 +60,22 @@ class Utils {
      * @returns {string}
      */
     static ipToHex(ip) {
-        return ip.split('.').map(octet => 
-            parseInt(octet).toString(16).padStart(2, '0')
-        ).join('');
+        if (!ip || typeof ip !== 'string') {
+            throw new Error(`Invalid IP address: ${ip}`);
+        }
+        
+        const parts = ip.split('.');
+        if (parts.length !== 4) {
+            throw new Error(`Invalid IP address format: ${ip}`);
+        }
+        
+        return parts.map(octet => {
+            const num = parseInt(octet, 10);
+            if (isNaN(num) || num < 0 || num > 255) {
+                throw new Error(`Invalid IP octet: ${octet} in IP ${ip}`);
+            }
+            return num.toString(16).padStart(2, '0');
+        }).join('');
     }
 
     /**

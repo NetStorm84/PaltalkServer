@@ -1,15 +1,21 @@
 /**
- * Enhanced voice server with room-based audio relay and better error handling
+ * Paltalk 5.x compatible TCP-based voice server
+ * Based on Gaim plugin analysis - uses TCP for all voice communication
  */
 const net = require('net');
 const logger = require('../utils/logger');
 const { SERVER_CONFIG, LOGGING_CONFIG } = require('../config/constants');
+const { PACKET_TYPES } = require('../../PacketHeaders');
+const { sendPacket } = require('../network/packetSender');
 
 class VoiceServer {
     constructor() {
         this.server = null;
         this.connections = new Map(); // socketId -> connection info
         this.rooms = new Map(); // roomId -> Set of socketIds
+        this.persistentRoomMembers = new Map(); // roomId -> Set of userIds (persists across connections)
+        this.userActiveConnections = new Map(); // userId -> most recent active connectionId
+        this.userLastActivity = new Map(); // userId -> timestamp of last activity
         this.isRunning = false;
         this.stats = {
             serverStartTime: Date.now(),
@@ -33,21 +39,41 @@ class VoiceServer {
     }
 
     /**
-     * Start the voice server
+     * Start the voice server (Paltalk 5.x TCP-only)
      */
     start() {
         return new Promise((resolve, reject) => {
+            // Start TCP server for voice and control
             this.server = net.createServer(socket => {
                 this.handleNewConnection(socket);
             });
 
             this.server.listen(SERVER_CONFIG.VOICE_PORT, SERVER_CONFIG.SERVER_IP, () => {
                 this.isRunning = true;
-                logger.info('Voice server started', { 
-                    ip: SERVER_CONFIG.SERVER_IP,
+                logger.info('Voice server started (Paltalk 5.x TCP mode)', { 
                     port: SERVER_CONFIG.VOICE_PORT,
+                    ip: SERVER_CONFIG.SERVER_IP,
                     module: 'voice'
                 });
+                
+                // Test if we can connect to ourselves
+                const testSocket = net.createConnection(SERVER_CONFIG.VOICE_PORT, SERVER_CONFIG.VOICE_SERVER_IP, () => {
+                    logger.info('Voice server connectivity test successful', {
+                        testIP: SERVER_CONFIG.VOICE_SERVER_IP,
+                        testPort: SERVER_CONFIG.VOICE_PORT,
+                        module: 'voice'
+                    });
+                    testSocket.end();
+                });
+                
+                testSocket.on('error', (error) => {
+                    logger.error('Voice server connectivity test failed', error, {
+                        testIP: SERVER_CONFIG.VOICE_SERVER_IP,
+                        testPort: SERVER_CONFIG.VOICE_PORT,
+                        module: 'voice'
+                    });
+                });
+                
                 resolve();
             });
 
@@ -62,11 +88,32 @@ class VoiceServer {
         });
     }
 
+
     /**
      * Handle new voice connection
      * @param {Socket} socket 
      */
     handleNewConnection(socket) {
+        // Validate socket
+        if (!socket || !socket.remoteAddress) {
+            logger.warn('Invalid socket connection attempt', { module: 'voice' });
+            if (socket) {
+                socket.destroy();
+            }
+            return;
+        }
+
+        // Check connection limits
+        if (this.connections.size >= 100) { // Max 100 voice connections
+            logger.warn('Voice connection limit reached', { 
+                currentConnections: this.connections.size,
+                remoteAddress: socket.remoteAddress,
+                module: 'voice' 
+            });
+            socket.destroy();
+            return;
+        }
+
         const connectionId = this.generateConnectionId();
         
         const connectionInfo = {
@@ -82,7 +129,18 @@ class VoiceServer {
             lastActivity: new Date(),
             audioSettings: {
                 qualityEnhancement: true,
-                minPacketSize: 50
+                minPacketSize: 50,
+                noiseGateThreshold: 8,
+                enableCompression: true,
+                compressionThreshold: 45,
+                compressionRatio: 2.5,
+                previousFrame: null,
+                jitterBuffer: [],
+                maxJitterBuffer: 5, // Increased buffer for smoother playback
+                lastSequence: 0,
+                packetTiming: [],
+                avgPacketInterval: 160, // GSM packets should arrive every ~160ms
+                adaptiveBuffer: true
             }
         };
 
@@ -96,8 +154,22 @@ class VoiceServer {
             module: 'voice'
         });
 
+        // Set up event handlers with error handling
         socket.on('data', data => {
-            this.handleVoiceData(connectionId, data);
+            // Log raw data at TCP level
+            logger.info('>>> RAW TCP DATA <<<', {
+                connectionId,
+                bytesReceived: data.length,
+                hexPreview: data.toString('hex').substring(0, 32),
+                timestamp: Date.now(),
+                module: 'voice'
+            });
+            
+            try {
+                this.handleVoiceData(connectionId, data);
+            } catch (error) {
+                logger.error('Error handling voice data', error, { connectionId, module: 'voice' });
+            }
         });
 
         socket.on('close', hadError => {
@@ -117,10 +189,26 @@ class VoiceServer {
             logger.warn('Voice connection timeout', { connectionId, module: 'voice' });
             socket.destroy();
         });
+
+        // Set socket options for better performance  
+        socket.setNoDelay(true); // Disable Nagle's algorithm for real-time audio
+        socket.setKeepAlive(true, 60000); // Standard keep-alive
+        
+        // Optimize TCP buffer sizes for audio streaming
+        try {
+            // Smaller buffers for lower latency
+            if (socket.setRecvBufferSize) socket.setRecvBufferSize(4096);
+            if (socket.setSendBufferSize) socket.setSendBufferSize(4096);
+            
+            // Set socket priority for audio traffic (if supported)
+            if (socket.setTOS) socket.setTOS(0x10); // IPTOS_LOWDELAY
+        } catch (error) {
+            // Ignore errors for unsupported socket options
+        }
     }
 
     /**
-     * Handle incoming voice data with enhanced Paltalk RTP protocol validation
+     * Handle incoming voice data (Paltalk 5.x TCP format)
      * @param {string} connectionId 
      * @param {Buffer} data 
      */
@@ -136,66 +224,26 @@ class VoiceServer {
             connection.lastActivity = Date.now();
             connection.bytesReceived += data.length;
 
-            // Skip control packets
             const dataHex = data.toString('hex');
-            if (this.isControlPacket(dataHex)) {
-                this.handleControlPacket(connectionId, data);
+            
+            logger.info('=== PALTALK 5 VOICE DATA ===', {
+                connectionId,
+                dataLength: data.length,
+                hexData: dataHex,
+                isAuthenticated: connection.isAuthenticated,
+                roomId: connection.roomId,
+                userId: connection.userId,
+                module: 'voice'
+            });
+            
+            // Handle initial handshake (room join)
+            if (!connection.isAuthenticated) {
+                this.handlePaltalk5Handshake(connectionId, data);
                 return;
             }
 
-            // Only process authenticated connections for audio data
-            if (!connection.isAuthenticated || !connection.roomId) {
-                // Enhanced debugging to understand what packets we're receiving
-                logger.debug('Audio data from unauthenticated connection', { 
-                    connectionId,
-                    isAuthenticated: connection.isAuthenticated,
-                    roomId: connection.roomId,
-                    dataLength: data.length,
-                    dataHexStart: dataHex.substring(0, 24), // First 12 bytes
-                    isControlPacket: this.isControlPacket(dataHex),
-                    module: 'voice' 
-                });
-                
-                // Try to see if this looks like a control packet we're not recognizing
-                if (dataHex.startsWith('0000')) {
-                    logger.info('Potential unrecognized control packet', {
-                        connectionId,
-                        fullDataHex: dataHex,
-                        dataLength: data.length,
-                        module: 'voice'
-                    });
-                }
-                return;
-            }
-
-            // Validate RTP packet according to Paltalk protocol
-            const rtpInfo = this.parseRTPHeader(data.length >= 4 ? data.slice(4) : data);
-            if (rtpInfo.error) {
-                // Try direct parsing if length header parsing failed
-                const directRtpInfo = this.parseRTPHeader(data);
-                if (directRtpInfo.error) {
-                    logger.debug('Invalid RTP packet received', { 
-                        connectionId, 
-                        error: rtpInfo.error,
-                        directError: directRtpInfo.error,
-                        dataLength: data.length,
-                        module: 'voice' 
-                    });
-                    return;
-                }
-            }
-
-            // Update audio quality metrics with validated RTP info
-            this.updateAudioQualityMetrics(connectionId, rtpInfo, data.length);
-
-            // Apply audio quality filtering if needed
-            const processedData = this.processAudioData(data, connection.audioSettings);
-            if (processedData.length === 0) {
-                return; // Packet was filtered out
-            }
-
-            // Relay to room members with proper Paltalk protocol formatting
-            this.relayAudioData(connectionId, processedData);
+            // Handle voice packets after authentication
+            this.handlePaltalk5VoicePacket(connectionId, data);
 
         } catch (error) {
             logger.error('Error handling voice data', error, { connectionId, module: 'voice' });
@@ -203,23 +251,584 @@ class VoiceServer {
     }
 
     /**
-     * Process audio data for quality enhancement
-     * @param {Buffer} audioData 
+     * Handle Paltalk 5 handshake packets
+     * Based on Gaim plugin: room ID (4 bytes) + user ID (4 bytes)
+     */
+    handlePaltalk5Handshake(connectionId, data) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) return;
+
+        if (data.length === 8) {
+            // Initial handshake: room ID (4 bytes) + user ID (4 bytes)
+            const roomId = data.readUInt32BE(0);
+            const userId = data.readUInt32BE(4);
+
+            logger.info('Paltalk 5 handshake received', {
+                connectionId,
+                roomId,
+                userId,
+                hexData: data.toString('hex'),
+                module: 'voice'
+            });
+
+            // Authenticate and join room
+            this.authenticatePaltalk5User(connectionId, roomId, userId);
+            
+        } else if (data.length === 4) {
+            // Single 4-byte packet (might be room ID or user ID)
+            const value = data.readUInt32BE(0);
+            
+            if (!connection.roomId) {
+                connection.roomId = value;
+                logger.info('Room ID received', { connectionId, roomId: value, module: 'voice' });
+            } else if (!connection.userId) {
+                connection.userId = value;
+                logger.info('User ID received', { connectionId, userId: value, module: 'voice' });
+                
+                // Complete authentication
+                this.authenticatePaltalk5User(connectionId, connection.roomId, connection.userId);
+            }
+        } else {
+            logger.warn('Unexpected handshake packet size', {
+                connectionId,
+                dataLength: data.length,
+                hexData: data.toString('hex'),
+                module: 'voice'
+            });
+        }
+    }
+
+    /**
+     * Authenticate Paltalk 5 user and join voice room
+     */
+    authenticatePaltalk5User(connectionId, roomId, userId) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) return;
+
+        // Set connection details
+        connection.roomId = roomId;
+        connection.userId = userId;
+        connection.isAuthenticated = true;
+
+        // Add to room
+        if (!this.rooms.has(roomId)) {
+            this.rooms.set(roomId, new Set());
+        }
+        this.rooms.get(roomId).add(connectionId);
+
+        // Add to persistent room members
+        if (!this.persistentRoomMembers.has(roomId)) {
+            this.persistentRoomMembers.set(roomId, new Set());
+        }
+        this.persistentRoomMembers.get(roomId).add(userId);
+
+        logger.info('Paltalk 5 user authenticated and joined voice room', {
+            connectionId,
+            roomId,
+            userId,
+            roomMembers: this.persistentRoomMembers.get(roomId).size,
+            module: 'voice'
+        });
+
+        // According to Gaim code, the voice server doesn't send the ACK packet
+        // The ACK is sent by the main chat server via pt_send_packet()
+        // Just keep the voice connection alive for audio packets
+        
+        logger.info('Voice connection authenticated - ready for audio packets', {
+            connectionId,
+            roomId,
+            userId,
+            module: 'voice'
+        });
+    }
+
+    /**
+     * Handle Paltalk 5 voice packets (after authentication)
+     * Format: 4-byte length + 148-byte RTP packet
+     */
+    handlePaltalk5VoicePacket(connectionId, data) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) return;
+
+        // Paltalk 5 voice format: 4-byte length header + RTP packet
+        if (data.length < 4) {
+            logger.warn('Voice packet too small', { connectionId, dataLength: data.length, module: 'voice' });
+            return;
+        }
+
+        const packetLength = data.readUInt32BE(0);
+        
+        if (data.length !== packetLength + 4) {
+            logger.warn('Voice packet length mismatch', {
+                connectionId,
+                expectedLength: packetLength + 4,
+                actualLength: data.length,
+                module: 'voice'
+            });
+            return;
+        }
+
+        const rtpPacket = data.slice(4);
+
+        // Validate this is a 148-byte RTP packet with payload type 3 (GSM)
+        if (rtpPacket.length !== 148) {
+            logger.warn('Invalid RTP packet length', {
+                connectionId,
+                expectedLength: 148,
+                actualLength: rtpPacket.length,
+                module: 'voice'
+            });
+            return;
+        }
+
+        // Parse RTP header
+        const rtpVersion = (rtpPacket[0] >> 6) & 0x03;
+        const payloadType = rtpPacket[1] & 0x7F;
+        const sequenceNumber = rtpPacket.readUInt16BE(2);
+        const timestamp = rtpPacket.readUInt32BE(4);
+        const ssrc = rtpPacket.readUInt32BE(8);
+
+        if (rtpVersion !== 2 || payloadType !== 3) {
+            logger.warn('Invalid RTP packet format', {
+                connectionId,
+                rtpVersion,
+                payloadType,
+                expectedPayloadType: 3,
+                module: 'voice'
+            });
+            return;
+        }
+
+        logger.info('Valid Paltalk 5 voice packet received', {
+            connectionId,
+            roomId: connection.roomId,
+            userId: connection.userId,
+            packetLength,
+            sequenceNumber,
+            payloadType,
+            ssrc,
+            module: 'voice'
+        });
+
+        // Process audio for quality enhancement before relay
+        let processedData = this.processAudioData(data, connection.audioSettings);
+        
+        // Apply jitter buffering for smoother audio
+        processedData = this.applyJitterBuffering(connectionId, processedData);
+        
+        // Update previous frame for next processing cycle
+        if (processedData && processedData.length >= 148) {
+            // Store the last GSM frame for interpolation
+            connection.audioSettings.previousFrame = processedData.slice(132, 165); // Last 33-byte frame
+        }
+
+        // Relay to other users in the room (only if we have processed data)
+        if (processedData) {
+            this.relayPaltalk5Audio(connectionId, processedData);
+        }
+    }
+
+    /**
+     * Relay Paltalk 5 audio to other room members
+     */
+    relayPaltalk5Audio(senderConnectionId, audioData) {
+        const senderConnection = this.connections.get(senderConnectionId);
+        if (!senderConnection) return;
+
+        const roomId = senderConnection.roomId;
+        const roomMembers = this.rooms.get(roomId);
+        
+        // Debug: Log all active connections and room members
+        const allConnections = Array.from(this.connections.keys());
+        const roomMembersList = roomMembers ? Array.from(roomMembers) : [];
+        
+        logger.info('RELAY DEBUG INFO', {
+            senderConnectionId,
+            roomId,
+            allActiveConnections: allConnections,
+            roomMemberConnections: roomMembersList,
+            hasRoomMembers: !!roomMembers,
+            module: 'voice'
+        });
+        
+        if (!roomMembers) {
+            logger.warn('No room members found for relay', {
+                senderConnectionId,
+                roomId,
+                allActiveConnections: allConnections,
+                module: 'voice'
+            });
+            return;
+        }
+
+        let relayCount = 0;
+
+        roomMembers.forEach(connectionId => {
+            if (connectionId !== senderConnectionId) {
+                const connection = this.connections.get(connectionId);
+                
+                if (connection && connection.socket && !connection.socket.destroyed && connection.socket.writable) {
+                    try {
+                        // Use immediate write for better timing consistency
+                        const success = connection.socket.write(audioData);
+                        if (success) {
+                            relayCount++;
+                        } else {
+                            // Socket buffer is full - schedule write after drain
+                            connection.socket.once('drain', () => {
+                                if (!connection.socket.destroyed) {
+                                    connection.socket.write(audioData);
+                                }
+                            });
+                            relayCount++;
+                        }
+                        
+                        // Update connection stats
+                        connection.bytesSent += audioData.length;
+                        connection.lastActivity = Date.now();
+                        
+                    } catch (error) {
+                        logger.error('Failed to relay audio', {
+                            targetConnection: connectionId,
+                            error: error.message,
+                            module: 'voice'
+                        });
+                    }
+                }
+            }
+        });
+
+
+        this.stats.totalPacketsRelayed++;
+    }
+
+    /**
+     * Process audio data for quality enhancement within Paltalk protocol constraints
+     * @param {Buffer} rtpPacket - Complete 148-byte RTP packet
      * @param {Object} settings 
      * @returns {Buffer}
      */
-    processAudioData(audioData, settings) {
-        // Basic audio processing - could be enhanced with actual audio filters
-        if (!settings.qualityEnhancement) {
-            return audioData;
+    processAudioData(rtpPacket, settings) {
+        if (!settings.qualityEnhancement || rtpPacket.length !== 148) {
+            return rtpPacket;
         }
 
-        // Simple noise gate simulation (placeholder for real audio processing)
-        if (audioData.length < settings.minPacketSize) {
-            return Buffer.alloc(0); // Drop very small packets (likely noise)
+        // Extract GSM audio payload (4 x 33 bytes starting at offset 12)
+        const gsmFrames = [];
+        for (let i = 0; i < 4; i++) {
+            const frameStart = 12 + (i * 33);
+            gsmFrames.push(rtpPacket.slice(frameStart, frameStart + 33));
         }
 
-        return audioData;
+        // Apply quality enhancements to GSM frames
+        const enhancedFrames = gsmFrames.map(frame => this.enhanceGSMFrame(frame, settings));
+
+        // Rebuild the RTP packet with enhanced audio
+        const enhancedPacket = Buffer.from(rtpPacket);
+        for (let i = 0; i < 4; i++) {
+            const frameStart = 12 + (i * 33);
+            enhancedFrames[i].copy(enhancedPacket, frameStart);
+        }
+
+        return enhancedPacket;
+    }
+
+    /**
+     * Enhance individual GSM frame for better quality
+     * @param {Buffer} gsmFrame - 33-byte GSM frame
+     * @param {Object} settings 
+     * @returns {Buffer}
+     */
+    enhanceGSMFrame(gsmFrame, settings) {
+        if (gsmFrame.length !== 33) return gsmFrame;
+
+        // Create a copy to avoid modifying original
+        const enhanced = Buffer.from(gsmFrame);
+
+        // 1. Silence detection and noise gate
+        const energy = this.calculateFrameEnergy(gsmFrame);
+        if (energy < settings.noiseGateThreshold) {
+            // Replace with comfort noise instead of complete silence
+            return this.generateComfortNoise();
+        }
+
+        // 2. Dynamic range compression for consistent volume
+        if (settings.enableCompression && energy > settings.compressionThreshold) {
+            return this.applyCompression(enhanced, energy, settings);
+        }
+
+        // 3. Packet loss concealment - check for corrupted frames
+        if (this.isFrameCorrupted(gsmFrame)) {
+            return this.interpolateFrame(gsmFrame, settings);
+        }
+
+        return enhanced;
+    }
+
+    /**
+     * Calculate energy level of GSM frame for quality analysis
+     * @param {Buffer} gsmFrame 
+     * @returns {number}
+     */
+    calculateFrameEnergy(gsmFrame) {
+        let energy = 0;
+        for (let i = 0; i < gsmFrame.length; i++) {
+            energy += Math.abs(gsmFrame[i] - 128); // Center around 128
+        }
+        return energy / gsmFrame.length;
+    }
+
+    /**
+     * Generate comfort noise for silence periods
+     * @returns {Buffer}
+     */
+    generateComfortNoise() {
+        const noise = Buffer.alloc(33);
+        // Generate low-level pink noise
+        for (let i = 0; i < 33; i++) {
+            noise[i] = 128 + Math.floor((Math.random() - 0.5) * 6); // ±3 around center
+        }
+        return noise;
+    }
+
+    /**
+     * Apply volume boost to GSM frame
+     * @param {Buffer} frame - Frame to modify in place
+     * @param {number} boostFactor - Multiplier (1.0 = no change, >1.0 = louder)
+     */
+    applyVolumeBoost(frame, boostFactor) {
+        for (let i = 0; i < frame.length; i++) {
+            const centered = frame[i] - 128; // Center around 0
+            const boosted = Math.round(centered * boostFactor);
+            // Clamp to valid range and convert back
+            frame[i] = Math.max(0, Math.min(255, boosted + 128));
+        }
+    }
+
+    /**
+     * Apply dynamic range compression to reduce volume spikes
+     * @param {Buffer} frame 
+     * @param {number} energy 
+     * @param {Object} settings 
+     * @returns {Buffer}
+     */
+    applyCompression(frame, energy, settings) {
+        const ratio = settings.compressionRatio || 3.0;
+        const threshold = settings.compressionThreshold || 50;
+        
+        if (energy <= threshold) return frame;
+
+        // Calculate compression factor
+        const overage = energy - threshold;
+        const compressionFactor = 1.0 - (overage / energy) * (1.0 - 1.0/ratio);
+
+        // Apply compression
+        const compressed = Buffer.from(frame);
+        for (let i = 0; i < compressed.length; i++) {
+            const centered = compressed[i] - 128;
+            const newValue = Math.round(centered * compressionFactor) + 128;
+            compressed[i] = Math.max(0, Math.min(255, newValue));
+        }
+
+        return compressed;
+    }
+
+    /**
+     * Check if GSM frame appears corrupted
+     * @param {Buffer} gsmFrame 
+     * @returns {boolean}
+     */
+    isFrameCorrupted(gsmFrame) {
+        // Simple corruption detection - check for unusual patterns
+        let zeroCount = 0;
+        let maxCount = 0;
+        
+        for (let i = 0; i < gsmFrame.length; i++) {
+            if (gsmFrame[i] === 0) zeroCount++;
+            if (gsmFrame[i] === 255) maxCount++;
+        }
+
+        // Frame is likely corrupted if too many zeros or max values
+        return (zeroCount > 15 || maxCount > 15);
+    }
+
+    /**
+     * Interpolate corrupted frame using simple techniques
+     * @param {Buffer} corruptedFrame 
+     * @param {Object} settings 
+     * @returns {Buffer}
+     */
+    interpolateFrame(corruptedFrame, settings) {
+        // Simple interpolation - use previous frame if available
+        if (settings.previousFrame && settings.previousFrame.length === 33) {
+            // Blend with previous frame for smoother transition
+            const interpolated = Buffer.alloc(33);
+            for (let i = 0; i < 33; i++) {
+                interpolated[i] = Math.round((corruptedFrame[i] + settings.previousFrame[i]) / 2);
+            }
+            return interpolated;
+        }
+
+        // Fallback to comfort noise
+        return this.generateComfortNoise();
+    }
+
+    /**
+     * Apply adaptive jitter buffering to smooth audio delivery
+     * @param {string} connectionId 
+     * @param {Buffer} audioPacket 
+     * @returns {Buffer|null}
+     */
+    applyJitterBuffering(connectionId, audioPacket) {
+        const connection = this.connections.get(connectionId);
+        if (!connection || !audioPacket) return audioPacket;
+
+        const settings = connection.audioSettings;
+        const now = Date.now();
+        
+        // Parse sequence number for ordering
+        const sequenceNumber = audioPacket.readUInt16BE(6); // RTP sequence number at offset 2, but we have 4-byte header
+        
+        // Track packet timing for adaptive buffering
+        if (settings.packetTiming.length > 0) {
+            const lastTime = settings.packetTiming[settings.packetTiming.length - 1];
+            const interval = now - lastTime;
+            
+            // Update average packet interval (moving average)
+            settings.avgPacketInterval = (settings.avgPacketInterval * 0.9) + (interval * 0.1);
+        }
+        
+        settings.packetTiming.push(now);
+        if (settings.packetTiming.length > 10) {
+            settings.packetTiming.shift(); // Keep only recent timings
+        }
+
+        // Detect if packet is out of order
+        const isOutOfOrder = sequenceNumber < settings.lastSequence;
+        if (!isOutOfOrder) {
+            settings.lastSequence = sequenceNumber;
+        }
+
+        // Add to jitter buffer with timestamp
+        const bufferEntry = {
+            packet: audioPacket,
+            sequence: sequenceNumber,
+            arrivalTime: now,
+            isOutOfOrder
+        };
+        
+        // Insert in correct position if out of order
+        if (isOutOfOrder) {
+            const insertIndex = settings.jitterBuffer.findIndex(entry => entry.sequence > sequenceNumber);
+            if (insertIndex === -1) {
+                settings.jitterBuffer.push(bufferEntry);
+            } else {
+                settings.jitterBuffer.splice(insertIndex, 0, bufferEntry);
+            }
+        } else {
+            settings.jitterBuffer.push(bufferEntry);
+        }
+
+        // Adaptive buffer size based on network conditions
+        let targetBufferSize = settings.maxJitterBuffer;
+        if (settings.adaptiveBuffer) {
+            // Calculate jitter (variance in packet timing)
+            const jitter = this.calculateJitter(settings.packetTiming);
+            
+            // Increase buffer size if high jitter detected
+            if (jitter > 50) {
+                targetBufferSize = Math.min(8, settings.maxJitterBuffer + 2);
+            } else if (jitter < 20) {
+                targetBufferSize = Math.max(3, settings.maxJitterBuffer - 1);
+            }
+        }
+
+        // Output packets when buffer is sufficiently full
+        if (settings.jitterBuffer.length >= targetBufferSize) {
+            // Sort by sequence number
+            settings.jitterBuffer.sort((a, b) => a.sequence - b.sequence);
+            const output = settings.jitterBuffer.shift();
+            
+            // Check for gaps and generate interpolated packets if needed
+            if (settings.jitterBuffer.length > 0) {
+                const gap = settings.jitterBuffer[0].sequence - output.sequence;
+                if (gap > 1) {
+                    // Generate comfort noise for missing packets
+                    for (let i = 1; i < gap && i < 3; i++) { // Limit interpolation
+                        const interpolated = this.generateInterpolatedPacket(output.packet, settings);
+                        if (interpolated) {
+                            // Add interpolated packet to relay queue
+                            this.schedulePacketRelay(connectionId, interpolated, 20 * i); // Stagger delivery
+                        }
+                    }
+                }
+            }
+            
+            return output.packet;
+        }
+
+        // Buffer not full yet - smooth delivery
+        return null;
+    }
+
+    /**
+     * Calculate network jitter from packet timing
+     * @param {number[]} timings 
+     * @returns {number}
+     */
+    calculateJitter(timings) {
+        if (timings.length < 3) return 0;
+        
+        const intervals = [];
+        for (let i = 1; i < timings.length; i++) {
+            intervals.push(timings[i] - timings[i-1]);
+        }
+        
+        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const variance = intervals.reduce((sum, interval) => {
+            const diff = interval - avgInterval;
+            return sum + (diff * diff);
+        }, 0) / intervals.length;
+        
+        return Math.sqrt(variance);
+    }
+
+    /**
+     * Generate interpolated packet for gap filling
+     * @param {Buffer} lastPacket 
+     * @param {Object} settings 
+     * @returns {Buffer|null}
+     */
+    generateInterpolatedPacket(lastPacket, settings) {
+        if (!lastPacket || lastPacket.length !== 152) return null;
+        
+        // Create a copy of the last packet
+        const interpolated = Buffer.from(lastPacket);
+        
+        // Modify sequence number (increment by 1)
+        const lastSeq = interpolated.readUInt16BE(6);
+        interpolated.writeUInt16BE(lastSeq + 1, 6);
+        
+        // Generate comfort noise for audio payload
+        const comfortNoise = this.generateComfortNoise();
+        for (let i = 0; i < 4; i++) {
+            const frameStart = 16 + (i * 33); // Skip 4-byte header + 12-byte RTP header
+            comfortNoise.copy(interpolated, frameStart);
+        }
+        
+        return interpolated;
+    }
+
+    /**
+     * Schedule packet for delayed relay (for gap filling)
+     * @param {string} connectionId 
+     * @param {Buffer} packet 
+     * @param {number} delayMs 
+     */
+    schedulePacketRelay(connectionId, packet, delayMs) {
+        setTimeout(() => {
+            this.relayPaltalk5Audio(connectionId, packet);
+        }, delayMs);
     }
 
     /**
@@ -310,27 +919,77 @@ class VoiceServer {
     /**
      * Check if data is a control packet
      * @param {string} dataHex 
+     * @param {Object} connection - Connection object for context
      * @returns {boolean}
      */
-    isControlPacket(dataHex) {
-        // Check for known control packet patterns
-        if (dataHex === '0000c353000f4242' || 
-            dataHex === '0000c353000f4244' ||
-            dataHex.startsWith('0000c353') ||
-            dataHex.startsWith('0000c351')) { // Added c351 pattern from Wireshark
+    isControlPacket(dataHex, connection = null) {
+        // Log packet classification for debugging
+        const packetInfo = {
+            dataHex: dataHex.substring(0, 32),
+            dataLength: dataHex.length / 2, // Convert hex length to bytes
+            isAuthenticated: connection?.isAuthenticated || false,
+            roomId: connection?.roomId || null
+        };
+        
+        // If connection is authenticated, be very restrictive about control packets
+        if (connection && connection.isAuthenticated) {
+            // For authenticated connections, only very specific short control packets
+            // Most packets should be audio data
+            if (dataHex.length <= 16) { // 8 bytes or less = likely control
+                logger.debug('Classified as control packet (authenticated, short)', {
+                    ...packetInfo,
+                    reason: 'authenticated_short',
+                    module: 'voice'
+                });
+                return true;
+            }
+            
+            // For authenticated connections, packets > 8 bytes should be audio
+            logger.debug('Classified as audio packet (authenticated)', {
+                ...packetInfo,
+                reason: 'authenticated_long',
+                module: 'voice'
+            });
+            return false;
+        }
+        
+        // For unauthenticated connections, check for room join patterns
+        // Room join packets are typically 8 bytes: 4 bytes room ID + 4 bytes user ID
+        if (dataHex.length === 16) { // 8 bytes in hex (16 chars)
+            logger.debug('Classified as control packet (room join)', {
+                ...packetInfo,
+                reason: 'room_join_8_bytes',
+                module: 'voice'
+            });
             return true;
         }
         
-        // Additional patterns that might indicate control packets
-        if (dataHex.startsWith('0000') && dataHex.length <= 32) {
-            return true; // Short packets starting with 0000 are likely control
-        }
-        
-        // Check for other potential authentication patterns
-        if (dataHex.includes('000f42') || dataHex.includes('c353') || dataHex.includes('c351')) {
+        // Check for 4-byte control packets
+        if (dataHex.length === 8) { // 4 bytes in hex
+            logger.debug('Classified as control packet (4 bytes)', {
+                ...packetInfo,
+                reason: 'control_4_bytes',
+                module: 'voice'
+            });
             return true;
         }
         
+        // Check for longer room join control packets (12+ bytes)
+        if (dataHex.length >= 24 && dataHex.length <= 32) { // 12-16 bytes
+            logger.debug('Classified as control packet (extended format)', {
+                ...packetInfo,
+                reason: 'extended_control',
+                module: 'voice'
+            });
+            return true;
+        }
+        
+        // Audio packets are typically longer (>50 bytes)
+        logger.debug('Classified as potential audio packet', {
+            ...packetInfo,
+            reason: 'default_audio',
+            module: 'voice'
+        });
         return false;
     }
 
@@ -350,104 +1009,14 @@ class VoiceServer {
             module: 'voice'
         });
 
-        // Handle authentication packets
-        if (dataHex === '0000c353000f4242' || dataHex === '0000c353000f4244') {
-            // Send acknowledgment
-            connection.socket.write(Buffer.alloc(0));
-            logger.info('Authentication packet acknowledged', { connectionId, dataHex, module: 'voice' });
-            return;
-        }
-
-        // Handle voice room join packet where room ID is in the first 4 bytes
-        // Example: 0000c35100000000082a = roomId(0000c351=50001) + userId(0) + port(082a=2090)
-        if (data.length >= 8) {
+        // Handle 8-byte room join packets (most common format)
+        // Format: 4 bytes room ID + 4 bytes user ID
+        if (data.length === 8 && !connection.isAuthenticated) {
             try {
                 const roomId = data.readUInt32BE(0); // First 4 bytes = room ID
-                const userId = data.readUInt32BE(4); // Next 4 bytes = user ID (might be 0)
+                const userId = data.readUInt32BE(4); // Next 4 bytes = user ID
                 
-                logger.info('Voice room join packet detected', {
-                    connectionId,
-                    roomId,
-                    userId,
-                    dataHex,
-                    module: 'voice'
-                });
-                
-                // Validate that the room exists
-                if (this.serverState) {
-                    const room = this.serverState.getRoom(roomId);
-                    if (!room) {
-                        logger.warn('Voice connection attempt to non-existent room', {
-                            connectionId,
-                            roomId,
-                            userId,
-                            module: 'voice'
-                        });
-                        // Send error response and close connection
-                        const errorBuffer = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF]); // Error response
-                        connection.socket.write(errorBuffer);
-                        connection.socket.end();
-                        return;
-                    }
-                    
-                    logger.info('Room validation successful', {
-                        connectionId,
-                        roomId,
-                        roomName: room.name,
-                        module: 'voice'
-                    });
-                }
-                
-                // The userId field in the packet is typically 0 and not the actual user ID
-                // The real user ID association happens through the main server
-                logger.info('Room join packet - user ID will be associated separately', {
-                    connectionId,
-                    roomId,
-                    packetUserId: userId, // This is usually 0
-                    remoteAddress: connection.socket.remoteAddress,
-                    module: 'voice'
-                });
-                
-                // Authenticate with room but without user ID for now
-                connection.roomId = roomId;
-                connection.userId = null; // Will be set later by main server
-                connection.isAuthenticated = true;
-                connection.awaitingUserAssociation = true;
-                
-                // Add to room
-                if (!this.rooms.has(roomId)) {
-                    this.rooms.set(roomId, new Set());
-                }
-                this.rooms.get(roomId).add(connectionId);
-                
-                logger.info('Voice connection authenticated for room (awaiting user association)', {
-                    connectionId,
-                    roomId,
-                    roomMemberCount: this.rooms.get(roomId).size,
-                    module: 'voice'
-                });
-                
-                // Send join confirmation
-                const confirmationBuffer = Buffer.from([0x00, 0x00, 0x00, 0x00]);
-                connection.socket.write(confirmationBuffer);
-                return;
-                
-            } catch (error) {
-                logger.error('Error parsing voice room join packet', error, {
-                    connectionId,
-                    dataHex,
-                    module: 'voice'
-                });
-            }
-        }
-
-        // Handle room join packets (format: 0000c353 + roomId + userId)
-        if (dataHex.startsWith('0000c353') && data.length >= 12) {
-            try {
-                const roomId = data.readUInt32BE(4);
-                const userId = data.readUInt32BE(8);
-                
-                logger.info('Room join packet detected', {
+                logger.info('Room join packet detected (8-byte format)', {
                     connectionId,
                     roomId,
                     userId,
@@ -458,52 +1027,52 @@ class VoiceServer {
                 this.authenticateAndJoinRoom(connectionId, roomId, userId);
                 return;
             } catch (error) {
-                logger.error('Error parsing room join packet', error, {
+                logger.error('Error parsing 8-byte room join packet', error, {
                     connectionId,
                     dataHex,
                     module: 'voice'
                 });
             }
         }
-        
-        // Handle other potential control patterns
-        if (dataHex.startsWith('0000')) {
-            logger.info('Unknown control packet pattern', {
+
+        // Handle 12+ byte room join control packets (various formats)
+        if (data.length >= 12 && !connection.isAuthenticated) {
+            try {
+                const roomId = data.readUInt32BE(4);
+                const userId = data.readUInt32BE(8);
+                
+                logger.info('Room join packet detected (12+ byte format)', {
+                    connectionId,
+                    roomId,
+                    userId,
+                    dataHex,
+                    module: 'voice'
+                });
+                
+                this.authenticateAndJoinRoom(connectionId, roomId, userId);
+                return;
+            } catch (error) {
+                logger.error('Error parsing 12+ byte room join packet', error, {
+                    connectionId,
+                    dataHex,
+                    module: 'voice'
+                });
+            }
+        }
+
+        // Handle other short control packets (4-12 bytes) for authenticated connections
+        if (connection.isAuthenticated && data.length >= 4 && data.length <= 12) {
+            logger.debug('Short control packet from authenticated connection', {
                 connectionId,
                 dataHex,
-                dataLength: data.length,
-                pattern: 'starts_with_0000',
                 module: 'voice'
             });
             
-            // Try to extract potential room/user IDs from different positions
-            if (data.length >= 8) {
-                try {
-                    const possibleRoomId1 = data.readUInt32BE(0);
-                    const possibleUserId1 = data.readUInt32BE(4);
-                    logger.debug('Potential IDs at positions 0,4', {
-                        connectionId,
-                        possibleRoomId1,
-                        possibleUserId1,
-                        module: 'voice'
-                    });
-                } catch (e) {}
-            }
-            
-            if (data.length >= 12) {
-                try {
-                    const possibleRoomId2 = data.readUInt32BE(4);
-                    const possibleUserId2 = data.readUInt32BE(8);
-                    logger.debug('Potential IDs at positions 4,8', {
-                        connectionId,
-                        possibleRoomId2,
-                        possibleUserId2,
-                        module: 'voice'
-                    });
-                } catch (e) {}
-            }
+            // Send acknowledgment
+            connection.socket.write(Buffer.from([0x00, 0x00, 0x00, 0x00]));
+            return;
         }
-        
+
         // Send generic acknowledgment for unrecognized control packets
         try {
             connection.socket.write(Buffer.from([0x00, 0x00, 0x00, 0x00]));
@@ -527,8 +1096,39 @@ class VoiceServer {
         const connection = this.connections.get(connectionId);
         if (!connection) return;
 
+        // Validate that the room exists
+        if (this.serverState) {
+            const room = this.serverState.getRoom(roomId);
+            if (!room) {
+                logger.warn('Voice connection attempt to non-existent room', {
+                    connectionId,
+                    roomId,
+                    userId,
+                    module: 'voice'
+                });
+                // Send error response and close connection
+                const errorBuffer = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF]); // Error response
+                connection.socket.write(errorBuffer);
+                connection.socket.end();
+                return;
+            }
+            
+            logger.info('Room validation successful', {
+                connectionId,
+                roomId,
+                roomName: room.name,
+                module: 'voice'
+            });
+        }
+
         // Remove from previous room if any
         if (connection.roomId) {
+            logger.info('Removing connection from previous room', {
+                connectionId,
+                previousRoomId: connection.roomId,
+                newRoomId: roomId,
+                module: 'voice'
+            });
             this.removeFromRoom(connectionId, connection.roomId);
         }
 
@@ -536,24 +1136,70 @@ class VoiceServer {
         connection.roomId = roomId;
         connection.userId = userId;
         connection.isAuthenticated = true;
+        connection.awaitingUserAssociation = false; // User is already associated
 
-        // Add to room
+        // Add to room connections
         if (!this.rooms.has(roomId)) {
             this.rooms.set(roomId, new Set());
         }
         this.rooms.get(roomId).add(connectionId);
 
-        logger.info('Voice connection authenticated and joined room', {
+        // Add to persistent room members
+        if (!this.persistentRoomMembers.has(roomId)) {
+            this.persistentRoomMembers.set(roomId, new Set());
+            logger.info('Created new persistent voice room', {
+                roomId,
+                module: 'voice'
+            });
+        }
+        
+        const wasNewMember = !this.persistentRoomMembers.get(roomId).has(userId);
+        this.persistentRoomMembers.get(roomId).add(userId);
+        
+        // Track user's active connection and activity
+        this.userActiveConnections.set(userId, connectionId);
+        this.userLastActivity.set(userId, Date.now());
+
+        const actualRoomSize = this.persistentRoomMembers.get(roomId).size;
+
+        if (wasNewMember) {
+            logger.info('🎤 NEW USER JOINED VOICE ROOM!', {
+                connectionId,
+                roomId,
+                userId,
+                persistentRoomMembers: actualRoomSize,
+                activeConnections: this.rooms.get(roomId).size,
+                module: 'voice'
+            });
+        } else {
+            logger.info('User reconnected to voice room', {
+                connectionId,
+                roomId,
+                userId,
+                persistentRoomMembers: actualRoomSize,
+                activeConnections: this.rooms.get(roomId).size,
+                module: 'voice'
+            });
+        }
+
+        // Send join confirmation + UDP server info
+        const confirmationBuffer = Buffer.from([0x00, 0x00, 0x00, 0x00]);
+        connection.socket.write(confirmationBuffer);
+        
+        // Send UDP server info for audio relay
+        const udpInfoBuffer = Buffer.alloc(6);
+        udpInfoBuffer.writeUInt16BE(SERVER_CONFIG.VOICE_PORT + 1, 0); // UDP port
+        udpInfoBuffer.writeUInt32BE(roomId, 2); // Room ID for reference
+        connection.socket.write(udpInfoBuffer);
+        
+        logger.info('Sent TCP join confirmation + UDP server info', {
             connectionId,
             roomId,
             userId,
-            roomMemberCount: this.rooms.get(roomId).size,
+            roomSize: actualRoomSize,
+            udpPort: SERVER_CONFIG.VOICE_PORT + 1,
             module: 'voice'
         });
-
-        // Send join confirmation
-        const confirmationBuffer = Buffer.from([0x00, 0x00, 0x00, 0x00]);
-        connection.socket.write(confirmationBuffer);
     }
 
     /**
@@ -568,8 +1214,19 @@ class VoiceServer {
 
         const roomId = senderConnection.roomId;
         const roomConnections = this.rooms.get(roomId);
+        const persistentMembers = this.persistentRoomMembers.get(roomId);
         
-        if (!roomConnections) return;
+        if (!roomConnections || !persistentMembers) return;
+
+        logger.info('🎵 Attempting audio relay', {
+            senderConnectionId,
+            senderUserId: senderConnection.userId,
+            roomId,
+            activeConnections: roomConnections.size,
+            persistentMembers: persistentMembers.size,
+            persistentMemberIds: Array.from(persistentMembers),
+            module: 'voice'
+        });
 
         // Validate and process RTP packet according to Paltalk protocol
         let processedData = this.validateAndProcessRTPPacket(audioData, senderConnection.userId);
@@ -586,42 +1243,106 @@ class VoiceServer {
         // Update global stats
         this.stats.totalPacketsRelayed++;
 
-        // Relay to all other connections in the room
+        // Relay to all other users in the room (find their active connections)
         let relayCount = 0;
         let errorCount = 0;
+        const targetUsers = [];
 
-        roomConnections.forEach(connectionId => {
-            if (connectionId !== senderConnectionId) {
-                const targetConnection = this.connections.get(connectionId);
-                if (targetConnection && targetConnection.socket.writable) {
-                    try {
-                        // Send with proper Paltalk format: 4-byte length header + RTP packet
-                        this.sendRTPPacketToClient(targetConnection.socket, processedData);
-                        targetConnection.bytesSent += processedData.length + 4; // Include length header
-                        relayCount++;
-                    } catch (error) {
-                        logger.debug('Failed to relay audio to connection', {
-                            targetConnectionId: connectionId,
-                            error: error.message,
-                            module: 'voice'
-                        });
-                        errorCount++;
+        persistentMembers.forEach(userId => {
+            if (userId !== senderConnection.userId) {
+                // Strategy 1: Try the tracked active connection
+                let targetConnection = null;
+                let targetConnectionId = this.userActiveConnections.get(userId);
+                
+                if (targetConnectionId) {
+                    targetConnection = this.connections.get(targetConnectionId);
+                }
+                
+                // Strategy 2: If no active connection, find ANY authenticated connection for this user
+                if (!targetConnection || !targetConnection.socket.writable || !targetConnection.isAuthenticated) {
+                    for (const [connId, conn] of this.connections) {
+                        if (conn.userId === userId && conn.isAuthenticated && conn.socket.writable) {
+                            targetConnection = conn;
+                            targetConnectionId = connId;
+                            // Update the tracking
+                            this.userActiveConnections.set(userId, connId);
+                            logger.debug('Found alternative active connection for user', {
+                                userId,
+                                newConnectionId: connId,
+                                module: 'voice'
+                            });
+                            break;
+                        }
                     }
                 }
+                
+                if (targetConnection && targetConnection.socket.writable && targetConnection.isAuthenticated) {
+                    targetUsers.push({
+                        userId,
+                        connectionId: targetConnectionId,
+                        connection: targetConnection
+                    });
+                } else {
+                    logger.debug('Target user has no active connection after search', {
+                        targetUserId: userId,
+                        trackedConnectionId: this.userActiveConnections.get(userId),
+                        totalConnectionsForUser: Array.from(this.connections.values()).filter(c => c.userId === userId).length,
+                        module: 'voice'
+                    });
+                }
+            }
+        });
+
+        logger.info('Found target users for audio relay', {
+            senderUserId: senderConnection.userId,
+            targetUsers: targetUsers.map(u => ({ userId: u.userId, connectionId: u.connectionId })),
+            module: 'voice'
+        });
+
+        targetUsers.forEach(({ userId, connectionId, connection }) => {
+            try {
+                // Send with proper Paltalk format: 4-byte length header + RTP packet
+                this.sendRTPPacketToClient(connection.socket, processedData);
+                connection.bytesSent += processedData.length + 4; // Include length header
+                relayCount++;
+                
+                logger.info('Audio relayed to user', {
+                    targetUserId: userId,
+                    targetConnectionId: connectionId,
+                    dataSize: processedData.length,
+                    module: 'voice'
+                });
+            } catch (error) {
+                logger.debug('Failed to relay audio to user', {
+                    targetUserId: userId,
+                    targetConnectionId: connectionId,
+                    error: error.message,
+                    module: 'voice'
+                });
+                errorCount++;
             }
         });
 
         // Update sender stats
         senderConnection.lastActivity = new Date();
 
-        // Log relay statistics periodically
-        if (Math.random() < 0.001) { // 0.1% sampling
-            logger.debug('Audio relay statistics', {
+        // Log relay statistics
+        if (relayCount > 0) {
+            logger.info('🎵 AUDIO RELAYED SUCCESSFULLY! 🎵', {
                 senderConnectionId,
                 roomId,
                 relayCount,
                 errorCount,
                 dataSize: processedData.length,
+                roomMemberCount: roomConnections.size,
+                module: 'voice'
+            });
+        } else {
+            logger.info('⚠️ No audio relayed - no other users in room', {
+                senderConnectionId,
+                roomId,
+                roomConnectionsCount: roomConnections.size,
+                reason: roomConnections.size <= 1 ? 'Only sender in room' : 'No valid target connections',
                 module: 'voice'
             });
         }
@@ -635,20 +1356,40 @@ class VoiceServer {
      */
     validateAndProcessRTPPacket(audioData, senderUserId) {
         try {
-            // Extract RTP packet from received data
+            // Extract RTP packet from received data (same logic as handleVoiceData)
             let rtpPacket;
+            let extractionMethod = 'unknown';
+            
             if (audioData.length >= 4) {
-                const lengthHeader = audioData.readUInt32LE(0);
-                const packetLength = lengthHeader & 0xFF; // Only last byte matters per protocol
-                
-                if (packetLength > 0 && packetLength < 150 && audioData.length >= packetLength + 4) {
-                    rtpPacket = audioData.slice(4, 4 + packetLength);
-                } else {
-                    // Try without length header (direct RTP)
+                // First check if this is direct RTP (starts with RTP version 2)
+                if (audioData.length >= 12 && ((audioData.readUInt8(0) >> 6) & 0x03) === 2) {
+                    // This is direct RTP
                     rtpPacket = audioData;
+                    extractionMethod = 'direct_rtp';
+                } else {
+                    // Check for length header
+                    const lengthHeader = audioData.readUInt32BE(0); // Try big-endian first
+                    const lengthHeaderLE = audioData.readUInt32LE(0); // Also try little-endian
+                    
+                    // The length should be reasonable (not too big, not too small)
+                    // For a 152-byte packet with 148-byte RTP, the header would be 0x00000094
+                    if (lengthHeader > 0 && lengthHeader <= 1000 && audioData.length === lengthHeader + 4) {
+                        // Big-endian length header
+                        rtpPacket = audioData.slice(4);
+                        extractionMethod = 'length_header_BE';
+                    } else if (lengthHeaderLE > 0 && lengthHeaderLE <= 1000 && audioData.length === lengthHeaderLE + 4) {
+                        // Little-endian length header
+                        rtpPacket = audioData.slice(4);
+                        extractionMethod = 'length_header_LE';
+                    } else {
+                        // No valid length header, assume direct RTP
+                        rtpPacket = audioData;
+                        extractionMethod = 'direct_no_header';
+                    }
                 }
             } else {
                 rtpPacket = audioData;
+                extractionMethod = 'direct_short';
             }
 
             // Validate minimum RTP packet size
@@ -663,27 +1404,42 @@ class VoiceServer {
             // Parse and validate RTP header
             const rtpInfo = this.parseRTPHeader(rtpPacket);
             
-            // Critical validation: Payload type MUST be 3 for Paltalk
+            // Payload type validation - log but don't reject for now to debug
             if (rtpInfo.payloadType !== 3) {
-                logger.debug('Invalid payload type for Paltalk protocol', {
+                logger.warn('Non-standard payload type detected', {
                     payloadType: rtpInfo.payloadType,
                     expected: 3,
+                    ssrc: rtpInfo.ssrc,
+                    sequenceNumber: rtpInfo.sequenceNumber,
+                    extractionMethod,
                     module: 'voice'
                 });
-                return null;
+                // For now, allow other payload types to debug the issue
+                // return null;
             }
 
-            // Validate audio payload size (minimum 136 bytes per protocol)
+            // Validate audio payload size - log but be more flexible for debugging
             const headerSize = 12 + (rtpInfo.cc * 4); // Basic header + CSRC list
             const payloadSize = rtpPacket.length - headerSize;
             
             if (payloadSize < 136) {
-                logger.debug('Audio payload too small for Paltalk protocol', {
+                logger.warn('Audio payload smaller than expected', {
                     payloadSize,
-                    minimum: 136,
+                    expected: 136,
+                    rtpPacketLength: rtpPacket.length,
+                    headerSize,
+                    extractionMethod,
                     module: 'voice'
                 });
-                return null;
+                // For now, allow smaller payloads to debug the issue
+                // Only reject if payload is too small to be valid audio
+                if (payloadSize < 20) {
+                    logger.debug('Audio payload too small to be valid', {
+                        payloadSize,
+                        module: 'voice'
+                    });
+                    return null;
+                }
             }
 
             // Update SSRC to match sender's user ID for proper speaker identification
@@ -748,16 +1504,33 @@ class VoiceServer {
      * @param {number} roomId 
      */
     removeFromRoom(connectionId, roomId) {
+        const connection = this.connections.get(connectionId);
         const roomConnections = this.rooms.get(roomId);
+        
         if (roomConnections) {
             roomConnections.delete(connectionId);
             
-            // Clean up empty rooms
+            logger.info('Connection removed from room', {
+                connectionId,
+                roomId,
+                userId: connection?.userId,
+                remainingActiveConnections: roomConnections.size,
+                module: 'voice'
+            });
+            
+            // Only clean up the active connection room, NOT persistent membership
             if (roomConnections.size === 0) {
                 this.rooms.delete(roomId);
-                logger.debug('Empty voice room cleaned up', { roomId, module: 'voice' });
+                logger.info('No active connections in room (persistent members may remain)', { 
+                    roomId, 
+                    connectionId,
+                    module: 'voice' 
+                });
             }
         }
+        
+        // Note: We do NOT remove from persistentRoomMembers here
+        // Users stay in persistent membership until they explicitly leave or timeout
     }
 
     /**
@@ -812,6 +1585,11 @@ class VoiceServer {
     cleanupConnection(connectionId) {
         const connection = this.connections.get(connectionId);
         if (!connection) return;
+
+        // Clean up keep-alive interval
+        if (connection.keepAliveInterval) {
+            clearInterval(connection.keepAliveInterval);
+        }
 
         // Remove from room
         if (connection.roomId) {
@@ -1030,6 +1808,56 @@ class VoiceServer {
             }
 
         }, 60000); // Every minute
+    }
+
+    /**
+     * Get audio quality optimization report
+     * @returns {Object}
+     */
+    getAudioQualityReport() {
+        const report = {
+            totalConnections: this.connections.size,
+            qualityEnhancementsActive: 0,
+            averageJitterBufferSize: 0,
+            compressionActive: 0,
+            noiseGateActive: 0,
+            recommendations: []
+        };
+
+        let totalJitterBuffer = 0;
+
+        this.connections.forEach((connection, connectionId) => {
+            const settings = connection.audioSettings;
+            
+            if (settings.qualityEnhancement) {
+                report.qualityEnhancementsActive++;
+            }
+            
+            if (settings.enableCompression) {
+                report.compressionActive++;
+            }
+            
+            if (settings.noiseGateThreshold > 0) {
+                report.noiseGateActive++;
+            }
+            
+            totalJitterBuffer += settings.jitterBuffer.length;
+        });
+
+        if (this.connections.size > 0) {
+            report.averageJitterBufferSize = totalJitterBuffer / this.connections.size;
+        }
+
+        // Generate recommendations
+        if (report.averageJitterBufferSize > 2) {
+            report.recommendations.push('High jitter detected - consider network optimization');
+        }
+        
+        if (report.qualityEnhancementsActive < this.connections.size * 0.8) {
+            report.recommendations.push('Enable quality enhancements for more connections');
+        }
+
+        return report;
     }
 
     /**

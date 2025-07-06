@@ -1,235 +1,96 @@
 @extends('layouts.app')
 
-@section('title', 'Admin Login - h2ktalk.fun')
-
-@section('styles')
-.login-container {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-    padding: 48px;
-    max-width: 420px;
-    width: 90%;
-    margin: 2rem auto;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.logo-container {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.logo {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-}
-
-.login-container h1 {
-    text-align: center;
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-    color: #ffffff;
-}
-
-.subtitle {
-    text-align: center;
-    color: rgba(255, 255, 255, 0.8);
-    margin-bottom: 2rem;
-    font-size: 0.95rem;
-}
-
-.form-group {
-    margin-bottom: 1.5rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #ffffff;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 14px 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
-    font-size: 1rem;
-    font-family: 'Courier New', monospace;
-    transition: border-color 0.2s ease;
-}
-
-.form-group input:focus {
-    outline: none;
-    border-color: #ff4500;
-}
-
-.form-group input::placeholder {
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.login-btn {
-    width: 100%;
-    background: #ff4500;
-    color: #ffffff;
-    border: 2px solid #ff4500;
-    padding: 16px;
-    border-radius: 4px;
-    font-size: 1rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-family: 'Courier New', monospace;
-}
-
-.login-btn:hover:not(:disabled) {
-    background: #ff6600;
-    border-color: #ff6600;
-}
-
-.login-btn:disabled {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.3);
-    cursor: not-allowed;
-}
-
-.info-box {
-    background: rgba(255, 69, 0, 0.1);
-    border: 1px solid #ff4500;
-    border-radius: 4px;
-    padding: 16px;
-    margin-top: 24px;
-}
-
-.info-box h3 {
-    color: #ffffff;
-    font-size: 0.9rem;
-    margin-bottom: 8px;
-    font-weight: bold;
-}
-
-.info-box p {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 0.85rem;
-    line-height: 1.4;
-}
-
-.loading {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: #ffffff;
-    animation: spin 1s ease-in-out infinite;
-    margin-right: 8px;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.back-link {
-    text-align: center;
-    margin-top: 1rem;
-}
-
-.back-link a {
-    color: rgba(255, 255, 255, 0.8);
-    text-decoration: none;
-    font-size: 0.9rem;
-}
-
-.back-link a:hover {
-    color: #ff4500;
-}
-
-@media (max-width: 768px) {
-    .login-container {
-        padding: 40px 30px;
-        max-width: 100%;
-        margin: 1rem auto;
-    }
-    
-    .login-container h1 {
-        font-size: 1.8rem;
-    }
-    
-    .form-group input {
-        padding: 16px;
-        font-size: 16px; /* Prevents zoom on iOS */
-    }
-    
-    .login-btn {
-        padding: 18px;
-        font-size: 1rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .login-container {
-        padding: 30px 20px;
-        margin: 0.5rem auto;
-    }
-    
-    .login-container h1 {
-        font-size: 1.6rem;
-    }
-    
-    .form-group input {
-        padding: 14px;
-    }
-    
-    .login-btn {
-        padding: 16px;
-        font-size: 0.9rem;
-    }
-    
-    .info-box {
-        padding: 12px;
-        margin-top: 20px;
-    }
-}
-@endsection
+@section('title', 'Admin Login - h2ktalk')
 
 @section('content')
-<div class="login-container">
-    <div class="logo-container">
-        <div class="logo">🌐</div>
-    </div>
+<!-- Login Section -->
+<section class="relative min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white overflow-hidden">
+    <!-- Background decoration -->
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(120,119,198,0.3),transparent_50%),radial-gradient(circle_at_70%_70%,rgba(75,85,99,0.3),transparent_50%)]"></div>
     
-    <h1>h2ktalk.fun Admin</h1>
-    <p class="subtitle">Secure access to server management</p>
-    
-    <div id="errorMessage" class="error"></div>
-    <div id="successMessage" class="success"></div>
-    
-    <form id="loginForm">
-        <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" required autocomplete="username">
+    <div class="relative max-w-sm mx-auto px-4 pt-20 pb-32">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">🌐</div>
+            <h1 class="text-4xl font-black leading-tight">
+                h2ktalk
+                <span class="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                    Admin
+                </span>
+            </h1>
+            <p class="text-lg text-blue-100 mt-2">
+                Secure access to server management
+            </p>
         </div>
         
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password">
+        <!-- Login Form -->
+        <div class="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 shadow-2xl">
+            <div id="errorMessage" class="hidden bg-red-500/20 border border-red-500/50 text-red-100 px-4 py-3 rounded-xl mb-6"></div>
+            <div id="successMessage" class="hidden bg-green-500/20 border border-green-500/50 text-green-100 px-4 py-3 rounded-xl mb-6"></div>
+            
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-semibold text-white mb-2">
+                        Username
+                    </label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        required 
+                        autocomplete="username"
+                        class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Enter your username"
+                    >
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-semibold text-white mb-2">
+                        Password
+                    </label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required 
+                        autocomplete="current-password"
+                        class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Enter your password"
+                    >
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6 py-4 rounded-xl font-semibold text-lg transition-all duration-200 hover:scale-105 shadow-xl hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100" 
+                    id="loginBtn"
+                >
+                    Sign In
+                </button>
+            </form>
+            
+            <!-- Info Box -->
+            <div class="mt-6 bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl p-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="text-cyan-400">🔐</div>
+                    <h3 class="text-white font-semibold">Secure Access</h3>
+                </div>
+                <p class="text-blue-100 text-sm">
+                    Enter your admin credentials to access the server dashboard.
+                </p>
+            </div>
         </div>
         
-        <button type="submit" class="login-btn" id="loginBtn">
-            Sign In
-        </button>
-    </form>
-    
-    <div class="info-box">
-        <h3>🔐 Secure Access</h3>
-        <p>Enter your admin credentials to access the server dashboard.</p>
+        <!-- Back Link -->
+        <div class="text-center mt-8">
+            <a href="{{ route('home') }}" class="text-blue-200 hover:text-white transition-colors duration-200 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Back to Home
+            </a>
+        </div>
     </div>
-    
-    <div class="back-link">
-        <a href="{{ route('home') }}">← Back to Home</a>
-    </div>
-</div>
+</section>
 @endsection
 
 @section('scripts')
@@ -240,7 +101,7 @@ const successMessage = document.getElementById('successMessage');
 
 function setLoading(isLoading) {
     if (isLoading) {
-        loginBtn.innerHTML = '<span class="loading"></span>Signing In...';
+        loginBtn.innerHTML = '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Signing In...';
         loginBtn.disabled = true;
     } else {
         loginBtn.innerHTML = 'Sign In';

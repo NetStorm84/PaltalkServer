@@ -1,6 +1,9 @@
 /**
  * Main Paltalk Server - Enhanced and modular version
  */
+// Load environment variables from .env file
+require('dotenv').config();
+
 const net = require('net');
 const process = require('process');
 const logger = require('./utils/logger');
