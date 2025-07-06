@@ -377,44 +377,69 @@
 
     <!-- Right Column - Controls & Logs -->
     <div class="lg:col-span-1">
-        <!-- Create New Bot -->
+        <!-- Bot System Configuration -->
         <div class="bg-white shadow rounded-lg mb-6">
             <div class="px-4 py-5 sm:p-6 border-b border-gray-200">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">Create New Bot</h3>
-                <p class="mt-1 text-sm text-gray-500">Configure and start a new bot.</p>
+                <h3 class="text-lg font-medium leading-6 text-gray-900">Bot System Configuration</h3>
+                <p class="mt-1 text-sm text-gray-500">Configure and start the automated bot system with multiple personalities and distribution modes.</p>
             </div>
             <div class="px-4 py-5 sm:p-6">
                 <form id="createBotForm" class="space-y-4">
                     <div>
-                        <label for="botName" class="block text-sm font-medium text-gray-700">Bot Name</label>
-                        <input type="text" id="botName" name="name" required
+                        <label for="botCount" class="block text-sm font-medium text-gray-700">Number of Bots</label>
+                        <input type="number" id="botCount" name="botCount" min="1" max="5000" value="10" required
                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                               placeholder="Enter bot name">
+                               placeholder="1-5000">
+                        <p class="mt-1 text-xs text-gray-500">Maximum 5000 bots</p>
                     </div>
                     
                     <div>
-                        <label for="roomName" class="block text-sm font-medium text-gray-700">Room Name</label>
-                        <input type="text" id="roomName" name="room" required
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                               placeholder="Enter room name">
-                    </div>
-                    
-                    <div>
-                        <label for="botType" class="block text-sm font-medium text-gray-700">Bot Type</label>
-                        <select id="botType" name="type" required
+                        <label for="distributionMode" class="block text-sm font-medium text-gray-700">Distribution Mode</label>
+                        <select id="distributionMode" name="distributionMode" required
                                 class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                            <option value="">Select bot type</option>
-                            <option value="moderator">Moderator Bot</option>
-                            <option value="greeter">Greeter Bot</option>
-                            <option value="music">Music Bot</option>
-                            <option value="trivia">Trivia Bot</option>
-                            <option value="custom">Custom Bot</option>
+                            <option value="random">Random - Distribute across all public rooms</option>
+                            <option value="single_room">Single Room - All bots in one room</option>
+                            <option value="weighted">Weighted - Based on room popularity</option>
+                            <option value="balanced">Balanced - Even distribution</option>
                         </select>
+                    </div>
+                    
+                    <div id="targetRoomSection" style="display: none;">
+                        <label for="targetRoomId" class="block text-sm font-medium text-gray-700">Target Room ID</label>
+                        <input type="number" id="targetRoomId" name="targetRoomId"
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                               placeholder="Room ID for single room mode">
+                    </div>
+                    
+                    <div>
+                        <label for="chatFrequency" class="block text-sm font-medium text-gray-700">Chat Frequency (ms)</label>
+                        <input type="number" id="chatFrequency" name="chatFrequencyMs" min="500" max="300000" value="1500" required
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <p class="mt-1 text-xs text-gray-500">500ms - 300000ms (5 minutes)</p>
+                    </div>
+                    
+                    <div>
+                        <label for="moveFrequency" class="block text-sm font-medium text-gray-700">Move Frequency (ms)</label>
+                        <input type="number" id="moveFrequency" name="moveFrequencyMs" min="60000" max="1800000" value="300000" required
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <p class="mt-1 text-xs text-gray-500">60000ms (1 min) - 1800000ms (30 mins)</p>
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <h4 class="text-sm font-medium text-gray-900 mb-2">Bot Personalities Distribution</h4>
+                        <div class="text-xs text-gray-600 space-y-1">
+                            <div><strong>Chatty (25%):</strong> Initiates conversations frequently</div>
+                            <div><strong>Responsive (25%):</strong> Mainly responds to others</div>
+                            <div><strong>Social (15%):</strong> Asks questions and engages groups</div>
+                            <div><strong>Casual (15%):</strong> Makes light, casual comments</div>
+                            <div><strong>Friendly (15%):</strong> Welcoming and positive</div>
+                            <div><strong>Lurker (5%):</strong> Rarely talks, mostly observes</div>
+                        </div>
                     </div>
                     
                     <button type="submit" 
                             class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Create Bot
+                        Start Bot System
                     </button>
                 </form>
             </div>
@@ -448,10 +473,16 @@
 
 @section('scripts')
 <script>
-// Check if user is logged in
-if (!adminToken) {
-    window.location.href = '{{ route("admin.login") }}';
+// Ensure admin token is available (set by parent layout)
+if (!window.adminToken) {
+    console.warn('⚠️ No admin token found, using fallback');
+    window.adminToken = localStorage.getItem('admin_token') || 'admin-dev-token';
 }
+
+// Debug: log the token being used
+console.log('🔑 Using admin token:', window.adminToken ? window.adminToken.substring(0, 10) + '...' : 'none');
+
+const adminToken = window.adminToken;
 
 // WebSocket connection for real-time updates
 let botSocket = null;
@@ -512,6 +543,8 @@ function updateConnectionStatus(connected) {
 // Load bot statistics and list
 async function loadBots() {
     try {
+        console.log('🔄 Loading bot stats from /api/admin/bots/stats');
+        
         const response = await fetch('/api/admin/bots/stats', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`,
@@ -519,17 +552,41 @@ async function loadBots() {
             }
         });
         
+        console.log('📡 Response status:', response.status, response.statusText);
+        
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            const responseText = await response.text();
+            console.error('❌ Response text:', responseText);
+            
+            if (responseText.includes('<!DOCTYPE html>')) {
+                throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}`);
+            }
+            throw new Error(`HTTP ${response.status}: ${responseText}`);
         }
         
         const data = await response.json();
-        updateStatistics(data.stats);
-        updateBotList(data.bots);
+        console.log('✅ Bot data received:', data);
+        
+        // Handle the Laravel API response structure
+        if (data.success && data.data) {
+            updateStatistics({
+                total: data.data.totalBots || 0,
+                active: data.data.isRunning ? data.data.totalBots : 0,
+                users: 0, // Will be filled by separate call if needed
+                rooms: Object.keys(data.data.botsPerRoom || {}).length
+            });
+            updateBotList(data.data.botDetails || []);
+        } else {
+            throw new Error(data.error || 'Invalid response format');
+        }
         
     } catch (error) {
-        console.error('Failed to load bots:', error);
+        console.error('❌ Failed to load bots:', error);
         addLog(`Failed to load bots: ${error.message}`, 'error');
+        
+        // Set default values on error
+        updateStatistics({ total: 0, active: 0, users: 0, rooms: 0 });
+        updateBotList([]);
     }
 }
 
@@ -571,19 +628,27 @@ function createBotItem(bot) {
             <div class="bot-info">
                 <div class="bot-info-item">
                     <span class="bot-info-label">Room</span>
-                    <span class="bot-info-value">${escapeHtml(bot.room || 'N/A')}</span>
+                    <span class="bot-info-value">${escapeHtml(bot.room || bot.currentRoomName || 'N/A')}</span>
                 </div>
                 <div class="bot-info-item">
-                    <span class="bot-info-label">Type</span>
-                    <span class="bot-info-value">${escapeHtml(bot.type || 'Unknown')}</span>
+                    <span class="bot-info-label">Personality</span>
+                    <span class="bot-info-value">${escapeHtml(bot.chatPersonality || bot.personality || 'Unknown')}</span>
+                </div>
+                <div class="bot-info-item">
+                    <span class="bot-info-label">Text Style</span>
+                    <span class="bot-info-value">${escapeHtml(bot.textStyle || 'Regular')}</span>
+                </div>
+                <div class="bot-info-item">
+                    <span class="bot-info-label">Distribution</span>
+                    <span class="bot-info-value">${escapeHtml(bot.distributionMode || 'N/A')}</span>
                 </div>
                 <div class="bot-info-item">
                     <span class="bot-info-label">Uptime</span>
                     <span class="bot-info-value">${uptime}</span>
                 </div>
                 <div class="bot-info-item">
-                    <span class="bot-info-label">Users</span>
-                    <span class="bot-info-value">${bot.userCount || 0}</span>
+                    <span class="bot-info-label">UID</span>
+                    <span class="bot-info-value">${bot.uid || bot.id}</span>
                 </div>
             </div>
             <div class="bot-controls">
@@ -669,18 +734,44 @@ async function sendBotCommand(action, botId = null) {
     }
 }
 
-// Create new bot
+// Handle distribution mode change
+document.getElementById('distributionMode').addEventListener('change', function() {
+    const targetRoomSection = document.getElementById('targetRoomSection');
+    const targetRoomInput = document.getElementById('targetRoomId');
+    
+    if (this.value === 'single_room') {
+        targetRoomSection.style.display = 'block';
+        targetRoomInput.required = true;
+    } else {
+        targetRoomSection.style.display = 'none';
+        targetRoomInput.required = false;
+        targetRoomInput.value = '';
+    }
+});
+
+// Start bot system
 document.getElementById('createBotForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const formData = {
-        name: document.getElementById('botName').value,
-        room: document.getElementById('roomName').value,
-        type: document.getElementById('botType').value
+        botCount: parseInt(document.getElementById('botCount').value),
+        distributionMode: document.getElementById('distributionMode').value,
+        chatFrequencyMs: parseInt(document.getElementById('chatFrequency').value),
+        moveFrequencyMs: parseInt(document.getElementById('moveFrequency').value)
     };
     
+    // Add target room ID if in single room mode
+    if (formData.distributionMode === 'single_room') {
+        const targetRoomId = document.getElementById('targetRoomId').value;
+        if (targetRoomId) {
+            formData.targetRoomId = parseInt(targetRoomId);
+        }
+    }
+    
     try {
-        const response = await fetch('/api/admin/bots/create', {
+        console.log('🚀 Starting bot system with config:', formData);
+        
+        const response = await fetch('/api/admin/bots/start', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${adminToken}`,
@@ -690,22 +781,37 @@ document.getElementById('createBotForm').addEventListener('submit', async (e) =>
             body: JSON.stringify(formData)
         });
         
+        console.log('📡 Start bots response status:', response.status, response.statusText);
+        
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            const responseText = await response.text();
+            console.error('❌ Start bots response text:', responseText);
+            
+            if (responseText.includes('<!DOCTYPE html>')) {
+                throw new Error(`Server returned HTML instead of JSON. Check if Laravel API is running properly. Status: ${response.status}`);
+            }
+            throw new Error(`HTTP ${response.status}: ${responseText}`);
         }
         
         const result = await response.json();
-        addLog(`Bot ${formData.name} created successfully`, 'info');
+        console.log('✅ Bot system start result:', result);
+        
+        if (result.success) {
+            addLog(`Bot system started: ${result.message}`, 'info');
+        } else {
+            throw new Error(result.error || result.message || 'Unknown error');
+        }
         
         // Reset form
         document.getElementById('createBotForm').reset();
+        document.getElementById('targetRoomSection').style.display = 'none';
         
         // Refresh bot list
         loadBots();
         
     } catch (error) {
-        console.error('Failed to create bot:', error);
-        addLog(`Failed to create bot: ${error.message}`, 'error');
+        console.error('Failed to start bot system:', error);
+        addLog(`Failed to start bot system: ${error.message}`, 'error');
     }
 });
 
