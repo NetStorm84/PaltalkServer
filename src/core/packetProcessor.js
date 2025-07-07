@@ -3039,7 +3039,11 @@ class PacketProcessor {
         let status = 'offline';
         let statusCode = '00000000'; // Default to offline
         
-        if (targetUser && targetUser.isOnline()) {
+        // Check if target user is Paltalk or UID 1000001 - always show as online
+        if (targetUid === 1000001 || (targetUser && targetUser.nickname === 'Paltalk')) {
+            status = 'online';
+            statusCode = '0000001E'; // Online status code
+        } else if (targetUser && targetUser.isOnline()) {
             if (targetUser.mode === USER_MODES.AWAY) {
                 status = 'away';
                 statusCode = '00000046'; // Away status code
