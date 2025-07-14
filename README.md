@@ -181,12 +181,6 @@ setup/
 
 ### Resources
 
-Useful resources for understanding the Paltalk protocol:
-
-- [Paltalk Wikidot](http://paltalk.wikidot.com/introduction) - Protocol documentation
-- [Gaim Plugin](./resources/gaim-pt.tar.gz) - Reference implementation
-- [Wireshark](http://www.wireshark.org/) - For packet analysis
-
 #### External links
 
 [Paltalk.fun](https://paltalk.fun/) This projects main home. Visit here for the latest news and updates regarding this project.
