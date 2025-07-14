@@ -43,8 +43,25 @@ class PacketSender {
             // Send the packet
             socket.write(packet);
 
+            // Get user info for packet logging
+            const serverState = require('../core/serverState');
+            const user = serverState.getUserBySocketId(socketId);
+            const clientInfo = user ? {
+                nickname: user.nickname || 'Unknown',
+                name: (user.firstName || '') + ' ' + (user.lastName || ''),
+                userId: user.uid,
+                isAuthenticated: true,
+                ipAddress: socket.remoteAddress || 'Unknown'
+            } : {
+                nickname: 'Unauthenticated',
+                name: 'Unknown User',
+                userId: null,
+                isAuthenticated: false,
+                ipAddress: socket.remoteAddress || 'Unknown'
+            };
+
             // Log the packet
-            logger.logPacketSent(packetType, payload, socketId);
+            logger.logPacketSent(packetType, payload, socketId, clientInfo);
 
             return true;
         } catch (error) {

@@ -1,6 +1,7 @@
 /**
- * Paltalk 5.x compatible TCP-based voice server
+ * Paltalk 5.x compatible TCP-based media server
  * Based on Gaim plugin analysis - uses TCP for all voice communication
+ * Future support for video will be added here
  */
 const net = require('net');
 const logger = require('../utils/logger');
@@ -8,7 +9,7 @@ const { SERVER_CONFIG, LOGGING_CONFIG } = require('../config/constants');
 const { PACKET_TYPES } = require('../../PacketHeaders');
 const { sendPacket } = require('../network/packetSender');
 
-class VoiceServer {
+class MediaServer {
     constructor() {
         this.server = null;
         this.connections = new Map(); // socketId -> connection info
@@ -16,6 +17,7 @@ class VoiceServer {
         this.persistentRoomMembers = new Map(); // roomId -> Set of userIds (persists across connections)
         this.userActiveConnections = new Map(); // userId -> most recent active connectionId
         this.userLastActivity = new Map(); // userId -> timestamp of last activity
+        this.activeSpeakers = new Map(); // roomId -> { connectionId, startTime, userId }
         this.isRunning = false;
         this.stats = {
             serverStartTime: Date.now(),
@@ -50,10 +52,10 @@ class VoiceServer {
 
             this.server.listen(SERVER_CONFIG.VOICE_PORT, SERVER_CONFIG.SERVER_IP, () => {
                 this.isRunning = true;
-                logger.info('Voice server started (Paltalk 5.x TCP mode)', { 
+                logger.info('Media server started (Paltalk 5.x TCP mode)', { 
                     port: SERVER_CONFIG.VOICE_PORT,
                     ip: SERVER_CONFIG.SERVER_IP,
-                    module: 'voice'
+                    module: 'media'
                 });
                 
                 // Test if we can connect to ourselves
@@ -184,10 +186,11 @@ class VoiceServer {
             this.handleConnectionEnd(connectionId);
         });
 
-        // Set socket timeout to prevent hanging connections
-        socket.setTimeout(300000, () => { // 5 minutes
-            logger.warn('Voice connection timeout', { connectionId, module: 'voice' });
-            socket.destroy();
+        // Don't set socket timeout - voice connections should persist as long as user is in room
+        // Cleanup will be handled by periodic maintenance and room leave events
+        logger.debug('Voice connection established without timeout', { 
+            connectionId, 
+            module: 'voice' 
         });
 
         // Set socket options for better performance  
@@ -438,28 +441,62 @@ class VoiceServer {
         const roomId = senderConnection.roomId;
         const roomMembers = this.rooms.get(roomId);
         
-        // Debug: Log all active connections and room members
-        const allConnections = Array.from(this.connections.keys());
-        const roomMembersList = roomMembers ? Array.from(roomMembers) : [];
-        
-        logger.info('RELAY DEBUG INFO', {
-            senderConnectionId,
-            roomId,
-            allActiveConnections: allConnections,
-            roomMemberConnections: roomMembersList,
-            hasRoomMembers: !!roomMembers,
-            module: 'voice'
-        });
-        
         if (!roomMembers) {
             logger.warn('No room members found for relay', {
                 senderConnectionId,
                 roomId,
-                allActiveConnections: allConnections,
                 module: 'voice'
             });
             return;
         }
+
+        // Check if there's already an active speaker in this room
+        const currentSpeaker = this.activeSpeakers.get(roomId);
+        const now = Date.now();
+        
+        if (currentSpeaker && currentSpeaker.connectionId !== senderConnectionId) {
+            // Check if current speaker has been silent for too long (3 seconds)
+            const silentTime = now - currentSpeaker.lastActivity;
+            if (silentTime > 3000) {
+                logger.info('Releasing speaker slot due to silence - new speaker taking over', {
+                    oldSpeakerConnectionId: currentSpeaker.connectionId,
+                    oldSpeakerUserId: currentSpeaker.userId,
+                    newSpeakerConnectionId: senderConnectionId,
+                    newSpeakerUserId: senderConnection.userId,
+                    silentTime: Math.round(silentTime / 1000),
+                    roomId,
+                    module: 'voice'
+                });
+                // Release the old speaker slot - new speaker will claim it below
+                this.activeSpeakers.delete(roomId);
+            } else {
+                // Someone else is still actively speaking - don't relay this audio
+                logger.debug('Audio blocked - another user is actively speaking', {
+                    senderConnectionId,
+                    currentSpeakerConnectionId: currentSpeaker.connectionId,
+                    currentSpeakerUserId: currentSpeaker.userId,
+                    timeSinceLastActivity: Math.round(silentTime / 1000),
+                    roomId,
+                    module: 'voice'
+                });
+                return;
+            }
+        }
+        
+        // Set or update the active speaker for this room
+        this.activeSpeakers.set(roomId, {
+            connectionId: senderConnectionId,
+            userId: senderConnection.userId,
+            startTime: currentSpeaker ? currentSpeaker.startTime : now,
+            lastActivity: now
+        });
+        
+        logger.debug('Audio relay from active speaker', {
+            senderConnectionId,
+            userId: senderConnection.userId,
+            roomId,
+            module: 'voice'
+        });
 
         let relayCount = 0;
 
@@ -1591,8 +1628,19 @@ class VoiceServer {
             clearInterval(connection.keepAliveInterval);
         }
 
-        // Remove from room
+        // Release speaker slot if this connection was the active speaker
         if (connection.roomId) {
+            const speaker = this.activeSpeakers.get(connection.roomId);
+            if (speaker && speaker.connectionId === connectionId) {
+                logger.info('Releasing speaker slot - connection ended', {
+                    connectionId,
+                    roomId: connection.roomId,
+                    speakerUserId: speaker.userId,
+                    module: 'voice'
+                });
+                this.activeSpeakers.delete(connection.roomId);
+            }
+            
             this.removeFromRoom(connectionId, connection.roomId);
         }
 
@@ -1666,20 +1714,50 @@ class VoiceServer {
             let cleanedConnections = 0;
             let cleanedRooms = 0;
 
-            // Clean up inactive connections
+            // Very conservative cleanup - only remove connections that are clearly abandoned
             for (const [connectionId, connection] of this.connections) {
                 const inactiveTime = now - connection.lastActivity;
+                let shouldCleanup = false;
+                let reason = '';
                 
-                // Remove connections inactive for more than 5 minutes
-                if (inactiveTime > 5 * 60 * 1000) {
-                    logger.debug('Cleaning up inactive voice connection', { 
+                // Only remove connections that are truly abandoned - either:
+                // 1. Inactive for more than 30 minutes (very long time)
+                // 2. User no longer in room AND inactive for more than 10 minutes
+                if (inactiveTime > 30 * 60 * 1000) {
+                    shouldCleanup = true;
+                    reason = `inactive for ${Math.round(inactiveTime / 1000)}s (30+ minutes)`;
+                }
+                // Don't remove based on room presence during normal cleanup
+                // This will be handled by explicit room leave events
+                // Keeping this section disabled to prevent false positives
+                
+                if (shouldCleanup) {
+                    logger.info('Cleaning up abandoned voice connection', { 
                         connectionId, 
-                        inactiveTime: Math.round(inactiveTime / 1000) + 's',
+                        reason,
+                        userId: connection.userId,
+                        roomId: connection.roomId,
+                        inactiveTime: Math.round(inactiveTime / 1000),
                         module: 'voice'
                     });
                     
                     this.handleConnectionEnd(connectionId);
                     cleanedConnections++;
+                }
+            }
+
+            // Clean up inactive speakers (release speaker slot after 3 seconds of silence)
+            for (const [roomId, speaker] of this.activeSpeakers) {
+                const silentTime = now - speaker.lastActivity;
+                if (silentTime > 3000) { // 3 seconds of silence
+                    logger.info('Releasing speaker slot due to silence', {
+                        roomId,
+                        speakerConnectionId: speaker.connectionId,
+                        speakerUserId: speaker.userId,
+                        silentTime: Math.round(silentTime / 1000),
+                        module: 'voice'
+                    });
+                    this.activeSpeakers.delete(roomId);
                 }
             }
 
@@ -1705,6 +1783,73 @@ class VoiceServer {
 
         } catch (error) {
             logger.error('Error during voice server cleanup', error, { module: 'voice' });
+        }
+    }
+
+    /**
+     * Check if user is still in the chat room
+     * @param {string} userId 
+     * @param {string} roomId 
+     * @returns {boolean}
+     */
+    isUserStillInChatRoom(userId, roomId) {
+        if (!this.serverState) {
+            logger.warn('ServerState not available for room check', { userId, roomId, module: 'voice' });
+            return false;
+        }
+        
+        try {
+            // Get user from server state
+            const user = this.serverState.getUser(userId);
+            if (!user) {
+                logger.info('Voice timeout check: User not found in server state', { userId, roomId, module: 'voice' });
+                return false;
+            }
+            
+            if (!user.isOnline()) {
+                logger.info('Voice timeout check: User not online', { 
+                    userId, 
+                    roomId, 
+                    userMode: user.mode,
+                    hasSocket: !!user.socket,
+                    module: 'voice' 
+                });
+                return false;
+            }
+            
+            // Check if user is in the room
+            const room = this.serverState.getRoom(roomId);
+            if (!room) {
+                logger.info('Voice timeout check: Room not found', { userId, roomId, module: 'voice' });
+                return false;
+            }
+            
+            if (!room.hasUser(userId)) {
+                logger.info('Voice timeout check: Room does not have user', { 
+                    userId, 
+                    roomId, 
+                    roomUserCount: room.users.size,
+                    module: 'voice' 
+                });
+                return false;
+            }
+            
+            // Double check from user perspective
+            if (!user.isInRoom(roomId)) {
+                logger.info('Voice timeout check: User not tracking room membership', { 
+                    userId, 
+                    roomId, 
+                    userRooms: user.getRoomIds(),
+                    module: 'voice' 
+                });
+                return false;
+            }
+            
+            logger.debug('Voice timeout check: User still in room', { userId, roomId, module: 'voice' });
+            return true;
+        } catch (error) {
+            logger.error('Error checking user room presence', error, { userId, roomId, module: 'voice' });
+            return false;
         }
     }
 
@@ -2063,4 +2208,4 @@ class VoiceServer {
     // ...existing methods...
 }
 
-module.exports = VoiceServer;
+module.exports = MediaServer;

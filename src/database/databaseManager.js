@@ -1115,6 +1115,222 @@ class DatabaseManager {
             );
         });
     }
+
+    /**
+     * Log a bounce event
+     * @param {number} bouncerUin - UID of the user who performed the bounce
+     * @param {string} bouncerNickname - Nickname of the bouncer
+     * @param {number} bounceeUin - UID of the user who was bounced
+     * @param {string} bounceeNickname - Nickname of the bounced user
+     * @param {number} roomId - ID of the room where the bounce occurred
+     * @param {string} roomName - Name of the room (optional)
+     * @param {string} reason - Reason for the bounce (optional)
+     * @returns {Promise<number>} - The ID of the logged bounce event
+     */
+    async logBounce(bouncerUin, bouncerNickname, bounceeUin, bounceeNickname, roomId, roomName = null, reason = null) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            
+            this.db.run(
+                `INSERT INTO bounce_logs (bouncer_uin, bouncer_nickname, bouncee_uin, bouncee_nickname, room_id, room_name, reason) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [bouncerUin, bouncerNickname, bounceeUin, bounceeNickname, roomId, roomName, reason],
+                function(err) {
+                    const duration = Date.now() - startTime;
+                    
+                    if (err) {
+                        logger.error('Failed to log bounce event', err, { 
+                            bouncerUin, 
+                            bouncerNickname,
+                            bounceeUin,
+                            bounceeNickname,
+                            roomId,
+                            roomName,
+                            reason,
+                            duration 
+                        });
+                        reject(err);
+                    } else {
+                        logger.info('Bounce event logged', { 
+                            id: this.lastID,
+                            bouncerUin, 
+                            bouncerNickname,
+                            bounceeUin,
+                            bounceeNickname,
+                            roomId,
+                            roomName,
+                            reason,
+                            duration 
+                        });
+                        resolve(this.lastID);
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Get bounce logs with optional filtering
+     * @param {Object} filters - Optional filters
+     * @param {number} filters.bouncerUin - Filter by bouncer UID
+     * @param {number} filters.bounceeUin - Filter by bounced user UID
+     * @param {number} filters.roomId - Filter by room ID
+     * @param {string} filters.fromDate - Filter from date (ISO string)
+     * @param {string} filters.toDate - Filter to date (ISO string)
+     * @param {number} filters.limit - Limit results (default: 100)
+     * @param {number} filters.offset - Offset for pagination (default: 0)
+     * @returns {Promise<Array>} - Array of bounce log entries
+     */
+    async getBounceLog(filters = {}) {
+        return new Promise((resolve, reject) => {
+            const {
+                bouncerUin,
+                bounceeUin,
+                roomId,
+                fromDate,
+                toDate,
+                limit = 100,
+                offset = 0
+            } = filters;
+
+            let query = `
+                SELECT 
+                    bl.*,
+                    bu.nickname as bouncer_current_nickname,
+                    bee.nickname as bouncee_current_nickname,
+                    g.nm as room_current_name
+                FROM bounce_logs bl
+                LEFT JOIN users bu ON bl.bouncer_uin = bu.uid
+                LEFT JOIN users bee ON bl.bouncee_uin = bee.uid
+                LEFT JOIN groups g ON bl.room_id = g.id
+                WHERE 1=1
+            `;
+            
+            const params = [];
+
+            if (bouncerUin) {
+                query += ' AND bl.bouncer_uin = ?';
+                params.push(bouncerUin);
+            }
+
+            if (bounceeUin) {
+                query += ' AND bl.bouncee_uin = ?';
+                params.push(bounceeUin);
+            }
+
+            if (roomId) {
+                query += ' AND bl.room_id = ?';
+                params.push(roomId);
+            }
+
+            if (fromDate) {
+                query += ' AND bl.bounce_time >= ?';
+                params.push(fromDate);
+            }
+
+            if (toDate) {
+                query += ' AND bl.bounce_time <= ?';
+                params.push(toDate);
+            }
+
+            query += ' ORDER BY bl.bounce_time DESC LIMIT ? OFFSET ?';
+            params.push(limit, offset);
+
+            this.db.all(query, params, (err, rows) => {
+                if (err) {
+                    logger.error('Failed to get bounce logs', err, { filters });
+                    reject(err);
+                } else {
+                    logger.debug('Retrieved bounce logs', { 
+                        count: rows.length,
+                        filters 
+                    });
+                    resolve(rows || []);
+                }
+            });
+        });
+    }
+
+    /**
+     * Get bounce statistics
+     * @param {Object} filters - Optional filters (same as getBounceLog)
+     * @returns {Promise<Object>} - Bounce statistics
+     */
+    async getBounceStats(filters = {}) {
+        return new Promise((resolve, reject) => {
+            const {
+                bouncerUin,
+                bounceeUin,
+                roomId,
+                fromDate,
+                toDate
+            } = filters;
+
+            let query = `
+                SELECT 
+                    COUNT(*) as total_bounces,
+                    COUNT(DISTINCT bouncer_uin) as unique_bouncers,
+                    COUNT(DISTINCT bouncee_uin) as unique_bounced_users,
+                    COUNT(DISTINCT room_id) as affected_rooms,
+                    bouncer_uin,
+                    bouncer_nickname,
+                    COUNT(*) as bounce_count
+                FROM bounce_logs
+                WHERE 1=1
+            `;
+            
+            const params = [];
+
+            if (bouncerUin) {
+                query += ' AND bouncer_uin = ?';
+                params.push(bouncerUin);
+            }
+
+            if (bounceeUin) {
+                query += ' AND bouncee_uin = ?';
+                params.push(bounceeUin);
+            }
+
+            if (roomId) {
+                query += ' AND room_id = ?';
+                params.push(roomId);
+            }
+
+            if (fromDate) {
+                query += ' AND bounce_time >= ?';
+                params.push(fromDate);
+            }
+
+            if (toDate) {
+                query += ' AND bounce_time <= ?';
+                params.push(toDate);
+            }
+
+            query += ' GROUP BY bouncer_uin, bouncer_nickname ORDER BY bounce_count DESC';
+
+            this.db.all(query, params, (err, rows) => {
+                if (err) {
+                    logger.error('Failed to get bounce statistics', err, { filters });
+                    reject(err);
+                } else {
+                    const stats = {
+                        total_bounces: rows.length > 0 ? rows[0].total_bounces : 0,
+                        unique_bouncers: rows.length > 0 ? rows[0].unique_bouncers : 0,
+                        unique_bounced_users: rows.length > 0 ? rows[0].unique_bounced_users : 0,
+                        affected_rooms: rows.length > 0 ? rows[0].affected_rooms : 0,
+                        top_bouncers: rows.map(row => ({
+                            uin: row.bouncer_uin,
+                            nickname: row.bouncer_nickname,
+                            bounce_count: row.bounce_count
+                        }))
+                    };
+                    
+                    logger.debug('Retrieved bounce statistics', { stats, filters });
+                    resolve(stats);
+                }
+            });
+        });
+    }
 }
 
 module.exports = DatabaseManager;

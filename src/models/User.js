@@ -17,6 +17,7 @@ class User {
         this.random = userData.random || '0';
         this.paid1 = userData.paid1 || '0';
         this.admin = userData.admin || USER_PERMISSIONS.REGULAR;
+        this.sup = userData.sup || 0; // Moderator/supervisor status
         this.banners = userData.banners || 'yes';
         this.created = userData.created;
         this.lastLogin = userData.last_login;
@@ -44,7 +45,7 @@ class User {
         
         // Voice/Room properties
         this.mic = 0;
-        this.pub = 0;
+        this.pub = 'n';
         this.away = 0;
         this.visible = true;
 
@@ -66,6 +67,22 @@ class User {
      */
     isAdmin() {
         return this.admin === 1;
+    }
+
+    /**
+     * Check if user is moderator/supervisor
+     * @returns {boolean}
+     */
+    isModerator() {
+        return this.sup === 1;
+    }
+
+    /**
+     * Check if user has admin OR moderator privileges
+     * @returns {boolean}
+     */
+    isStaff() {
+        return this.admin === 1 || this.sup === 1;
     }
 
     /**
@@ -125,11 +142,15 @@ class User {
         const oldMode = this.mode;
         this.mode = mode;
         
+        // Update away property for room user lists
+        this.away = (mode === USER_MODES.AWAY) ? 1 : 0;
+        
         if (oldMode !== mode) {
             logger.logUserAction('mode_change', this.uid, {
                 oldMode,
                 newMode: mode,
-                nickname: this.nickname
+                nickname: this.nickname,
+                awayStatus: this.away
             });
         }
     }
@@ -167,12 +188,24 @@ class User {
      */
     hasPermission(action) {
         const permissions = {
-            'kick_user': this.admin >= USER_PERMISSIONS.MODERATOR,
-            'ban_user': this.admin >= USER_PERMISSIONS.ADMIN,
-            'create_room': this.admin >= USER_PERMISSIONS.REGULAR,
-            'broadcast_message': this.admin >= USER_PERMISSIONS.ADMIN,
-            'delete_room': this.admin >= USER_PERMISSIONS.ADMIN,
-            'manage_server': this.admin >= USER_PERMISSIONS.SUPER_ADMIN
+            // Moderator actions (require sup=1 OR admin=1)
+            'kick_user': this.sup === 1 || this.admin === 1,
+            'red_dot_user': this.sup === 1 || this.admin === 1,
+            'mute_user': this.sup === 1 || this.admin === 1,
+            'warn_user': this.sup === 1 || this.admin === 1,
+            
+            // Admin-only actions (require admin=1)
+            'ban_user': this.admin === 1,
+            'delete_room': this.admin === 1,
+            'broadcast_message': this.admin === 1,
+            'manage_server': this.admin === 1,
+            'grant_admin': this.admin === 1,
+            'grant_moderator': this.admin === 1,
+            
+            // Regular user actions (everyone can do)
+            'create_room': true,
+            'join_room': true,
+            'send_message': true
         };
 
         return permissions[action] || false;

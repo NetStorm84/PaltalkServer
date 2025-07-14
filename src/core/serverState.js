@@ -107,6 +107,9 @@ class ServerState extends EventEmitter {
                 return false;
             }
 
+            // Reset video publishing status when disconnecting
+            user.pub = 'n';
+            
             // Remove from all rooms user is in
             const userRoomIds = user.getRoomIds();
             userRoomIds.forEach(roomId => {
@@ -321,6 +324,15 @@ class ServerState extends EventEmitter {
                 }
             });
 
+            // Clear persistent red dot storage when room is completely removed
+            if (room.redDottedUsers) {
+                room.redDottedUsers.clear();
+                logger.info('Cleared persistent red dot storage for removed room', {
+                    roomId: room.id,
+                    roomName: room.name
+                });
+            }
+
             // Remove room from collection
             this.rooms.delete(roomId);
             this.stats.lastActivity = new Date();
@@ -404,6 +416,18 @@ class ServerState extends EventEmitter {
                         });
                         return false;
                     }
+                    
+                    // Filter out private rooms from top rooms list
+                    if (room.isPrivate) {
+                        logger.debug('Top room filtered out - private room', {
+                            roomId: room.id,
+                            roomName: room.name,
+                            isPrivate: room.isPrivate,
+                            userId: user?.uid
+                        });
+                        return false;
+                    }
+                    
                     const hasUsers = room.getUserCount() > 0;
                     if (!hasUsers) {
                         logger.debug('Top room filtered out - no users', {
@@ -478,6 +502,18 @@ class ServerState extends EventEmitter {
                 });
                 return false;
             }
+            
+            // Filter out private rooms from public room list
+            if (room.isPrivate) {
+                logger.debug('Room filtered out - private room', {
+                    roomId: room.id,
+                    roomName: room.name,
+                    isPrivate: room.isPrivate,
+                    userId: user?.uid
+                });
+                return false;
+            }
+            
             return true;
         });
 
@@ -875,6 +911,10 @@ class ServerState extends EventEmitter {
             // Remove non-permanent rooms (they'll be recreated as needed)
             const tempRooms = Array.from(this.rooms.values()).filter(room => !room.isPermanent);
             tempRooms.forEach(room => {
+                // Clear persistent red dot storage for temporary rooms being removed
+                if (room.redDottedUsers) {
+                    room.redDottedUsers.clear();
+                }
                 this.rooms.delete(room.id);
             });
             

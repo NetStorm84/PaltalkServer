@@ -9,22 +9,27 @@ const SERVER_CONFIG = {
     SERVER_IP: process.env.SERVER_IP || '0.0.0.0', // Bind to all interfaces by default, override with env var if needed
     VOICE_SERVER_IP: process.env.VOICE_SERVER_IP || process.env.SERVER_IP || '127.0.0.1', // IP address for voice server connections
     SERVER_KEY: 'XyF¦164473312518',
-    DATABASE_PATH: process.env.DB_PATH || (process.env.NODE_ENV === 'production' ? '/var/www/html/h2ktalk.fun/h2ktalk-web/database/database.sqlite' : 'h2ktalk-web/database/database.sqlite'),
+    DATABASE_PATH: process.env.DB_PATH || './database.sqlite',
     // MySQL configuration for production when SQLite driver is not available
     MYSQL_CONFIG: {
         host: process.env.DB_HOST || '127.0.0.1',
-        port: process.env.DB_PORT || 3306,
+        port: parseInt(process.env.DB_PORT) || 3306,
         database: process.env.DB_DATABASE || 'h2ktalk',
-        username: process.env.DB_USERNAME || 'root',
-        password: process.env.DB_PASSWORD || ''
+        username: process.env.DB_USERNAME || 'h2ktalk_user',
+        password: process.env.DB_PASSWORD || 'h2ktalk_secure_pass_2024'
     }
 };
 
 const USER_PERMISSIONS = {
     REGULAR: 0,
-    MODERATOR: 1,
-    ADMIN: 2,
-    SUPER_ADMIN: 3
+    ADMIN: 1
+};
+
+const USER_ROLES = {
+    REGULAR: { admin: 0, sup: 0 },      // Regular user
+    MODERATOR: { admin: 0, sup: 1 },    // Moderator only
+    ADMIN: { admin: 1, sup: 0 },        // Admin only  
+    ADMIN_MOD: { admin: 1, sup: 1 }     // Admin + Moderator
 };
 
 const ROOM_TYPES = {
@@ -190,6 +195,7 @@ const LOGGING_CONFIG = {
 module.exports = {
     SERVER_CONFIG,
     USER_PERMISSIONS,
+    USER_ROLES,
     ROOM_TYPES,
     USER_MODES,
     MESSAGE_LIMITS,

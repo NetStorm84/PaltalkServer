@@ -296,6 +296,12 @@ class BotManager {
      * Validate and normalize bot configuration
      */
     validateBotConfig(options) {
+        logger.info('validateBotConfig called with options:', { 
+            options,
+            originalBotCount: options.botCount,
+            typeof: typeof options.botCount
+        });
+        
         const {
             botCount = BOT_CONFIG.DEFAULT_BOT_COUNT,
             chatFrequencyMs = BOT_CONFIG.DEFAULT_CHAT_FREQUENCY_MS,
@@ -307,6 +313,12 @@ class BotManager {
 
         // Validate bot count
         const validBotCount = Math.max(1, Math.min(botCount, BOT_CONFIG.MAX_BOT_COUNT));
+        
+        logger.info('Bot count validation', {
+            extractedBotCount: botCount,
+            validBotCount: validBotCount,
+            maxBotCount: BOT_CONFIG.MAX_BOT_COUNT
+        });
         
         // Validate chat frequency
         const validChatFreq = Math.max(
@@ -1791,6 +1803,15 @@ class BotManager {
      * Pre-calculate room assignments for better performance
      */
     preCalculateRoomAssignments(botCount, availableRooms, distributionMode) {
+        // Validate parameters to prevent array creation errors
+        if (!botCount || botCount < 1 || !Number.isInteger(botCount)) {
+            throw new Error(`Invalid botCount: ${botCount}. Must be a positive integer.`);
+        }
+        
+        if (!availableRooms || !Array.isArray(availableRooms) || availableRooms.length === 0) {
+            throw new Error(`Invalid availableRooms: ${availableRooms}. Must be a non-empty array.`);
+        }
+        
         const assignments = new Array(botCount);
         
         switch (distributionMode) {

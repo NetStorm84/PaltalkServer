@@ -11,7 +11,7 @@ class Room {
         this.name = roomData.nm || roomData.name;
         this.category = roomData.catg || roomData.category;
         this.rating = roomData.r || roomData.rating || 'G';
-        this.isVoice = roomData.v || roomData.isVoice || ROOM_TYPES.TEXT;
+        this.isVoice = roomData.v !== undefined ? roomData.v : (roomData.voice !== undefined ? roomData.voice : (roomData.isVoice !== undefined ? roomData.isVoice : ROOM_TYPES.TEXT));
         this.isPrivate = roomData.p || roomData.isPrivate || 0;
         this.isLocked = roomData.l || roomData.isLocked || 0; // 0=not locked, 1=locked (password required)
         this.topic = roomData.topic || 'Welcome to the room!';
@@ -24,18 +24,24 @@ class Room {
         this.textEnabled = roomData.text !== undefined ? roomData.text : (roomData.textEnabled !== undefined ? roomData.textEnabled : 1);
         this.allowAllMics = roomData.allowAllMics !== undefined ? roomData.allowAllMics : true; // Allow all users to use mic by default
         
+        // Red dot privilege settings - control what red dot affects
+        this.redDotAffectsText = roomData.redDotAffectsText !== undefined ? roomData.redDotAffectsText : false; // Red dot affects text privileges
+        this.redDotAffectsVideo = roomData.redDotAffectsVideo !== undefined ? roomData.redDotAffectsVideo : false; // Red dot affects video privileges
+        // Voice is always affected by red dot (as per gaim client)
+        
         // Runtime properties
         this.users = new Map(); // uid -> user object
         this.bannedUsers = new Set();
+        this.redDottedUsers = new Set(); // uid -> persistent red dot status that survives room leave/rejoin
         this.isPermanent = isPermanent;
         this.createdAt = new Date();
         this.createdBy = roomData.createdBy || roomData.owner || null;
         this.statusMessage = '';
         this.isClosed = Boolean(roomData.isClosed); // Room closed status - hidden from lists but admins can join
         
-        // Voice server info
-        this.voiceServerIP = roomData.voiceServerIP || '127.0.0.1';
-        this.voiceServerPort = roomData.voiceServerPort || 2090;
+        // Media server info
+        this.mediaServerIP = roomData.mediaServerIP || '127.0.0.1';
+        this.mediaServerPort = roomData.mediaServerPort || 2090;
         
         // Server state reference for user management
         this.serverState = null; // Will be injected later
@@ -126,7 +132,9 @@ class Room {
                 away: user.away,
                 visible: isVisible,
                 joinedAt: new Date(),
-                isRoomAdmin: isAdmin
+                isRoomAdmin: isAdmin,
+                redDot: this.redDottedUsers.has(user.uid), // Check persistent red dot status
+                micRequest: false // Mic request status - initially false for new users
             };
 
             this.users.set(user.uid, userRoomData);
@@ -546,7 +554,9 @@ class Room {
             maxUsers: this.maxUsers,
             c: this.color,
             mike: this.micEnabled,
-            text: this.textEnabled
+            text: this.textEnabled,
+            redDotAffectsText: this.redDotAffectsText,
+            redDotAffectsVideo: this.redDotAffectsVideo
         };
     }
 
@@ -586,6 +596,142 @@ class Room {
      */
     shouldAutoDelete() {
         return !this.isPermanent && this.users.size === 0;
+    }
+
+    /**
+     * Check if a user has red dot status in this room
+     * @param {number} uid - User ID
+     * @returns {boolean}
+     */
+    isUserRedDotted(uid) {
+        const user = this.getUser(uid);
+        if (user) {
+            return user.redDot;
+        }
+        // If user is not in room but is in persistent red dot list, they would be red dotted when they rejoin
+        return this.redDottedUsers.has(uid);
+    }
+
+    /**
+     * Set red dot status for a user in this room
+     * @param {number} uid - User ID
+     * @param {boolean} redDotStatus - Red dot status
+     * @returns {boolean} - Success status
+     */
+    setUserRedDot(uid, redDotStatus) {
+        const user = this.getUser(uid);
+        if (!user) {
+            return false;
+        }
+        
+        user.redDot = redDotStatus;
+        
+        // Update persistent red dot storage
+        if (redDotStatus) {
+            this.redDottedUsers.add(uid);
+        } else {
+            this.redDottedUsers.delete(uid);
+        }
+        
+        return true;
+    }
+
+    /**
+     * Check if a user can send text messages based on red dot status
+     * @param {number} uid - User ID
+     * @returns {boolean}
+     */
+    canUserSendText(uid) {
+        const user = this.getUser(uid);
+        if (!user) return false;
+        
+        // If user is not red dotted, they can send text
+        if (!user.redDot) return true;
+        
+        // If user is red dotted, check if red dot affects text
+        return !this.redDotAffectsText;
+    }
+
+    /**
+     * Check if a user can use video based on red dot status
+     * @param {number} uid - User ID
+     * @returns {boolean}
+     */
+    canUserUseVideo(uid) {
+        const user = this.getUser(uid);
+        if (!user) return false;
+        
+        // If user is not red dotted, they can use video
+        if (!user.redDot) return true;
+        
+        // If user is red dotted, check if red dot affects video
+        return !this.redDotAffectsVideo;
+    }
+
+    /**
+     * Check if a user can use voice/mic based on red dot status
+     * @param {number} uid - User ID
+     * @returns {boolean}
+     */
+    canUserUseVoice(uid) {
+        const user = this.getUser(uid);
+        if (!user) {
+            // Check persistent red dot status even if user is not in room
+            return !this.redDottedUsers.has(uid);
+        }
+        
+        // Red dot always affects voice privileges (as per gaim client)
+        return !user.redDot;
+    }
+
+    /**
+     * Get list of all red dotted users in the room
+     * @returns {Array<Object>} Array of user objects with red dot status
+     */
+    getRedDottedUsers() {
+        return Array.from(this.users.values()).filter(user => user.redDot);
+    }
+
+    /**
+     * Get list of all persistently red dotted user IDs
+     * @returns {Array<number>} Array of user IDs that are red dotted
+     */
+    getPersistentRedDottedUserIds() {
+        return Array.from(this.redDottedUsers);
+    }
+
+    /**
+     * Check if a user has mic request status in this room
+     * @param {number} uid - User ID
+     * @returns {boolean}
+     */
+    isUserRequestingMic(uid) {
+        const user = this.getUser(uid);
+        return user ? user.micRequest : false;
+    }
+
+    /**
+     * Set mic request status for a user in this room
+     * @param {number} uid - User ID
+     * @param {boolean} requestStatus - Mic request status
+     * @returns {boolean} - Success status
+     */
+    setUserMicRequest(uid, requestStatus) {
+        const user = this.getUser(uid);
+        if (!user) {
+            return false;
+        }
+        
+        user.micRequest = requestStatus;
+        return true;
+    }
+
+    /**
+     * Get list of all users requesting mic in the room
+     * @returns {Array<Object>} Array of user objects with mic request status
+     */
+    getUsersRequestingMic() {
+        return Array.from(this.users.values()).filter(user => user.micRequest);
     }
 }
 
