@@ -8,9 +8,16 @@ A modern Node.js-based Paltalk chat server with media support, supporting both t
 - **Media Server**: Voice chat support (video support planned for future)
 - **SQLite Database**: Easy setup with no external database requirements
 - **Room Management**: Support for permanent and temporary rooms
-- **User Management**: User authentication and administration
-- **Bot Support**: Automated bot management system
-- **Admin Commands**: In-chat admin commands for server management
+
+## Current Status
+
+✅ **Most features are working including VOICE!** This server successfully recreates the core Paltalk experience with full text chat and voice communication support.
+
+🚧 **Known Limitations:**
+- **Authentication**: Password verification is not yet implemented (any password will work for login)
+- **Web Cams**: Video/webcam functionality is not yet implemented (would love some help on this)
+
+The server is fully functional for text and voice chat, making it an excellent recreation of the classic Paltalk experience from the early 2000s.
 
 ## Quick Setup
 
@@ -99,7 +106,7 @@ The database includes:
 
 ### Default Rooms
 
-The server comes with pre-configured rooms in various categories:
+The server comes with pre-configured rooms that were restored from the original Paltalk packets:
 - **Paltalk Help Rooms**: Support and help channels
 - **Social Rooms**: General chat and socializing
 - **Language Rooms**: Rooms by language and region
@@ -117,10 +124,10 @@ The setup creates default users:
 
 ### Client Setup
 
-1. **Download Paltalk 5.x client** (older versions work best with this server)
+1. **Download Paltalk 5.x client** (older versions work with this server)
 2. **Configure client to connect to your server:**
    - Use a hex editor to change the server IP in the client
-   - Or configure your DNS/hosts file to redirect paltalk.com to your server
+   - Or change the host ip in the Paltalk registry, however, this does seem to change back quite often.
 3. **Default login credentials:**
    - **Username**: `NetStorm`
    - **Password**: `h2kclan` (or any password - authentication is is not yet implemented)
@@ -132,7 +139,6 @@ The setup creates default users:
 - `npm start` - Start the server
 - `npm run setup` - Initialize the database
 - `npm run dev` - Start in development mode
-- `npm test` - Run tests (if available)
 
 ### Troubleshooting
 
@@ -180,6 +186,34 @@ Useful resources for understanding the Paltalk protocol:
 - [Paltalk Wikidot](http://paltalk.wikidot.com/introduction) - Protocol documentation
 - [Gaim Plugin](./resources/gaim-pt.tar.gz) - Reference implementation
 - [Wireshark](http://www.wireshark.org/) - For packet analysis
+
+#### External links
+
+[Paltalk.fun](https://paltalk.fun/) This projects main home. Visit here for the latest news and updates regarding this project.
+
+[Paltalk Wikidot](http://paltalk.wikidot.com/introduction) Extremely useful information regarding packets and other tools that were instrumental in getting this up and running
+
+[Olly Dbg](http://www.ollydbg.de/) Tool used to reverse engineer the Paltalk Client
+
+[Wireshark](http://www.wireshark.org/) Used for dissecting the pcap file
+
+[WWPack32](https://www.wwpack32.venti.pl/wwpack32_download.html) Used to unpack the original Paltalk client
+
+[HxD Hex Editor](https://mh-nexus.de/en/hxd/) Recommended for changing the server IP address within the Paltalk Client
+
+[Resource Hacker](https://www.angusj.com/resourcehacker/) Used to change some strings within the client
+
+[Wayback Machine](https://web.archive.org/) Used to view websites as they were in 2002 and helpful in downloading old tools required to make this work
+
+#### Downloads
+
+[Uncompressed version of Paltalk 5.0](./resources/Paltalk.zip)
+
+[Wireshark PCAP](./resources/paltalk-secured.pcap.pcapng)
+
+[Gaim Plugin](./resources/gaim-pt.tar.gz) A Paltalk plugin for Gaim, this has been fundamental in getting the server up and running.
+
+![Paltalk client connected to our server recreation](./resources/image.png)
 
 ### Support
 
