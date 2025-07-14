@@ -3,3 +3,9 @@ database.db
 error.log
 receivedData.txt
 .vscode/
+
+# Log files and directories
+logs/
+*.log
+server.log
+enhanced_test.log
