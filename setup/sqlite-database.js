@@ -125,9 +125,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
       sql: `INSERT INTO users (uid, nickname, email, first, last, paid1, get_offers_from_us, get_offers_from_affiliates, show_email, show_first, show_last, banners, admin, password, color, buddies, blocked, listed) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       data: [
-        [1000002, "NetStorm", "default@example.com", "Net", "Storm", 6, 'N', 'N', 'Y', 'Y', 'Y', 'no', 0, "default_password_hash", "000128000", '[{"uid": 1000004, "nickname": "Dan"}]', "", 1],
-        [1000003, "Medianoche (co-admin)", "medianoche@example.com", "Media", "Noche", 1, 'N', 'N', 'Y', 'Y', 'Y', 'no', 1, "default_password_hash", "128000000", "[]", "", 1],
-        [1000004, "Dan", "dan@example.com", "Dan", "Crawley", 6, 'N', 'N', 'Y', 'Y', 'Y', 'yes', 1, "default_password_hash", "128000000", "[]", "", 1]
+        [1000001, "Paltalk", "system@paltalk.local", "Paltalk", "System", 6, 'N', 'N', 'N', 'N', 'N', 'no', 1, "system_no_login", "128000000", "[]", "", 0],
+        [1000002, "NetStorm", "default@example.com", "Net", "Storm", 6, 'N', 'N', 'Y', 'Y', 'Y', 'no', 0, "password", "000128000", '[{"uid": 1000004, "nickname": "Dan"}]', "", 1],
+        [1000003, "Medianoche (co-admin)", "medianoche@example.com", "Media", "Noche", 1, 'N', 'N', 'Y', 'Y', 'Y', 'no', 1, "password", "128000000", "[]", "", 1],
+        [1000004, "Dan", "dan@example.com", "Dan", "Crawley", 6, 'N', 'N', 'Y', 'Y', 'Y', 'yes', 1, "password", "128000000", "[]", "", 1]
       ]
     },
     {

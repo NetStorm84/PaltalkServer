@@ -300,7 +300,36 @@ class PacketProcessor {
                 case PACKET_TYPES.VERSIONS:
                     await this.handleVersions(socket, payload);
                     break;
-                
+
+                // Paltalk 8 specific packets
+                case PACKET_TYPES.PALTALK8_INIT:
+                    // Acknowledge initialization data - no response needed
+                    logger.info('Paltalk 8 INIT received', { socketId: socket.id });
+                    break;
+
+                case PACKET_TYPES.PALTALK8_STATUS:
+                    // Status/heartbeat - no response needed
+                    logger.debug('Paltalk 8 STATUS received', { socketId: socket.id });
+                    break;
+
+                case PACKET_TYPES.PALTALK8_GUID:
+                    // Client GUID registration - acknowledge
+                    logger.info('Paltalk 8 GUID received', {
+                        socketId: socket.id,
+                        guid: payload.toString('ascii')
+                    });
+                    break;
+
+                case PACKET_TYPES.PALTALK8_READY:
+                    // Client ready signal - no response needed
+                    logger.info('Paltalk 8 READY received', { socketId: socket.id });
+                    break;
+
+                case PACKET_TYPES.PALTALK8_SYNC:
+                    // Sync request - no response needed
+                    logger.info('Paltalk 8 SYNC received', { socketId: socket.id });
+                    break;
+
                 case PACKET_TYPES.KEEP_ALIVE:
                     // Handle packet type 13 (0x000D) - keep-alive or status packet
                     logger.info('Received KEEP_ALIVE packet', { 
@@ -440,25 +469,111 @@ class PacketProcessor {
     }
 
     async handleLymerick(socket, payload) {
-        // Extract the lymerick content from the payload
-        const lymerickContent = payload.toString('utf8');
-        
-        // Output the lymerick to console
-        console.log('📝 LYMERICK RECEIVED FROM CLIENT:');
-        console.log('================================');
-        console.log(lymerickContent);
-        console.log('================================');
-        
-        logger.info('Lymerick received', { 
+        // Detect client version from packet header version (set in server.js)
+        // Paltalk 5 uses version 29, Paltalk 8 uses version 86
+        const isPaltalk8 = socket.clientVersion === 86 || socket.clientVersion === 14;
+        const clientVersion = isPaltalk8 ? 'Paltalk8' : 'Paltalk5';
+
+        // Check for "BB" marker - must have 0x000f at bytes 0-1 AND 0x4242 at bytes 2-3
+        // This distinguishes from UID 1000002 (0x000F4242) which has the same byte pattern
+        // Real BB marker: 000f4242 followed by 00000001...
+        // UID packet: just the UID followed by different data
+        const hasBBMarker = payload.length >= 8 &&
+            payload.slice(0, 2).toString('hex') === '000f' &&
+            payload.slice(2, 4).toString('hex') === '4242' &&
+            payload.slice(4, 8).toString('hex') === '00000001';
+
+        logger.info('📝 LYMERICK received', {
             socketId: socket.id,
-            content: lymerickContent,
-            payloadLength: payload.length 
+            clientVersion,
+            hasBBMarker,
+            packetVersion: socket.clientVersion,
+            payloadLength: payload.length,
+            payloadHex: payload.toString('hex').substring(0, 100)
         });
-        
-        sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0), socket.id);
-        
-        const serverKey = Buffer.from('XyF¦164473312518');
-        sendPacket(socket, PACKET_TYPES.SERVER_KEY, serverKey, socket.id);
+
+        // Paltalk 8 with BB marker: Send UIN_RESPONSE + LOGIN_NOT_COMPLETE
+        if (isPaltalk8 && hasBBMarker) {
+            // Look up user from database
+            let userData = await this.db.getUserByNickname('NetStorm');
+            if (!userData) {
+                userData = { uid: 1000002, nickname: 'NetStorm' };
+            }
+
+            // Map database UID to Paltalk 8 compatible range (avoids BB marker collision)
+            const paltalk8Uid = 50000000 + userData.uid;
+
+            const uinResponse = Buffer.from(`uid=${paltalk8Uid}\nnickname=${userData.nickname}\n`);
+            logger.info('Sending UIN_RESPONSE for LYMERICK (BB)', {
+                paltalk8Uid,
+                databaseUid: userData.uid,
+                nickname: userData.nickname
+            });
+            sendPacket(socket, PACKET_TYPES.UIN_RESPONSE, uinResponse, socket.id);
+
+            // Store mapping for login handler
+            if (!this.paltalk8PendingUsers) {
+                this.paltalk8PendingUsers = new Map();
+            }
+            this.paltalk8PendingUsers.set(socket.remoteAddress, {
+                paltalk8Uid,
+                databaseUid: userData.uid,
+                nickname: userData.nickname,
+                userData
+            });
+
+            sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0), socket.id);
+        } else if (isPaltalk8) {
+            // Paltalk 8 without BB marker: Extract UID from payload and store on socket
+            // First 4 bytes contain the UID in big-endian format
+            if (payload.length >= 4) {
+                const uid = payload.readUInt32BE(0);
+                socket.paltalk8Uid = uid;
+                logger.info('Extracted UID from LYMERICK', { uid, socketId: socket.id });
+
+                // Also try to get user data from pending map
+                const clientIp = socket.remoteAddress;
+                if (this.paltalk8PendingUsers && this.paltalk8PendingUsers.has(clientIp)) {
+                    socket.paltalk8UserData = this.paltalk8PendingUsers.get(clientIp);
+                    logger.info('Found pending user data for Paltalk 8', {
+                        clientIp,
+                        uid: socket.paltalk8UserData.uid,
+                        nickname: socket.paltalk8UserData.nickname
+                    });
+                }
+            }
+
+            // Send LOGIN_NOT_COMPLETE then SERVER_KEY
+            sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0), socket.id);
+
+            // SERVER_KEY = 10 (519 - 509 = 10)
+            socket.serverKey = 10;
+
+            // SERVER_KEY for Paltalk 8 has a 14-byte prefix before the key string
+            const prefix = Buffer.from('00030007001302580279024602a6', 'hex');
+            const keyString = Buffer.from('519');
+            const serverKeyPayload = Buffer.concat([prefix, keyString]);
+            logger.info('Sending SERVER_KEY for Paltalk 8', {
+                payloadHex: serverKeyPayload.toString('hex'),
+                serverKey: socket.serverKey
+            });
+            sendPacket(socket, PACKET_TYPES.SERVER_KEY, serverKeyPayload, socket.id);
+        } else {
+            // Paltalk 5: Original flow
+            sendPacket(socket, PACKET_TYPES.LOGIN_NOT_COMPLETE, Buffer.alloc(0), socket.id);
+
+            // SERVER_KEY = 10 (519 - 509 = 10)
+            socket.serverKey = 10;
+
+            // Use 'latin1' encoding so '¦' is 1 byte (0xA6), not 2 bytes (UTF-8: 0xC2A6)
+            // Client reads payload[4:7] for SERVER_KEY, so '519' must start at byte 4
+            const serverKey = Buffer.from('XyF\xA6519', 'latin1');
+            logger.info('Sending SERVER_KEY for Paltalk 5', {
+                serverKey: socket.serverKey,
+                payloadHex: serverKey.toString('hex')
+            });
+            sendPacket(socket, PACKET_TYPES.SERVER_KEY, serverKey, socket.id);
+        }
     }
 
     /**
@@ -538,12 +653,108 @@ class PacketProcessor {
 
     async handleLogin(socket, payload) {
         try {
-            const uid = Utils.hexToDec(payload.slice(0, 4));
-            const userData = await this.db.getUserByUid(uid);
-            
+            // Detect Paltalk 8 by checking for 03651e52 prefix or version 86
+            const isPaltalk8 = socket.clientVersion === 86 ||
+                              (payload.length >= 4 && payload.slice(0, 4).toString('hex') === '03651e52');
+
+            let uid;
+            let userData;
+
+            if (isPaltalk8) {
+                // Paltalk 8: Use the UID stored from LYMERICK handler
+                if (socket.paltalk8UserData) {
+                    // Use the user data we looked up earlier
+                    uid = socket.paltalk8UserData.uid;
+                    logger.info('Paltalk 8 login detected (using stored user data)', {
+                        uid,
+                        nickname: socket.paltalk8UserData.nickname
+                    });
+                    userData = await this.db.getUserByUid(uid);
+                } else if (socket.paltalk8Uid) {
+                    // Fallback to extracted UID from LYMERICK
+                    uid = socket.paltalk8Uid;
+                    logger.info('Paltalk 8 login detected (using extracted UID)', { uid });
+                    userData = await this.db.getUserByUid(uid);
+                } else {
+                    // Last resort: extract UID from payload
+                    uid = payload.readUInt32BE(0);
+                    logger.info('Paltalk 8 login detected (extracting from payload)', { uid });
+                    userData = await this.db.getUserByUid(uid);
+                }
+            } else {
+                // Paltalk 5: UID in first 4 bytes
+                uid = Utils.hexToDec(payload.slice(0, 4));
+                userData = await this.db.getUserByUid(uid);
+            }
+
+            // For Paltalk 8, try to get actual database user using mapped UID
+            if (!userData && isPaltalk8 && socket.paltalk8UserData) {
+                // Use the original database UID to load proper user data
+                const databaseUid = socket.paltalk8UserData.databaseUid;
+                userData = await this.db.getUserByUid(databaseUid);
+                if (userData) {
+                    // Override UID with Paltalk 8 mapped UID for this session
+                    userData.uid = socket.paltalk8UserData.paltalk8Uid;
+                    logger.info('Loaded Paltalk 8 user from database', {
+                        paltalk8Uid: userData.uid,
+                        databaseUid,
+                        nickname: userData.nickname
+                    });
+                }
+            }
+
+            // Fallback: create temporary user if still not found
+            if (!userData && isPaltalk8) {
+                const nickname = socket.paltalk8UserData?.nickname || 'NetStorm';
+                const userUid = socket.paltalk8UserData?.paltalk8Uid || uid;
+                logger.info('Creating temporary Paltalk 8 user', { uid: userUid, nickname });
+                userData = {
+                    uid: userUid,
+                    nickname: nickname,
+                    email: 'paltalk8@example.com',
+                    firstName: nickname,
+                    lastName: '',
+                    admin: 0,
+                    paid1: '6',
+                    banners: 0,
+                    random: 1
+                };
+            }
+
             if (!userData) {
                 logger.warn('Login attempt with invalid UID', { uid, socketId: socket.id });
+                this.sendLoginFailure(socket, 'Invalid user');
                 return;
+            }
+
+            // Password verification
+            const passwordStartPos = isPaltalk8 ? 4 : 4;
+            if (payload.length > passwordStartPos) {
+                const encryptedPassword = payload.slice(passwordStartPos).toString('ascii').trim();
+                const serverKey = socket.serverKey || 0;
+                const decryptedPassword = Utils.decryptPassword(encryptedPassword, serverKey);
+
+                logger.debug('Password verification attempt', {
+                    uid,
+                    serverKey,
+                    decryptedPassword,
+                    storedPassword: userData.password,
+                    match: decryptedPassword === userData.password
+                });
+
+                // Only verify if user has a password set
+                if (userData.password && userData.password !== 'system_no_login') {
+                    if (decryptedPassword !== userData.password) {
+                        logger.warn('Password verification failed', {
+                            uid,
+                            nickname: userData.nickname,
+                            socketId: socket.id
+                        });
+                        this.sendLoginFailure(socket, 'Invalid password');
+                        return;
+                    }
+                    logger.info('Password verified successfully', { uid, nickname: userData.nickname });
+                }
             }
 
             // CRITICAL FIX: Clean up any existing session for this user BEFORE creating new user object
@@ -581,40 +792,36 @@ class PacketProcessor {
             loginResponse.writeUInt32BE(1, 4); // Success flag
             sendPacket(socket, PACKET_TYPES.LOGIN, loginResponse, socket.id);
 
-            // Step 2: Send USER_DATA packet with complete field set including SMTP
-            // CRITICAL: This complete USER_DATA packet is essential for proper client functionality.
-            // All fields must be present in correct order for the client to recognize account status,
-            // enable premium features, and maintain stable connections. Key fields include:
-            // - paid1: Account type (6=paid, N=free) - determines premium features availability
-            // - smtp: Required authentication data for client protocol validation
-            // - admin: Admin privileges level for room management capabilities
-            // - All AOL/server fields: Required for legacy protocol compatibility
-            // - ei/target fields: Essential for user identification and search functionality
-            // Removing or modifying this structure may cause client disconnections or feature loss.
-            const fullUserData = `uid=${user.uid}\nnickname=${user.nickname}\npaid1=${user.paid1}\nbanners=${user.banners}\nrandom=${user.random}\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nfirst=${user.firstName}\nlast=${user.lastName}\nemail=${user.email}\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\\$Revision: 1.97\\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`;
-            
-            logger.debug('Sending USER_DATA packet', {
+            // Step 2: Send USER_DATA packet (full data for both Paltalk 5 and 8)
+            const fullUserData = `uid=${user.uid}\nnickname=${user.nickname}\npaid1=6\nbanners=${user.banners}\nrandom=${user.random}\nsmtp=33802760272033402040337033003400278033003370356021203410364036103110290022503180356037302770374030803600291029603310\nadmin=${user.admin}\nph=0\nget_offers_from_us=0\nget_offers_from_affiliates=0\nfirst=${user.firstName}\nlast=${user.lastName}\nemail=${user.email}\nprivacy=A\nverified=G\ninsta=6\npub=200\nvad=4\ntarget=${user.uid},${user.nickname}&age:0&gender:-\naol=toc.oscar.aol.com:5190\naolh=login.oscar.aol.com:29999\naolr=TIC:\\$Revision: 1.97\\$\naoll=english\ngja=3-15\nei=150498470819571187610865342234417958468385669749\ndemoif=10\nip=81.12.51.219\nsson=Y\ndpp=N\nvq=21\nka=YY\nsr=C\nask=Y;askpbar.dll;{F4D76F01-7896-458a-890F-E1F05C46069F}\ncr=DE\nrel=beta:301,302`;
+
+            logger.info('Sending USER_DATA packet', {
                 userId: user.uid,
                 nickname: user.nickname,
                 paid1: user.paid1,
                 dataLength: fullUserData.length
             });
-            
+
             sendPacket(socket, PACKET_TYPES.USER_DATA, Buffer.from(fullUserData), socket.id);
             
-            // Step 3: Send buddy list (essential for buddy list window)
+            // Step 3: Send buddy list (same for both Paltalk 5 and 8)
             const buddyList = this.createBuddyListBuffer(user);
             sendPacket(socket, PACKET_TYPES.BUDDY_LIST, buddyList, socket.id);
 
             // Step 4: Send individual status updates for each buddy (required for UI to show correct status)
             this.sendBuddyStatusUpdatesOnLogin(socket, user);
 
-            // Step 5: Login unknown packet (required for buddy list window)
+            // Step 5: Login unknown packet (required for login)
             sendPacket(socket, PACKET_TYPES.LOGIN_UNKNOWN, Buffer.alloc(0), socket.id);
 
-            // Step 6: Send categories
-            const categoryBuffer = await this.createCategoryBuffer();
-            sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, categoryBuffer, socket.id);
+            // Step 6: Send categories (skip for Paltalk 8 - may cause freeze)
+            const isPaltalk8Login = socket.clientVersion === 86 || socket.paltalk8UserData;
+            if (!isPaltalk8Login) {
+                const categoryBuffer = await this.createCategoryBuffer();
+                sendPacket(socket, PACKET_TYPES.CATEGORY_LIST, categoryBuffer, socket.id);
+            } else {
+                logger.info('Skipping CATEGORY_LIST for Paltalk 8', { socketId: socket.id });
+            }
 
             // Step 7: Send offline messages
             await this.sendOfflineMessages(socket, user);
@@ -1446,14 +1653,25 @@ class PacketProcessor {
         const receiverUid = Utils.hexToDec(payload.slice(0, 4));
         const content = payload.slice(4);
 
+        logger.info('IM received', {
+            senderUid: user.uid,
+            senderNickname: user.nickname,
+            receiverUid,
+            receiverUidHex: payload.slice(0, 4).toString('hex'),
+            content: content.toString('utf8'),
+            isPaltalk8: socket.clientVersion === 86 || !!socket.paltalk8UserData
+        });
+
         if (!Utils.isValidInput(content.toString('utf8'), 2000)) {
             logger.warn('Invalid IM content', { userId: user.uid });
             return;
         }
 
-        // Check for admin commands
-        if (receiverUid === 1000001) {
+        // Check for admin commands (UID 1000001 for Paltalk 5, or 51000001 for Paltalk 8)
+        if (receiverUid === 1000001 || receiverUid === 51000001) {
+            logger.info('Admin command detected', { receiverUid, content: content.toString('utf8') });
             const response = this.adminCommands.processCommand(user, content.toString('utf8'));
+            logger.info('Admin command response', { response });
             this.sendSystemMessage(socket, response);
             return;
         }
@@ -1620,9 +1838,18 @@ class PacketProcessor {
     async handleRefreshCategories(socket, payload) {
         const user = serverState.getUserBySocketId(socket.id);
         if (!user) return;
-        
+
+        // Log Paltalk 8 category request (client explicitly requested it)
+        const isPaltalk8 = socket.clientVersion === 86 || socket.paltalk8UserData;
+        if (isPaltalk8) {
+            logger.info('Processing REFRESH_CATEGORIES for Paltalk 8 (client requested)', {
+                socketId: socket.id,
+                payloadHex: payload.toString('hex')
+            });
+        }
+
         const categoryId = Utils.hexToDec(payload.slice(8, 12));
-        
+
         if (categoryId === 0) {
             // Send category counts
             const countsBuffer = this.createCategoryCountsBuffer();
@@ -2186,6 +2413,12 @@ class PacketProcessor {
     }
 
     async handleVersions(socket, payload) {
+        // Skip response for Paltalk 8 - may cause freeze
+        const isPaltalk8 = socket.clientVersion === 86 || socket.paltalk8UserData;
+        if (isPaltalk8) {
+            logger.info('Skipping VERSIONS response for Paltalk 8', { socketId: socket.id });
+            return;
+        }
         // Handle version check - respond with server version info
         const versionResponse = Buffer.from('version=1.0.0\nprotocol=2024');
         sendPacket(socket, PACKET_TYPES.VERSIONS, versionResponse, socket.id);
@@ -2232,17 +2465,51 @@ class PacketProcessor {
     }
 
     /**
-     * Send system message to user
-     * @param {Socket} socket 
-     * @param {string} message 
+     * Send system message to user (from Paltalk buddy)
+     * @param {Socket} socket
+     * @param {string} message
      */
     sendSystemMessage(socket, message) {
+        // Use mapped UID for Paltalk 8 clients (51000001), original for Paltalk 5 (1000001)
+        // Paltalk 8 uses client version 86 or 14
+        const isPaltalk8 = socket.clientVersion === 86 || socket.clientVersion === 14 || socket.paltalk8UserData;
+        const senderUid = isPaltalk8 ? 51000001 : 1000001;
+
+        logger.info('Sending system message', {
+            isPaltalk8,
+            clientVersion: socket.clientVersion,
+            paltalk8UserData: !!socket.paltalk8UserData,
+            senderUid,
+            senderUidHex: Utils.decToHex(senderUid),
+            messageLength: message.length,
+            message: message.substring(0, 100)
+        });
+
         const responseBuffer = Buffer.concat([
-            Buffer.from('000f4241', 'hex'), // System identifier
+            Buffer.from(Utils.decToHex(senderUid), 'hex'),
             Buffer.from(message, 'utf8')
         ]);
 
         sendPacket(socket, PACKET_TYPES.IM_IN, responseBuffer, socket.id);
+    }
+
+    /**
+     * Send login failure response to client
+     * @param {Socket} socket
+     * @param {string} reason - Reason for login failure
+     */
+    sendLoginFailure(socket, reason) {
+        logger.warn('Sending login failure', {
+            socketId: socket.id,
+            reason
+        });
+
+        // Send a login failure response
+        // The failure response uses a specific format that the client recognizes
+        const failureResponse = Buffer.alloc(8);
+        failureResponse.writeUInt32BE(0, 0);  // UID = 0 indicates failure
+        failureResponse.writeUInt32BE(0, 4);  // Failure flag
+        sendPacket(socket, PACKET_TYPES.LOGIN, failureResponse, socket.id);
     }
 
     // Helper methods
@@ -2318,8 +2585,9 @@ class PacketProcessor {
         }
 
         buddies.forEach(buddy => {
-            // Use the original Paltalk buddy list format: uid=X\nnickname=Y
-            const buddyString = `uid=${buddy.uid}\nnickname=${buddy.nickname}`;
+            // Map buddy UID to Paltalk 8 range (50000000 + uid)
+            const mappedUid = 50000000 + buddy.uid;
+            const buddyString = `uid=${mappedUid}\nnickname=${buddy.nickname}`;
             buffers.push(Buffer.from(buddyString));
             buffers.push(delimiter);
         });
@@ -2353,28 +2621,23 @@ class PacketProcessor {
             }
         }
 
+        logger.info('sendBuddyStatusUpdatesOnLogin called', {
+            userId: user.uid,
+            buddyCount: buddies.length,
+            buddies: buddies.map(b => ({ uid: b.uid, nickname: b.nickname }))
+        });
+
         buddies.forEach(buddy => {
-            // Check if buddy is online and get their status
-            const buddyUser = serverState.getUser(buddy.uid);
-            let statusCode = null; // Will only be set if we should send status
-            
-            if (buddyUser && buddyUser.isOnline()) {
-                // Buddy is online - check their mode
-                if (buddyUser.mode === USER_MODES.AWAY) {
-                    statusCode = '00000046'; // Away status
-                } else {
-                    statusCode = '0000001E'; // Online status
-                }
-            } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
-                // Special case: Paltalk user should always appear online
-                statusCode = '0000001E';
-            }
-            // If buddy is offline, don't send any status - statusCode remains null
-            
-            // Only send status if buddy is online or away (not offline)
-            if (statusCode) {
-                const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + statusCode, 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+            // For now, show all buddies as online for testing
+            const statusCode = '0000001E'; // Online status
+
+            // Map buddy UID to Paltalk 8 range (50000000 + uid)
+            const mappedUid = 50000000 + buddy.uid;
+            logger.info('Sending buddy status', { mappedUid, statusCode, nickname: buddy.nickname });
+            const statusBuffer = Buffer.from(Utils.decToHex(mappedUid) + statusCode, 'hex');
+            sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
+
+            if (true) { // Always send for testing
                 
                 logger.debug('Login buddy status sent', {
                     userId: user.uid,
@@ -3660,68 +3923,12 @@ class PacketProcessor {
         });
     }
 
-    /**
-     * Send system message to user
-     * @param {Socket} socket 
-     * @param {string} message 
-     */
-    sendSystemMessage(socket, message) {
-        const responseBuffer = Buffer.concat([
-            Buffer.from('000f4241', 'hex'), // System identifier
-            Buffer.from(message, 'utf8')
-        ]);
-
-        sendPacket(socket, PACKET_TYPES.IM_IN, responseBuffer, socket.id);
-    }
-
     // Helper methods
 
     /**
      * Send individual STATUS_CHANGE packets for each buddy during login
      * This is required for the client's buddy list UI to show correct status
      */
-    sendBuddyStatusUpdatesOnLogin(socket, user) {
-        user.buddies.forEach(buddy => {
-            // Check if buddy is online and get their status
-            const buddyUser = serverState.getUser(buddy.uid);
-            let statusCode = null; // Will only be set if we should send status
-            
-            if (buddyUser && buddyUser.isOnline()) {
-                // Buddy is online - check their mode
-                if (buddyUser.mode === USER_MODES.AWAY) {
-                    statusCode = '00000046'; // Away status
-                } else {
-                    statusCode = '0000001E'; // Online status
-                }
-            } else if (buddy.nickname === 'Paltalk' || buddy.uid === 1000001) {
-                // Special case: Paltalk user should always appear online
-                statusCode = '0000001E';
-            }
-            // If buddy is offline, don't send any status - statusCode remains null
-            
-            // Only send status if buddy is online or away (not offline)
-            if (statusCode) {
-                const statusBuffer = Buffer.from(Utils.decToHex(buddy.uid) + statusCode, 'hex');
-                sendPacket(socket, PACKET_TYPES.STATUS_CHANGE, statusBuffer, socket.id);
-                
-                logger.debug('Login buddy status sent', {
-                    userId: user.uid,
-                    buddyUid: buddy.uid,
-                    buddyNickname: buddy.nickname,
-                    statusCode,
-                    status: statusCode === '0000001E' ? 'online' : 'away'
-                });
-            } else {
-                logger.debug('Skipping offline buddy status', {
-                    userId: user.uid,
-                    buddyUid: buddy.uid,
-                    buddyNickname: buddy.nickname,
-                    reason: 'buddy is offline'
-                });
-            }
-        });
-    }
-
     async createCategoryBuffer() {
         const categories = serverState.getAllCategories();
         const buffers = [];
@@ -4316,184 +4523,49 @@ class PacketProcessor {
 
     /**
      * Send room admin info response
-     * @param {Socket} socket 
-     * @param {Room} room 
+     * Format: group=<roomId>\nmike=<0|1>\ntext=<0|1>\nvideo=<0|1>\nbounce=<list>\nban=<list>
+     * @param {Socket} socket
+     * @param {Room} room
      */
     async sendRoomAdminInfo(socket, room) {
         try {
             // Get room settings from database
             const roomData = await this.db.getRoomById(room.id);
-            if (!roomData) {
-                logger.warn('Room not found in database', { roomId: room.id });
-                return;
-            }
 
-            // Initialize test counter if not exists
-            if (!this.adminInfoTestCounter) {
-                this.adminInfoTestCounter = 0;
-            }
+            // Get bounced users from room state
+            // Format: uid,nickname separated by newlines
+            const bouncedUsers = room.getBouncedUsers ? room.getBouncedUsers() : [];
+            const bounceList = bouncedUsers.map(u => `${u.uid},${u.nickname}`).join('\n');
 
-            // Get bounced users (from our bounce logs or room state)
-            const bouncedUsers = []; // TODO: Get from room state or recent bounces
-            const bounceList = bouncedUsers.join(String.fromCharCode(0xC8)); // Separated by 0xC8
-            
-            // Get banned users (from database or room state)  
-            const bannedUsers = []; // TODO: Get from database
-            const banList = bannedUsers.join('\n'); // Separated by \n
-            
-            // Room settings (mike, text, video permissions + bounce list)
-            const settings = [
-                `mike=1`,                        // Force mike=1 for testing
-                `text=${roomData.text || 0}`,    // Red dot affects text
-                `video=${roomData.video || 0}`,  // Red dot affects video
-                `bounce=${bounceList}`           // Bounced users list
-            ];
+            // Get banned users from room state
+            // Format: uid,nickname separated by newlines
+            const bannedUsers = room.getBannedUsers ? room.getBannedUsers() : [];
+            const banList = bannedUsers.map(u => `${u.uid},${u.nickname}`).join('\n');
 
-            const roomIdStr = `${room.id}`;
-            const settingsStr = settings.join('\n');
-            
-            // MAJOR DISCOVERY: waitbuf includes 6-byte header, so waitbuf+12 means offset 6 in payload!
-            // We need room ID at offset 6 in payload, not offset 12!
-            // Let's try the absolute simplest possible formats
-            const testFormats = [
-                // Test 1: Super simple - just room ID at offset 6 in payload
-                () => {
-                    const buffer = Buffer.alloc(50);
-                    let offset = 0;
-                    
-                    // Skip to offset 6
-                    buffer.fill(0, 0, 6);
-                    offset = 6;
-                    
-                    // Put room ID at offset 6
-                    buffer.write(roomIdStr, offset);
-                    offset += roomIdStr.length;
-                    
-                    return buffer.slice(0, offset + 10); // Add some padding
-                },
-                
-                // Test 2: Room ID at offset 6 + newline + "mike=1"
-                () => {
-                    const buffer = Buffer.alloc(50);
-                    let offset = 0;
-                    
-                    // Skip to offset 6
-                    buffer.fill(0, 0, 6);
-                    offset = 6;
-                    
-                    // Put room ID at offset 6
-                    buffer.write(roomIdStr, offset);
-                    offset += roomIdStr.length;
-                    
-                    // Add newline + mike=1
-                    buffer.write('\nmike=1', offset);
-                    offset += 7;
-                    
-                    return buffer.slice(0, offset);
-                },
-                
-                // Test 3: Newline at offset 0, room ID at offset 6, mike=1 after  
-                () => {
-                    const buffer = Buffer.alloc(50);
-                    let offset = 0;
-                    
-                    // Newline at offset 0
-                    buffer[offset++] = 0x0A;
-                    
-                    // Skip to offset 6 
-                    while (offset < 6) {
-                        buffer[offset++] = 0;
-                    }
-                    
-                    // Room ID at offset 6
-                    buffer.write(roomIdStr, offset);
-                    offset += roomIdStr.length;
-                    
-                    // Settings after room ID
-                    buffer.write('\nmike=1', offset);
-                    offset += 7;
-                    
-                    return buffer.slice(0, offset);
-                },
-                
-                // Test 4: Try what looks like a real working packet format
-                () => {
-                    return Buffer.from(`\0\0\0\0\0\0${roomIdStr}\nmike=1\ntext=0\nvideo=0\nbounce=\n`);
-                },
-                
-                // Test 5: Ultra minimal - maybe it doesn't even need complex structure
-                () => {
-                    return Buffer.from(`mike=1`);
-                }
-            ];
+            // Build admin info response
+            // Format: group= mike= text= video= bounce= ban= (delimited by \n)
+            const adminInfo = [
+                `group=${room.id}`,
+                `mike=${roomData?.mike ?? 1}`,
+                `text=${roomData?.text ?? 0}`,
+                `video=1`,  // Hardcoded to 1 for testing
+                `bounce=${bounceList}`,
+                `ban=${banList}`
+            ].join('\n');
 
-            // CORRECTED understanding:
-            // waitbuf+6 = start of payload (offset 0)
-            // waitbuf+12 = offset 6 in payload
-            // So: strchr(waitbuf+6,'\n') looks for newline starting at payload offset 0
-            // And: atol(waitbuf+12) looks for room ID starting at payload offset 6
-            
-            const buffer = Buffer.alloc(100);
-            let offset = 0;
-            
-            // Let me try a simpler approach:
-            // Put some short data at offset 0, then newline, then room ID at offset 6
-            
-            // Put short data at offset 0 (maybe just "room" or similar)
-            buffer.write("room", offset);
-            offset += 4;
-            
-            // Put newline (this is what strchr finds)
-            buffer[offset++] = 0x0A;
-            
-            // Fill until offset 6 where room ID goes (atol(waitbuf+12))
-            while (offset < 6) {
-                buffer[offset++] = 0;
-            }
-            
-            // Put room ID at offset 6 (this is waitbuf+12 - what atol parses)
-            buffer.write(roomIdStr, offset);
-            offset += roomIdStr.length;
-            
-            // Put null terminator after room ID (atol needs this)
-            buffer[offset++] = 0x00;
-            
-            // Put newline after room ID (this starts the settings data that ctmp points to)
-            buffer[offset++] = 0x0A;
-            
-            // Put settings data separated by newlines (this is what g_strsplit processes)
-            const settingsData = `mike=1\ntext=0\nvideo=0\nbounce=`;
-            buffer.write(settingsData, offset);
-            offset += settingsData.length;
-            
-            // Put newline after settings
-            buffer[offset++] = 0x0A;
-            
-            // Put 0xC8 separator (this is what strrchr finds)
-            buffer[offset++] = 0xC8;
-            
-            // Put ban data after 0xC8 (this is what gets parsed as "ban=<data>")
-            const banData = `ban=${banList}`;
-            buffer.write(banData, offset);
-            offset += banData.length;
-            
-            const payloadBuffer = buffer.slice(0, offset);
+            const payloadBuffer = Buffer.from(adminInfo, 'utf8');
 
             // Get user info for logging
             const user = serverState.getUserBySocketId(socket.id);
-            
-            // Send the packet
-            logger.info(`Sending ROOM_ADMIN_INFO packet with correct Gaim structure to socket ${socket.id}`, {
-                targetSocketId: socket.id,
-                targetUserId: user ? user.uid : 'unknown',
-                targetNickname: user ? user.nickname : 'unknown',
-                socketWritable: socket.writable,
+
+            logger.info('Sending ROOM_ADMIN_INFO', {
+                userId: user?.uid,
+                nickname: user?.nickname,
                 roomId: room.id,
                 payloadLength: payloadBuffer.length,
-                payloadHex: payloadBuffer.toString('hex'),
-                payloadAscii: payloadBuffer.toString('ascii').replace(/\n/g, '\\n').replace(/\0/g, '\\0')
+                payload: adminInfo
             });
-            
+
             sendPacket(socket, PACKET_TYPES.PACKET_ROOM_ADMIN_INFO, payloadBuffer, socket.id);
 
         } catch (error) {

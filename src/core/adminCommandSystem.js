@@ -208,22 +208,22 @@ class AdminCommandSystem {
         const availableCommands = Object.entries(this.commands)
             .filter(([cmd, info]) => user.hasPermission(info.action))
             .map(([cmd, info]) => `${cmd} - ${info.description}`)
-            .join('\\n');
+            .join('\n');
 
-        return `Available commands:\\n${availableCommands}`;
+        return `Available commands:\n${availableCommands}`;
     }
 
     handleUsers(user, params) {
         const onlineUsers = this.serverState.getOnlineUsers();
         const userSummary = this.serverState.getUserActivitySummary();
         
-        let response = `Online Users: ${onlineUsers.length}\\n`;
-        response += `Active: ${userSummary.active}, Idle: ${userSummary.idle}, Away: ${userSummary.away}\\n`;
+        let response = `Online Users: ${onlineUsers.length}\n`;
+        response += `Active: ${userSummary.active}, Idle: ${userSummary.idle}, Away: ${userSummary.away}\n`;
         
         if (params[0] === 'list' && user.hasPermission('ban_user')) {
-            response += '\\nUser List:\\n';
+            response += '\nUser List:\n';
             onlineUsers.slice(0, 20).forEach(u => {
-                response += `- ${u.nickname} (UID: ${u.uid}) [${u.mode === 30 ? 'Online' : 'Away'}]\\n`;
+                response += `- ${u.nickname} (UID: ${u.uid}) [${u.mode === 30 ? 'Online' : 'Away'}]\n`;
             });
             if (onlineUsers.length > 20) {
                 response += `... and ${onlineUsers.length - 20} more users`;
@@ -237,10 +237,10 @@ class AdminCommandSystem {
         const rooms = this.serverState.getAllRooms();
         const roomStats = this.serverState.getRoomStatistics();
         
-        let response = `Active Rooms: ${rooms.length}\\n`;
+        let response = `Active Rooms: ${rooms.length}\n`;
         
         roomStats.forEach(room => {
-            response += `- ${room.name} (ID: ${room.id}) - ${room.userCount}/${room.maxUsers} users\\n`;
+            response += `- ${room.name} (ID: ${room.id}) - ${room.userCount}/${room.maxUsers} users\n`;
         });
 
         return response;
@@ -249,13 +249,13 @@ class AdminCommandSystem {
     handleStats(user, params) {
         const stats = this.serverState.getStats();
         
-        return `Server Statistics:\\n` +
-               `Uptime: ${stats.uptimeFormatted}\\n` +
-               `Total Connections: ${stats.totalConnections}\\n` +
-               `Current Users: ${stats.currentUsers}\\n` +
-               `Peak Users: ${stats.peakConcurrentUsers}\\n` +
-               `Total Packets: ${stats.totalPacketsReceived}\\n` +
-               `Total Messages: ${stats.totalMessagesProcessed}\\n` +
+        return `Server Statistics:\n` +
+               `Uptime: ${stats.uptimeFormatted}\n` +
+               `Total Connections: ${stats.totalConnections}\n` +
+               `Current Users: ${stats.currentUsers}\n` +
+               `Peak Users: ${stats.peakConcurrentUsers}\n` +
+               `Total Packets: ${stats.totalPacketsReceived}\n` +
+               `Total Messages: ${stats.totalMessagesProcessed}\n` +
                `Memory Usage: ${Math.round(stats.memoryUsage.heapUsed / 1024 / 1024)}MB`;
     }
 
@@ -400,10 +400,10 @@ class AdminCommandSystem {
         const stats = this.serverState.getStats();
         const memUsage = process.memoryUsage();
         
-        return `Performance Metrics:\\n` +
-               `Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB used of ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB\\n` +
-               `CPU: ${JSON.stringify(process.cpuUsage())}\\n` +
-               `Process Uptime: ${Math.round(process.uptime())}s\\n` +
+        return `Performance Metrics:\n` +
+               `Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB used of ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB\n` +
+               `CPU: ${JSON.stringify(process.cpuUsage())}\n` +
+               `Process Uptime: ${Math.round(process.uptime())}s\n` +
                `Avg Query Time: ${stats.performanceMetrics?.lastUpdate ? 'Available' : 'N/A'}`;
     }
 
@@ -690,17 +690,17 @@ class AdminCommandSystem {
 
         const redDottedUsers = room.getRedDottedUsers();
         
-        let response = `Red Dot Status for room '${room.name}' (ID: ${room.id}):\\n`;
-        response += `Text privileges affected: ${room.redDotAffectsText ? 'Yes' : 'No'}\\n`;
-        response += `Video privileges affected: ${room.redDotAffectsVideo ? 'Yes' : 'No'}\\n`;
-        response += `Voice privileges affected: Always (standard behavior)\\n\\n`;
+        let response = `Red Dot Status for room '${room.name}' (ID: ${room.id}):\n`;
+        response += `Text privileges affected: ${room.redDotAffectsText ? 'Yes' : 'No'}\n`;
+        response += `Video privileges affected: ${room.redDotAffectsVideo ? 'Yes' : 'No'}\n`;
+        response += `Voice privileges affected: Always (standard behavior)\n\n`;
         
         if (redDottedUsers.length === 0) {
             response += 'No users currently have red dot status.';
         } else {
-            response += `Red dotted users (${redDottedUsers.length}):\\n`;
+            response += `Red dotted users (${redDottedUsers.length}):\n`;
             redDottedUsers.forEach(userData => {
-                response += `- ${userData.nickname} (UID: ${userData.uid})\\n`;
+                response += `- ${userData.nickname} (UID: ${userData.uid})\n`;
             });
         }
 
@@ -943,24 +943,24 @@ class AdminCommandSystem {
         const requestingUsers = room.getUsersRequestingMic();
         const usersWithMic = room.getAllUsers().filter(u => u.mic === 1);
         
-        let response = `Mic Status for room '${room.name}' (ID: ${room.id}):\\n`;
-        response += `Room type: ${room.isVoice ? 'Voice' : 'Text'}\\n`;
-        response += `Mic enabled: ${room.micEnabled ? 'Yes' : 'No'}\\n\\n`;
+        let response = `Mic Status for room '${room.name}' (ID: ${room.id}):\n`;
+        response += `Room type: ${room.isVoice ? 'Voice' : 'Text'}\n`;
+        response += `Mic enabled: ${room.micEnabled ? 'Yes' : 'No'}\n\n`;
         
         if (usersWithMic.length > 0) {
-            response += `Users with mic (${usersWithMic.length}):\\n`;
+            response += `Users with mic (${usersWithMic.length}):\n`;
             usersWithMic.forEach(userData => {
-                response += `- ${userData.nickname} (UID: ${userData.uid})\\n`;
+                response += `- ${userData.nickname} (UID: ${userData.uid})\n`;
             });
-            response += '\\n';
+            response += '\n';
         }
 
         if (requestingUsers.length === 0) {
             response += 'No users currently requesting mic.';
         } else {
-            response += `Users requesting mic (${requestingUsers.length}):\\n`;
+            response += `Users requesting mic (${requestingUsers.length}):\n`;
             requestingUsers.forEach(userData => {
-                response += `- ${userData.nickname} (UID: ${userData.uid})\\n`;
+                response += `- ${userData.nickname} (UID: ${userData.uid})\n`;
             });
         }
 

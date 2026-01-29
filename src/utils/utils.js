@@ -245,54 +245,107 @@ class Utils {
         }
     }
 
+    // =========================================================================
+    // PASSWORD ENCRYPTION/DECRYPTION
+    // =========================================================================
+    //
+    // Paltalk Password Encryption Protocol:
+    //
+    // 1. SERVER CHALLENGE:
+    //    - Server sends a challenge string (e.g., "XyF¦519") with SERVER_KEY packet
+    //    - IMPORTANT: Must use Latin-1 encoding (not UTF-8) so '¦' is 1 byte (0xA6)
+    //    - Client extracts bytes 4-6 and calculates: SERVER_KEY = atoi(bytes[4:7]) - 509
+    //    - Example: "519" -> SERVER_KEY = 519 - 509 = 10
+    //
+    // 2. ENCRYPTION FORMULA (client-side):
+    //    For each character at position i:
+    //      encrypted[i] = plain[i] + GINGER_KEY[(SERVER_KEY + i) % 51] + (13 - i) * i + 0x7A
+    //
+    // 3. OUTPUT FORMAT:
+    //    - Each encrypted value is formatted as 3-digit decimal (zero-padded) + 1 random noise digit
+    //    - Example: value 266 with noise 7 -> "2667"
+    //    - Total output length = password.length * 4
+    //
+    // 4. DECRYPTION FORMULA (server-side):
+    //    For each 4-char block at position i:
+    //      plain[i] = parseInt(block[0:3]) - GINGER_KEY[(SERVER_KEY + i) % 51] - (13 - i) * i - 0x7A
+    //    (4th char is noise, ignored)
+    //
+    // =========================================================================
+
     /**
-     * Decrypt an encrypted string using key-based decryption
-     * @param {string} key - The decryption key
-     * @param {number} keyOffset - Starting position in the key
-     * @param {string} encryptedString - The encrypted string to decrypt
-     * @returns {string} The decrypted string
+     * GINGER_KEY - The 51-character key used for password encryption/decryption
+     * Used as a rotating cipher key based on SERVER_KEY offset
      */
-    static decrypt(key, keyOffset, encryptedString) {
+    static GINGER_KEY = "Ginger was a big fat horse, a big fat horse was she";
+
+    /**
+     * Decrypt a Paltalk encrypted password
+     *
+     * @param {string} encryptedStr - The encrypted password string
+     *                                Format: 4 chars per original char (3-digit value + 1 noise digit)
+     *                                Example: "26673281291536513828376031033668" (8 chars = 32 encrypted chars)
+     * @param {number} serverKey - The SERVER_KEY value (derived from challenge: atoi(payload[4:7]) - 509)
+     *                             Default: 0 (though server should always provide this)
+     * @returns {string} The decrypted plaintext password
+     *
+     * @example
+     * // With SERVER_KEY = 10 and encrypted "password":
+     * decryptPassword("26673281291536513828376031033668", 10) // Returns "password"
+     */
+    static decryptPassword(encryptedStr, serverKey = 0) {
         const decryptedChars = [];
-        const destination = key.slice();
-        let counter = 0;
 
-        for (let i = 0; i < encryptedString.length; i += 4) {
-            const encryptedSegment = encryptedString.substring(i, i + 3);
-            const encryptedNumber = parseInt(encryptedSegment);
-            const decryptedCharCode = encryptedNumber - destination.charCodeAt(keyOffset + counter) - 122 - counter;
-            counter++;
+        for (let i = 0; i < encryptedStr.length; i += 4) {
+            // Extract 3-digit encrypted value (ignore 4th noise digit)
+            const encryptedValue = parseInt(encryptedStr.substring(i, i + 3), 10);
+            const position = i / 4;
 
-            const decryptedChar = String.fromCharCode(decryptedCharCode & 0xFF);
-            decryptedChars.push(decryptedChar);
+            // Get key character at rotating position
+            const keyIndex = (serverKey + position) % 51;
+            const keyCharCode = this.GINGER_KEY.charCodeAt(keyIndex);
+
+            // Reverse encryption: plain = enc - key - positionFactor - 0x7A
+            const positionFactor = (13 - position) * position;
+            const decryptedCharCode = encryptedValue - keyCharCode - positionFactor - 0x7A;
+
+            decryptedChars.push(String.fromCharCode(decryptedCharCode & 0xFF));
         }
 
         return decryptedChars.join('');
     }
 
     /**
-     * Encrypt a plain text string using key-based encryption
-     * @param {string} plainText - The text to encrypt
-     * @param {number} keyOffset - Starting position in the key
-     * @param {string} key - The encryption key
-     * @returns {string} The encrypted string
+     * Encrypt a password using Paltalk's algorithm
+     *
+     * @param {string} password - The plaintext password to encrypt
+     * @param {number} serverKey - The SERVER_KEY value to use for encryption
+     *                             Default: 0 (though should match server's challenge)
+     * @returns {string} The encrypted password string
+     *                   Format: 4 chars per original char (3-digit value + 1 noise digit)
+     *
+     * @example
+     * // Encrypt "password" with SERVER_KEY = 10:
+     * encryptPassword("password", 10) // Returns something like "26673281291536513828376031033668"
      */
-    static encrypt(plainText, keyOffset, key) {
+    static encryptPassword(password, serverKey = 0) {
         let encryptedString = "";
-        const keyLength = key.length;
-        let counter = 0;
 
-        for (let i = 0; i < plainText.length; i++, counter++) {
-            const plainCharCode = plainText.charCodeAt(i);
-            const keyCharCode = key.charCodeAt((keyOffset + counter) % keyLength);
-            const encryptedNumber = plainCharCode + keyCharCode + 122 + counter;
+        for (let i = 0; i < password.length; i++) {
+            const plainCharCode = password.charCodeAt(i);
 
-            let formattedNumber = encryptedNumber.toString();
-            while (formattedNumber.length < 4) {
-                formattedNumber += '0';
-            }
+            // Get key character at rotating position
+            const keyIndex = (serverKey + i) % 51;
+            const keyCharCode = this.GINGER_KEY.charCodeAt(keyIndex);
 
-            encryptedString += formattedNumber;
+            // Encryption: enc = plain + key + positionFactor + 0x7A
+            const positionFactor = (13 - i) * i;
+            const encryptedValue = plainCharCode + keyCharCode + positionFactor + 0x7A;
+
+            // Format as 3-digit decimal + random noise digit
+            const formatted = (encryptedValue % 1000).toString().padStart(3, '0');
+            const noiseDigit = Math.floor(Math.random() * 10).toString();
+            encryptedString += formatted + noiseDigit;
         }
 
         return encryptedString;

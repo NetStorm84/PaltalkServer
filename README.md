@@ -11,13 +11,12 @@ A modern Node.js-based Paltalk chat server with media support, supporting both t
 
 ## Current Status
 
-✅ **Most features are working including VOICE!** This server successfully recreates the core Paltalk experience with full text chat and voice communication support.
+✅ **Most features are working including VOICE and AUTHENTICATION!** This server successfully recreates the core Paltalk experience with full text chat, voice communication, and password authentication.
 
 🚧 **Known Limitations:**
-- **Authentication**: Password verification is not yet implemented (any password will work for login)
 - **Web Cams**: Video/webcam functionality is not yet implemented (would love some help on this)
 
-The server is fully functional for text and voice chat, making it an excellent recreation of the classic Paltalk experience from the early 2000s.
+The server is fully functional for text and voice chat with proper password authentication, making it an excellent recreation of the classic Paltalk experience from the early 2000s.
 
 ## Quick Setup
 
@@ -115,10 +114,10 @@ The server comes with pre-configured rooms that were restored from the original 
 
 ### Default Users
 
-The setup creates default users:
+The setup creates default users (all use password: `password`):
 - **NetStorm**: Default user account
-- **Medianoche (co-admin)**: Co-admin
-- **Dan**: Administrator
+- **Medianoche (co-admin)**: Co-admin (red nickname)
+- **Dan**: Administrator (red nickname)
 
 ## Connecting with Paltalk Client
 
@@ -129,8 +128,8 @@ The setup creates default users:
    - Use a hex editor to change the server IP in the client
    - Or change the host ip in the Paltalk registry, however, this does seem to change back quite often.
 3. **Default login credentials:**
-   - **Username**: `NetStorm`
-   - **Password**: `h2kclan` (or any password - authentication is is not yet implemented)
+   - **Username**: `NetStorm`, `Dan`, or `Medianoche (co-admin)`
+   - **Password**: `password` (all default users use this password)
 
 ## Development``
 
