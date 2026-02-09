@@ -124,31 +124,23 @@ class Logger extends EventEmitter {
         const direction = 'CLIENT→SERVER';
         const packetData = this.analyzePacket(packetType, payload, socketId, direction, clientInfo);
         
-        this.debug('Packet received', {
-            packetType,
-            payloadLength: payload.length,
-            socketId,
-            direction,
-            payloadHex: payload.toString('hex').substring(0, 100)
-        });
-        
+        const packetName = this.getPacketTypeName(packetType);
+        const hexData = payload.toString('hex').substring(0, 100);
+        this.info(`📥 ${direction} [${packetName}] (${packetType}) len=${payload.length}`, { hexData, socketId });
+
         this.storePacketLog(packetData);
         this.emit('packetLogged', packetData);
     }
 
     logPacketSent(packetType, payload, socketId, clientInfo = {}) {
         if (!this.config.PACKET_LOGGING.ENABLED) return;
-        
+
         const direction = 'SERVER→CLIENT';
         const packetData = this.analyzePacket(packetType, payload, socketId, direction, clientInfo);
-        
-        this.debug('Packet sent', {
-            packetType,
-            payloadLength: payload.length,
-            socketId,
-            direction,
-            payloadHex: payload.toString('hex').substring(0, 100)
-        });
+
+        const packetName = this.getPacketTypeName(packetType);
+        const hexData = payload.toString('hex').substring(0, 100);
+        this.info(`📤 ${direction} [${packetName}] (${packetType}) len=${payload.length}`, { hexData, socketId });
         
         this.storePacketLog(packetData);
         this.emit('packetLogged', packetData);

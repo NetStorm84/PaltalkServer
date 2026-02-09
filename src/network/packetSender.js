@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 
 class PacketSender {
     constructor() {
-        this.outgoingVersion = 29;
+        this.defaultVersion = 14; // Paltalk 8 server uses version 14
     }
 
     /**
@@ -31,10 +31,11 @@ class PacketSender {
                 payload = Buffer.from(payload);
             }
 
-            // Create packet header
+            // Create packet header - use client's version if detected, else default
+            const version = socket.clientVersion || this.defaultVersion;
             const header = Buffer.alloc(6);
             header.writeInt16BE(packetType, 0);
-            header.writeInt16BE(this.outgoingVersion, 2);
+            header.writeInt16BE(version, 2);
             header.writeUInt16BE(payload.length, 4);
 
             // Combine header and payload

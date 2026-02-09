@@ -2831,6 +2831,21 @@ class PacketProcessor {
 
         sendPacket(socket, 0x0136, joinBuffer, socket.id);
 
+        // Send admin granted packet if user is joining as admin
+        if (isAdmin) {
+            const adminGrantedBuffer = Buffer.from(roomIdHex, 'hex');
+            sendPacket(socket, PACKET_TYPES.ROOM_ADMIN_GRANTED, adminGrantedBuffer, socket.id);
+
+            logger.debug('Sent admin granted packet', {
+                roomId: room.id,
+                roomName: room.name,
+                userId: user.uid,
+                nickname: user.nickname,
+                packetType: '0x0370',
+                payload: roomIdHex
+            });
+        }
+
         // Send welcome messages
         this.sendRoomMessage(socket, room.id, room.getWelcomeMessage());
         this.sendRoomMessage(socket, room.id, `${user.nickname}, welcome to the room ${room.name}.`);

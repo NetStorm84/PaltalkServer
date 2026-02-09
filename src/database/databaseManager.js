@@ -241,7 +241,7 @@ class DatabaseManager {
 
     /**
      * Get user by UID
-     * @param {number} uid 
+     * @param {number} uid
      * @returns {Promise<Object|null>}
      */
     async getUserByUid(uid) {

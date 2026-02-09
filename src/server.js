@@ -5,6 +5,9 @@
 require('dotenv').config();
 
 const net = require('net');
+const tls = require('tls');
+const fs = require('fs');
+const path = require('path');
 const process = require('process');
 const logger = require('./utils/logger');
 const { SERVER_CONFIG } = require('./config/constants');
@@ -17,6 +20,8 @@ const MediaServer = require('./voice/mediaServer');
 
 // Network components
 const Room = require('./models/Room');
+const { sendPacket } = require('./network/packetSender');
+const { PACKET_TYPES } = require('../PacketHeaders');
 
 class PaltalkServer {
     constructor() {
@@ -29,7 +34,7 @@ class PaltalkServer {
         // Connection tracking and management
         this.connectionBuffers = new Map(); // connectionId -> Buffer
         this.connectionMetrics = new Map(); // connectionId -> metrics
-        this.maxConnectionsPerIP = 20; // Increased from 10 to handle reconnection loops
+        this.maxConnectionsPerIP = 100; // Increased for Paltalk 8 testing
         this.ipConnections = new Map(); // IP -> count
         
         // Graceful shutdown handling
@@ -134,14 +139,23 @@ class PaltalkServer {
     }
 
     /**
-     * Start the chat server
+     * Start the chat server (plain TCP with raw data logging)
      */
     async startChatServer() {
         return new Promise((resolve, reject) => {
-            logger.info('💬 Starting chat server...');
+            logger.info('💬 Starting chat server (plain TCP)...');
 
             this.chatServer = net.createServer(socket => {
                 this.handleNewChatConnection(socket);
+
+                // Paltalk 8: Server sends greeting first
+                // Server uses version 14 regardless of client version (based on real server pcap)
+                socket.clientVersion = 14;
+
+                // Send HELLO packet immediately after connection
+                logger.info('Sending initial HELLO packet', { version: 14, remoteAddress: socket.remoteAddress });
+                const helloPayload = Buffer.from('Hello-From:PaLTALK');
+                sendPacket(socket, PACKET_TYPES.HELLO, helloPayload, socket.connectionId || 'init');
             });
 
             this.chatServer.listen(SERVER_CONFIG.CHAT_PORT, SERVER_CONFIG.SERVER_IP, () => {
@@ -190,6 +204,14 @@ class PaltalkServer {
                 const payloadLength = receiveBuffer.readUInt16BE(4);
                 const totalPacketLength = 6 + payloadLength;
 
+                // Store client version for response packets (detect Paltalk 5 vs 8)
+                // Update from client's actual packet version (overrides initial default)
+                if (!socket.clientVersionDetected) {
+                    socket.clientVersionDetected = true;
+                    socket.clientVersion = version;
+                    logger.info(`Client version detected: ${version} (Paltalk ${version === 29 ? '5' : version === 86 ? '8' : 'unknown'})`, { connectionId: socket.connectionId });
+                }
+
                 // Check if we have the complete packet
                 if (receiveBuffer.length < totalPacketLength) {
                     break; // Wait for more data
@@ -197,7 +219,24 @@ class PaltalkServer {
 
                 // Extract payload
                 const payload = receiveBuffer.slice(6, totalPacketLength);
-                
+
+                // Log received packet
+                const user = serverState.getUserBySocketId(socket.connectionId);
+                const clientInfo = user ? {
+                    nickname: user.nickname || 'Unknown',
+                    name: (user.firstName || '') + ' ' + (user.lastName || ''),
+                    userId: user.uid,
+                    isAuthenticated: true,
+                    ipAddress: socket.remoteAddress || 'Unknown'
+                } : {
+                    nickname: 'Unauthenticated',
+                    name: 'Unknown User',
+                    userId: null,
+                    isAuthenticated: false,
+                    ipAddress: socket.remoteAddress || 'Unknown'
+                };
+                logger.logPacketReceived(packetType, payload, socket.connectionId, clientInfo);
+
                 // Process packet with error handling
                 try {
                     this.packetProcessor.processPacket(socket, packetType, payload);
@@ -564,25 +603,25 @@ class PaltalkServer {
             });
 
             socket.on('error', (error) => {
-                logger.error('Chat socket error', error, { 
-                    connectionId, 
+                logger.error('Chat socket error', error, {
+                    connectionId,
                     socketId: socket.id,
-                    userFound: serverState.getUserBySocketId(socket.id) ? true : false 
+                    userFound: serverState.getUserBySocketId(socket.id) ? true : false
                 });
                 this.cleanupConnection(socket);
             });
 
             socket.on('close', () => {
-                logger.debug('Chat connection closed', { 
+                logger.info('Chat connection closed', {
                     connectionId,
                     socketId: socket.id,
-                    userFound: serverState.getUserBySocketId(socket.id) ? true : false 
+                    userFound: serverState.getUserBySocketId(socket.id) ? true : false
                 });
                 this.cleanupConnection(socket);
             });
 
             socket.on('end', () => {
-                logger.debug('Chat connection ended', { 
+                logger.info('Chat connection ended', { 
                     connectionId,
                     socketId: socket.id,
                     userFound: serverState.getUserBySocketId(socket.id) ? true : false 

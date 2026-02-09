@@ -8,6 +8,7 @@ const PACKET_TYPES = {
     UIN_RESPONSE: 0x046B,
     LYMERICK: -1130,
     REDIRECT: -1143,
+    REDIRECT_SERVER: -119,  // Paltalk 8 redirect to another server (contains IP + port)
     SERVER_KEY: 0x0474,
     LOGIN: -1148,
     LOGOUT: -3000,  // User logout packet
@@ -90,7 +91,15 @@ const PACKET_TYPES = {
     PACKET_ROOM_USER_STOPPED_SPEAKING: 0x0181,
     ROOM_MEDIA_SERVER_ACK: 0x013C,
     ECHO: 0x0837,
-    ECHO_RESPONSE: -2103
+    ECHO_RESPONSE: -2103,
+    ROOM_ADMIN_GRANTED: 0x0370,  // Server confirms admin status with group ID
+
+    // Paltalk 8 specific packets
+    PALTALK8_INIT: -2123,      // Sent after login, contains initialization data
+    PALTALK8_STATUS: -2100,    // Status/heartbeat packet
+    PALTALK8_GUID: -2128,      // Contains client GUID
+    PALTALK8_READY: -101,      // Client ready signal
+    PALTALK8_SYNC: -1500       // Sync request
 };
 
 module.exports = { PACKET_TYPES };
